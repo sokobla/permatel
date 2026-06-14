@@ -1,0 +1,92 @@
+version: '3.8'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PERMATEL — Docker Compose
+#
+# Toutes les valeurs sensibles (credentials, secrets) sont lues depuis le
+# fichier .env à la racine du projet.
+# Ne jamais committer le .env — utiliser .env.example comme référence.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Base de données PostgreSQL ──────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: permatel_db
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-permatel_db}
+      POSTGRES_USER:     ${POSTGRES_USER:-permatel_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-permatel_pass}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - permatel_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-permatel_user} -d ${POSTGRES_DB:-permatel_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend Flask ───────────────────────────────────────────────────────────
+  backend:
+    build: ./backend
+    container_name: permatel_backend
+    environment:
+      # Chaîne de connexion construite depuis les variables individuelles
+      DATABASE_URL:   postgresql://${POSTGRES_USER:-permatel_user}:${POSTGRES_PASSWORD:-permatel_pass}@db:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-permatel_db}
+      # JWT — NE JAMAIS hardcoder cette valeur
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      # Flask
+      FLASK_APP:  ${FLASK_APP:-app}
+      FLASK_ENV:  ${FLASK_ENV:-development}
+      APP_NAME:   ${APP_NAME:-PERMATEL API}
+      APP_VERSION: ${APP_VERSION:-1.0.0}
+      PORT:       ${PORT:-5000}
+      # Timeouts JWT / sessions
+      JWT_ACCESS_TOKEN_EXPIRES_MINUTES:  ${JWT_ACCESS_TOKEN_EXPIRES_MINUTES:-15}
+      JWT_REFRESH_TOKEN_EXPIRES_DAYS:    ${JWT_REFRESH_TOKEN_EXPIRES_DAYS:-7}
+      SESSION_INACTIVITY_TIMEOUT_MINUTES: ${SESSION_INACTIVITY_TIMEOUT_MINUTES:-30}
+      # Configuration des uploads d'avatar
+      ALLOWED_AVATAR_EXTENSIONS: ${ALLOWED_AVATAR_EXTENSIONS:-.png,.jpg,.jpeg,.gif,.webp}
+      MAX_AVATAR_SIZE_MB: ${MAX_AVATAR_SIZE_MB:-2}
+      # CORS
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+    volumes:
+      - ./backend:/app
+    ports:
+      - "${PORT:-5000}:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - permatel_network
+    restart: unless-stopped
+    mem_limit: 2g
+
+  # ── Frontend Vue 3 / Vite ───────────────────────────────────────────────────
+  frontend:
+    build: ./frontend
+    container_name: permatel_frontend
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:5000/api}
+    volumes:
+      # Monte le code source local pour le hot-reloading
+      - ./frontend:/app
+      # "Masque" le node_modules local pour utiliser celui du conteneur (plus robuste)
+      - /app/node_modules
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    networks:
+      - permatel_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  permatel_network:
+    driver: bridge

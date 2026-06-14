@@ -1,0 +1,36 @@
+/* Assuming fonts are linked in index.html or loaded via a service like Google Fonts */
+/* @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&family=Fira+Sans:wght@400;600&display=swap'); */
+
+:root {
+  /* Colors */
+  --surface-base: #F2F2F2;
+  --surface-container-lowest: #FFFFFF;
+  --surface-container-high: #EEEEEE;
+  --primary: #000B23;
+  --primary-container: #15223A;
+  --on-primary: #FFFFFF;
+  --secondary: #00A8A8;
+  --tertiary-container: #E74C3C;
+  --tertiary-fixed-variant: #910807;
+  --outline-variant: #C5C6CE;
+  --on-surface: #000B23;
+
+  /* Typography */
+  --font-family-sans: 'Fira Sans', sans-serif;
+  --font-family-mono: 'Fira Code', monospace;
+
+  /* Elevation */
+  --shadow-ambient: 0px 10px 20px rgba(0, 11, 35, 0.04);
+
+  /* Radius */
+  --radius-md: 8px;
+}
+
+body {
+  font-family: var(--font-family-sans);
+  background-color: var(--surface-base);
+  color: var(--on-surface);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
