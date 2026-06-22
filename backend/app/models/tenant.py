@@ -15,7 +15,16 @@ class Tenant(Base):
     code = Column(String(50), unique=True, nullable=False, index=True)
     nom = Column(String(200), nullable=False)
     slug = Column(String(100), unique=True, nullable=True)
+    logo_url = Column(String(255), nullable=True)
+    support_email = Column(String(255), nullable=True)  # destinataire « Contacter le support »
     is_active = Column(Boolean, default=True, nullable=False)
+
+    # Canaux métier activés (pilotage par l'admin global). SMTP reste toujours
+    # actif (envoi système) indépendamment de ces toggles. Voir
+    # app/services/tenant_features.py pour la dérivation des disponibilités.
+    channel_telephonie = Column(Boolean, default=False, nullable=False)
+    channel_email = Column(Boolean, default=False, nullable=False)
+    channel_chat = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

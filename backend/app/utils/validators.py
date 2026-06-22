@@ -8,11 +8,30 @@ ALLOWED_AVATAR_EXTENSIONS = {".png", ".jpg", ".jpeg", ".svg", ".webp"}
 ALLOWED_URL_SCHEMES = {"http", "https"}
 CONTACT_TYPES = {"agent_securite", "autre"}
 
+# Politique de mot de passe — NIST 800-63B : on privilégie la LONGUEUR, sans
+# règles de composition imposées. Source unique pour TOUS les points d'entrée
+# (création, réinitialisation, acceptation d'invitation, CLI super-admin).
+PASSWORD_MIN_LENGTH = 12
+
 
 def is_valid_email(value):
     if not isinstance(value, str):
         return False
     return bool(EMAIL_REGEX.match(value.strip()))
+
+
+def email_error(value):
+    """Message d'erreur si l'email (non vide) est invalide, sinon None."""
+    if value and not is_valid_email(value):
+        return "Format d'email invalide."
+    return None
+
+
+def password_error(value):
+    """Message d'erreur si le mot de passe est trop court, sinon None."""
+    if not value or len(value) < PASSWORD_MIN_LENGTH:
+        return f"Le mot de passe doit comporter au moins {PASSWORD_MIN_LENGTH} caractères."
+    return None
 
 
 def is_valid_phone(value):

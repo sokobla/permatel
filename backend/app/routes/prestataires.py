@@ -33,6 +33,7 @@ from app.models.agent_securite import AgentSecurite
 from app.models.user import UserRole
 from app.utils.decorators import tenant_required
 from app.utils.auth import role_required
+from app.utils.validators import email_error
 from app.utils.logger import get_logger
 
 prestataires_bp = Blueprint("prestataires", __name__, url_prefix="/api/prestataires")
@@ -246,8 +247,9 @@ def create_prestataire():
     ville = payload["ville"].strip()
     telephone = payload["telephone"].strip()
     email = (payload.get("email") or "").strip() or None
-    if email and not '@' in email:
-        return jsonify({"error": "Format d'email invalide."}), 400
+    err = email_error(email)
+    if err:
+        return jsonify({"error": err}), 400
 
     code = (payload.get("code") or "").strip() or None
 
@@ -343,7 +345,9 @@ def update_prestataire(prestataire_id):
     if "telephone" in payload: p.telephone = payload["telephone"]
     if "email" in payload:
         email = (payload["email"] or "").strip() or None
-        if email and not '@' in email: return jsonify({"error": "Format d'email invalide."}), 400
+        err = email_error(email)
+        if err:
+            return jsonify({"error": err}), 400
         p.email = email
 
     if "code" in payload:

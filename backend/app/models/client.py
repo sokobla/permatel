@@ -22,6 +22,7 @@ class Client(Base):
     code_postal = Column(String(20), nullable=True)
     telephone = Column(String(20), nullable=True)
     email = Column(String(100), nullable=True)
+    siret = Column(String(14), nullable=True)
     contact_principal = Column(String(100), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

@@ -12,8 +12,8 @@ class SessionStatus(enum.Enum):
     ACTIVE = "active"
     PAUSED = "paused"
     ENDED = "ended"
-    EXPIRED = "EXPIRED"
-    REVOKED = "REVOKED"
+    EXPIRED = "expired"
+    REVOKED = "revoked"
 
 class UserSession(Base):
     __tablename__ = 'user_sessions'

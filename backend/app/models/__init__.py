@@ -13,7 +13,6 @@ from .demande import (
     StatutDemande,
     PrioriteDemande,
     NatureAnomalie,
-    EquipementConcerne,
     TypeCommande,
     TypeModificationPlanning,
     CategorieAdmin,
@@ -28,8 +27,12 @@ from .token_blocklist import TokenBlocklist
 from .user_session import UserSession, SessionStatus
 from .telephony_event import TelephonyEvent, EventType
 from .tenant import Tenant
-from .tenant_user import TenantUser
+from .tenant_user import TenantUser, MEMBERSHIP_ADMIN, MEMBERSHIP_MEMBER
+from .tenant_invitation import TenantInvitation
 from .prestataire import Prestataire
+from .setting import SmtpSetting, ReferenceValue
+from .email import Email
+from .email_attachment import EmailAttachment
 
 
 __all__ = [

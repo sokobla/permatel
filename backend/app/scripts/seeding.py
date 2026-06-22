@@ -1,190 +1,143 @@
+"""
+Seeding PERMATEL — amorce unique.
+
+Une seule amorce est configurée : un tenant « Root » et un utilisateur
+administrateur global. Aucune donnée de démonstration, aucune fixture.
+
+  flask seed     -> (ré)amorce Root + admin global (idempotent)
+  flask init-db  -> crée le schéma si besoin puis amorce Root + admin
+
+Le helper `seed_reference_values` reste disponible : il est appelé à la
+création d'un tenant (route POST /api/tenants) pour pré-remplir ses valeurs de
+référence par défaut. Il ne fait pas partie de l'amorce de démarrage.
+"""
 import click
 
-from app.models.user import User, UserRole
-from app.models.tenant import Tenant
 
-USERS_SEED = [
-    {
-        "username": "admin",
-        "email": "admin@permatel.ma",
-        "password": "Admin123!",
-        "nom": "Alaoui",
-        "prenom": "Karim",
-        "role": UserRole.ADMIN,
-        "telephone": "+212600000001",
-        "agent_login": None,
-        "station_extension": None,
-        "is_active": True,
-    },
-    {
-        "username": "manager",
-        "email": "manager@permatel.ma",
-        "password": "Manager123!",
-        "nom": "Benali",
-        "prenom": "Sara",
-        "role": UserRole.MANAGER,
-        "telephone": "+212600000002",
-        "agent_login": None,
-        "station_extension": None,
-        "is_active": True,
-    },
-    {
-        "username": "permanencier",
-        "email": "permanencier@permatel.ma",
-        "password": "Perm123!",
-        "nom": "Idrissi",
-        "prenom": "Youssef",
-        "role": UserRole.PERMANENCIER,
-        "telephone": "+212600000003",
-        "agent_login": "yidrissi",
-        "station_extension": "101",
-        "is_active": True,
-    },
-]
-
-SEED_TENANT = {
-    "code": "ADM-SEC",
-    "nom": "ADM Sécurité",
-    "slug": "adm-securite",
+# ─────────────────────────────────────────────────────────────────────────────
+#  Amorce unique : tenant Root + administrateur global
+# ─────────────────────────────────────────────────────────────────────────────
+ROOT_TENANT = {"code": "ROOT", "nom": "Root", "slug": "root"}
+ROOT_ADMIN = {
+    # username = email (bascule globale de l'identifiant)
+    "username": "adm_root@permatel.local",
+    "email": "adm_root@permatel.local",
+    "password": "admin123!",
+    "nom": "Root",
+    "prenom": "Admin",
 }
 
-SEED_USERS_FULL = [
-    {
-        "username": "adm_admin",
-        "email": "adm.admin@permatel.ma",
-        "password": "Admin123!",
-        "nom": "Alaoui",
-        "prenom": "Karim",
-        "role": UserRole.ADMIN,
-        "telephone": "+212610000001",
-        "agent_login": None,
-        "station_extension": None,
-        "is_active": True,
-    },
-    {
-        "username": "adm_manager",
-        "email": "adm.manager@permatel.ma",
-        "password": "Manager123!",
-        "nom": "Benali",
-        "prenom": "Sara",
-        "role": UserRole.MANAGER,
-        "telephone": "+212610000002",
-        "agent_login": None,
-        "station_extension": None,
-        "is_active": True,
-    },
-    {
-        "username": "adm_perm",
-        "email": "adm.perm@permatel.ma",
-        "password": "Perm123!",
-        "nom": "Idrissi",
-        "prenom": "Youssef",
-        "role": UserRole.PERMANENCIER,
-        "telephone": "+212610000003",
-        "agent_login": "yidrissi",
-        "station_extension": "201",
-        "is_active": True,
-    },
-]
 
+def seed_root(db) -> dict:
+    """
+    Amorce minimale et idempotente :
+      - 1 tenant « Root » (code ROOT) ;
+      - 1 administrateur global (role ADMIN) username/email adm_root@permatel.local.
 
-def seed_standalone_users(db):
-    """Insere les utilisateurs de test (admin, manager, permanencier) sans tenant."""
-    click.echo("=" * 55)
-    click.echo("  PERMATEL -- Seed utilisateurs (sans tenant)")
-    click.echo("=" * 55)
-    created = 0
-    skipped = 0
-    for data in USERS_SEED:
-        existing = User.query.filter_by(username=data["username"]).first()
-        if existing:
-            click.echo(
-                f"  --  {data['username']:<15} [{data['role'].value}]"
-                f"  -> deja existant, ignore"
-            )
-            skipped += 1
-            continue
-        user = User(**{k: v for k, v in data.items() if k != "password"})
-        user.set_password(data["password"])
-        db.session.add(user)
-        click.echo(
-            f"  OK  {data['username']:<15} [{data['role'].value}]"
-            f"  -> cree (mdp: {data['password']})"
+    L'admin global accède à tous les tenants : aucune appartenance n'est créée.
+    Relance sans effet si les entités existent déjà.
+    """
+    from app.models.tenant import Tenant
+    from app.models.user import User, UserRole
+
+    click.echo("=" * 60)
+    click.echo("  PERMATEL -- Amorce unique (tenant Root + admin global)")
+    click.echo("=" * 60)
+
+    result = {"tenant_created": False, "admin_created": False}
+
+    tenant = Tenant.query.filter_by(code=ROOT_TENANT["code"]).first()
+    if tenant:
+        click.echo(f"  --  Tenant '{ROOT_TENANT['nom']}' déjà présent.")
+    else:
+        tenant = Tenant(**ROOT_TENANT, is_active=True)
+        db.session.add(tenant)
+        db.session.flush()
+        result["tenant_created"] = True
+        click.echo(f"  OK  Tenant '{ROOT_TENANT['nom']}' créé (id={tenant.id}).")
+
+    admin = User.query.filter_by(username=ROOT_ADMIN["username"]).first()
+    if admin:
+        click.echo(f"  --  Admin '{ROOT_ADMIN['username']}' déjà présent.")
+    else:
+        admin = User(
+            username=ROOT_ADMIN["username"],
+            email=ROOT_ADMIN["email"],
+            nom=ROOT_ADMIN["nom"],
+            prenom=ROOT_ADMIN["prenom"],
+            role=UserRole.ADMIN,
+            is_active=True,
         )
-        created += 1
+        admin.set_password(ROOT_ADMIN["password"])
+        db.session.add(admin)
+        db.session.flush()
+        result["admin_created"] = True
+        click.echo(f"  OK  Admin global '{ROOT_ADMIN['username']}' créé.")
+
     db.session.commit()
-    click.echo("=" * 55)
-    click.echo(f"  Resultat : {created} cree(s), {skipped} ignore(s)")
-    click.echo("=" * 55)
+    click.echo("-" * 60)
+    click.echo(f"  Connexion : {ROOT_ADMIN['username']} / {ROOT_ADMIN['password']}")
+    click.echo("  Pensez à changer le mot de passe après la première connexion.")
+    click.echo("=" * 60)
+    return result
 
 
-def seed_full_tenant_and_users(db):
-    from sqlalchemy.exc import ProgrammingError
+# ─────────────────────────────────────────────────────────────────────────────
+#  Valeurs de référence par défaut (par tenant) — utilisé à la création de tenant
+# ─────────────────────────────────────────────────────────────────────────────
+# Chaque entrée = (code, label). `code` est None pour les familles à libellés
+# libres ; il vaut la clé d'enum backend pour les familles couplées à la logique.
+DEFAULT_REFERENCE_VALUES = {
+    "nature_anomalie": [
+        ("anj", "Absence non justifiée (ANJ)"), ("absence_justifiee", "Absence justifiée"),
+        ("retard_prise_service", "Retard prise de service"), ("agent_non_sur_site", "Agent non sur site"),
+        ("doublon_planning", "Doublon planning"), ("remplacement_permutation", "Remplacement / permutation"),
+        ("modification_vacation", "Modification vacation"), ("probleme_technique", "Problème technique"),
+        ("site_prestataire_injoignable", "Site / prestataire injoignable"), ("blocage_outil_rh", "Blocage outil / RH"),
+        ("demande_de_renfort", "Demande de renfort"), ("anomalie_facturation", "Anomalie facturation"),
+        ("autre", "Autre"),
+    ],
+    "statut_demande": [
+        ("nouvelle", "Nouvelle"), ("en_cours", "En cours"), ("en_attente", "En attente"),
+        ("resolue", "Résolue"), ("cloturee", "Clôturée"), ("annulee", "Annulée"),
+    ],
+    "type_mission": [
+        ("gardiennage", "Gardiennage"), ("surveillance_mobile", "Surveillance mobile"),
+        ("rondes", "Rondes"), ("intervention", "Intervention"), ("filtrage", "Filtrage"),
+        ("protection_rapprochee", "Protection rapprochée"), ("accueil_securite", "Accueil sécurité"),
+        ("autre", "Autre"),
+    ],
+    # Familles à libellés libres (code = None) : la valeur stockée est le libellé.
+    "moyens_acces": [(None, x) for x in ["Clé", "Digicode", "Badge magnétique", "Interphone", "Accès libre", "Autre"]],
+    "risques_specifiques": [(None, x) for x in ["Vol", "Intrusion", "Incendie", "Vandalisme", "Conflit social", "Risque terroriste"]],
+    "besoins_agents": [(None, x) for x in ["Tenue fournie", "Formation SSIAP", "Habilitation électrique", "Maîtrise anglais", "Permis B", "Agent APS qualifié", "Autre"]],
+}
+
+
+def seed_reference_values(db, tenant_id) -> int:
     """
-    Cree le tenant 'ADM Securite' et 3 comptes (ADMIN, MANAGER, PERMANENCIER).
-    Chaque compte est lie au tenant. Idempotent : ne cree pas de doublon.
+    Insère les valeurs de référence par défaut manquantes pour un tenant et
+    complète les `code` absents sur les valeurs existantes. Idempotent.
     """
-    click.echo("=" * 60)
-    click.echo("  PERMATEL -- Seed complet (tenant + utilisateurs)")
-    click.echo("=" * 60)
-    try:
-        tenant = Tenant.query.filter_by(code=SEED_TENANT["code"]).first()
-        if tenant:
-            click.echo(
-                f"  --  Tenant '{SEED_TENANT['nom']}' ({SEED_TENANT['code']})"
-                f"  -> deja existant, reutilise"
-            )
-        else:
-            tenant = Tenant(**SEED_TENANT, is_active=True)
-            db.session.add(tenant)
-            db.session.flush()
-            click.echo(
-                f"  OK  Tenant '{SEED_TENANT['nom']}' ({SEED_TENANT['code']})"
-                f"  -> cree (id={tenant.id})"
-            )
-        created = 0
-        skipped = 0
-        for data in SEED_USERS_FULL:
-            existing = User.query.filter_by(username=data["username"]).first()
-            if existing:
-                if tenant not in existing.tenants:
-                    existing.tenants.append(tenant)
-                    click.echo(
-                        f"  --  {data['username']:<15} [{data['role'].value}]"
-                        f"  -> existant, tenant ajoute"
-                    )
-                else:
-                    click.echo(
-                        f"  --  {data['username']:<15} [{data['role'].value}]"
-                        f"  -> deja existant et lie, ignore"
-                    )
-                skipped += 1
+    from app.models.setting import ReferenceValue
+
+    created = 0
+    for family, entries in DEFAULT_REFERENCE_VALUES.items():
+        existing = {
+            r.label: r for r in ReferenceValue.query.filter_by(
+                tenant_id=tenant_id, family=family
+            ).all()
+        }
+        for pos, (code, label) in enumerate(entries):
+            if label in existing:
+                row = existing[label]
+                if code and not row.code:  # backfill du code manquant
+                    row.code = code
                 continue
-            user = User(**{k: v for k, v in data.items() if k != "password"})
-            user.set_password(data["password"])
-            user.tenants.append(tenant)
-            db.session.add(user)
-            click.echo(
-                f"  OK  {data['username']:<15} [{data['role'].value}]"
-                f"  -> cree et lie au tenant (mdp: {data['password']})"
-            )
+            db.session.add(ReferenceValue(
+                tenant_id=tenant_id, family=family, label=label,
+                code=code, position=pos, is_active=True,
+            ))
             created += 1
-        db.session.commit()
-        click.echo("=" * 60)
-        click.echo(f"  Resultat : {created} cree(s), {skipped} ignore(s)")
-        click.echo("")
-        click.echo("  Comptes disponibles :")
-        click.echo(f"    adm_admin   / Admin123!    [ADMIN]")
-        click.echo(f"    adm_manager / Manager123!  [MANAGER]")
-        click.echo(f"    adm_perm    / Perm123!     [PERMANENCIER]")
-        click.echo(f"  Tenant : ADM Securite ({SEED_TENANT['code']})")
-        click.echo("=" * 60)
-    except ProgrammingError as e:
-        db.session.rollback()
-        click.secho(
-            "\n  AVERTISSEMENT: Impossible d'exécuter le seeding. La base de données n'est probablement pas à jour.",
-            fg="yellow",
-        )
-        click.echo(f"  Erreur: {e.orig}")
-        click.echo("  -> Exécutez 'flask db upgrade' et réessayez.\n")
-        return
+    db.session.flush()
+    return created

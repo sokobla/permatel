@@ -12,6 +12,7 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 from app import db
 from app.models import User, UserRole
 from app.utils.auth import role_required
+from app.utils.validators import password_error, email_error
 
 users_bp = Blueprint("users", __name__, url_prefix="/api/users")
 logger = logging.getLogger(__name__)
@@ -86,8 +87,6 @@ def _parse_user_request():
     """
     data = {}
     avatar_file = None
-    print("Content-Type de la requête :", request.content_type)  # Debug du Content-Type
-    print("Données brutes de la requête :", request.data)  # Debug des données brutes
     try:
         if request.content_type.startswith('multipart/form-data'):
             payload_str = request.form.get('data')
@@ -142,7 +141,9 @@ def list_users():
     sort_by = request.args.get('sort_by', 'id', type=str)
     sort_order = request.args.get('sort_order', 'asc', type=str)
 
-    query = User.query
+    # Les super-admins globaux (role ADMIN) ne sont jamais gérés via cette API
+    # (réservés à la CLI `flask superadmin`).
+    query = User.query.filter(User.role != UserRole.ADMIN)
 
     # Filtre de recherche sur plusieurs champs
     if search:
@@ -202,7 +203,8 @@ def create_user():
 
     if error:
         return error
-    required_fields = ["username", "email", "nom", "prenom", "role", "password"]
+    # username = email (bascule globale) : le champ username n'est plus demandé.
+    required_fields = ["email", "nom", "prenom", "role", "password"]
     missing_fields = [field for field in required_fields if not data.get(field)]
 
     if missing_fields:
@@ -211,17 +213,32 @@ def create_user():
             "missing_fields": missing_fields
         }), 400
 
-    username = data["username"].strip()
     email = data["email"].strip().lower()
-    if User.query.filter_by(username=username).first():
-        return jsonify({"message": "Nom d'utilisateur déjà utilisé"}), 409
+    username = email
+    err = email_error(email)
+    if err:
+        return jsonify({"message": err}), 400
     if User.query.filter_by(email=email).first():
         return jsonify({"message": "Email déjà utilisé"}), 409
+
+    # Politique de mot de passe (SEC-01) — appliquée dès la création.
+    pwd_err = password_error(data.get("password"))
+    if pwd_err:
+        return jsonify({"message": pwd_err}), 400
 
     try:
         role = UserRole(data["role"])
     except ValueError:
         return jsonify({"message": "Rôle invalide"}), 400
+
+    if role == UserRole.ADMIN:
+        return jsonify({"message": "Le rôle ADMIN (super-admin global) se gère via la CLI `flask superadmin`, pas via cette interface."}), 403
+
+    # Anti-lockout : un utilisateur non-admin doit être rattaché à ≥1 tenant,
+    # sinon il ne pourra jamais se connecter (login bloque les standards sans tenant).
+    tenant_ids = data.get("tenant_ids", []) or []
+    if role != UserRole.ADMIN and not tenant_ids:
+        return jsonify({"message": "Au moins un tenant est requis pour un utilisateur non-administrateur."}), 400
 
     user = User(
         username=username,
@@ -253,12 +270,19 @@ def create_user():
             logger.error(f"Erreur lors de la sauvegarde de l'avatar pour la création d'utilisateur : {e}")
             return jsonify({"message": "Erreur interne lors de la sauvegarde de l'avatar."}), 500
 
-    tenant_ids = data.get("tenant_ids", [])
     if tenant_ids:
-        # Hypothèse: la relation User.tenants est déjà fonctionnelle via secondary=tenant_users
         from app.models import Tenant
-        tenants = Tenant.query.filter(Tenant.id.in_(tenant_ids)).all()
-        user.tenants = tenants
+        from app.models.tenant_user import TenantUser, MEMBERSHIP_MEMBER
+        tenants = Tenant.query.filter(Tenant.id.in_(tenant_ids), Tenant.is_active.is_(True)).all()
+        if len(tenants) != len(set(tenant_ids)):
+            db.session.rollback()
+            return jsonify({"message": "Un ou plusieurs tenants sont introuvables ou inactifs."}), 400
+        # Liaisons explicites (membership_role + is_active maîtrisés).
+        for t in tenants:
+            db.session.add(TenantUser(
+                tenant_id=t.id, user_id=user.id,
+                membership_role=MEMBERSHIP_MEMBER, is_active=True,
+            ))
 
     db.session.commit()
 
@@ -276,6 +300,8 @@ def update_user(user_id):
     user = db.session.get(User, user_id)
     if not user:
         return jsonify({"message": "Utilisateur introuvable"}), 404
+    if user.role == UserRole.ADMIN:
+        return jsonify({"message": "Compte super-admin global — gestion réservée à la CLI `flask superadmin`."}), 403
 
     data, avatar_file, error = _parse_user_request()
     if error:
@@ -289,10 +315,14 @@ def update_user(user_id):
 
     if "email" in data:
         email = data["email"].strip().lower()
+        err = email_error(email)
+        if err:
+            return jsonify({"message": err}), 400
         existing = User.query.filter(User.email == email, User.id != user.id).first()
         if existing:
             return jsonify({"message": "Email déjà utilisé"}), 409
         user.email = email
+        user.username = email  # username = email (bascule globale)
 
     if "nom" in data:
         user.nom = data["nom"].strip()
@@ -314,9 +344,12 @@ def update_user(user_id):
 
     if "role" in data:
         try:
-            user.role = UserRole(data["role"])
+            new_role = UserRole(data["role"])
         except ValueError:
             return jsonify({"message": "Rôle invalide"}), 400
+        if new_role == UserRole.ADMIN:
+            return jsonify({"message": "Impossible d'attribuer le rôle ADMIN via cette interface (utiliser la CLI `flask superadmin`)."}), 403
+        user.role = new_role
 
     if avatar_file:
         try:
@@ -336,9 +369,32 @@ def update_user(user_id):
 
     if "tenant_ids" in data:
         from app.models import Tenant
+        from app.models.tenant_user import TenantUser, MEMBERSHIP_MEMBER
         tenant_ids = data.get("tenant_ids") or []
-        tenants = Tenant.query.filter(Tenant.id.in_(tenant_ids)).all() if tenant_ids else []
-        user.tenants = tenants
+
+        # Anti-lockout : un non-admin doit conserver ≥1 tenant.
+        if user.role != UserRole.ADMIN and not tenant_ids:
+            return jsonify({"message": "Au moins un tenant est requis pour un utilisateur non-administrateur."}), 400
+
+        tenants = (
+            Tenant.query.filter(Tenant.id.in_(tenant_ids), Tenant.is_active.is_(True)).all()
+            if tenant_ids else []
+        )
+        if len(tenants) != len(set(tenant_ids)):
+            return jsonify({"message": "Un ou plusieurs tenants sont introuvables ou inactifs."}), 400
+
+        # Réconciliation des appartenances en préservant membership_role des liaisons conservées.
+        existing = {m.tenant_id: m for m in TenantUser.query.filter_by(user_id=user.id).all()}
+        target_ids = {t.id for t in tenants}
+        for tid, m in existing.items():
+            if tid not in target_ids:
+                db.session.delete(m)
+        for t in tenants:
+            if t.id not in existing:
+                db.session.add(TenantUser(
+                    tenant_id=t.id, user_id=user.id,
+                    membership_role=MEMBERSHIP_MEMBER, is_active=True,
+                ))
 
     user.updated_at = datetime.utcnow()
 
@@ -358,6 +414,8 @@ def update_user_status(user_id):
     user = db.session.get(User, user_id)
     if not user:
         return jsonify({"message": "Utilisateur introuvable"}), 404
+    if user.role == UserRole.ADMIN:
+        return jsonify({"message": "Compte super-admin global — gestion réservée à la CLI `flask superadmin`."}), 403
 
     payload = request.get_json(silent=True) or {}
 
@@ -392,8 +450,9 @@ def update_password(user_id):
     new_password = payload.get("new_password")
     old_password = payload.get("old_password")
 
-    if not new_password or len(new_password) < 8:
-        return jsonify({"message": "Le nouveau mot de passe doit contenir au moins 8 caractères"}), 400
+    pwd_err = password_error(new_password)
+    if pwd_err:
+        return jsonify({"message": pwd_err}), 400
 
     if current_user.role != UserRole.ADMIN or current_user.id == user.id:
         if not old_password or not user.check_password(old_password):
@@ -417,6 +476,8 @@ def delete_user(user_id):
     user = db.session.get(User, user_id)
     if not user:
         return jsonify({"message": "Utilisateur introuvable"}), 404
+    if user.role == UserRole.ADMIN:
+        return jsonify({"message": "Compte super-admin global — suppression réservée à la CLI `flask superadmin`."}), 403
 
     if current_user.id == user.id:
         return jsonify({"message": "Suppression de son propre compte interdite"}), 400

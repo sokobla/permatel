@@ -9,9 +9,19 @@ if env_path.exists():
     load_dotenv(dotenv_path=env_path)
 
 
+def _as_bool(value, default=False):
+    if value is None:
+        return default
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
 class BaseConfig:
     DEBUG = False
     TESTING = False
+    # Environnement d'exécution (piloté par .env : FLASK_ENV)
+    FLASK_ENV = os.getenv("FLASK_ENV", "development").lower()
+    # Applique automatiquement les migrations au démarrage si la base existe
+    AUTO_MIGRATE = _as_bool(os.getenv("AUTO_MIGRATE"), default=True)
     PORT = int(os.getenv("PORT", 5000))
     VERSION = os.getenv("APP_VERSION", "1.0.0")
     BINDADDR = os.getenv("BINDADDR", "0.0.0.0")
@@ -22,13 +32,22 @@ class BaseConfig:
         minutes=int(os.environ.get("JWT_ACCESS_TOKEN_EXPIRES_MINUTES", 15))
     )
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(
-        days=int(os.environ.get("JWT_REFRESH_TOKEN_EXPIRES_DAYS", 7))
+        days=int(os.environ.get("JWT_REFRESH_TOKEN_EXPIRES_DAYS", 1))
     )
     # Active la vérification blocklist dans le callback @jwt.token_in_blocklist_loader
     JWT_BLACKLIST_ENABLED = True
+    # Clé de chiffrement des secrets applicatifs (mot de passe SMTP…).
+    # À défaut, dérivée de JWT_SECRET_KEY. Définir une valeur dédiée en production.
+    SETTINGS_ENCRYPTION_KEY = os.environ.get("SETTINGS_ENCRYPTION_KEY")
+    # Adresse support de repli (si aucun tenant ne définit support_email)
+    SUPPORT_EMAIL = os.environ.get("SUPPORT_EMAIL")
     SESSION_INACTIVITY_TIMEOUT = int(
         os.environ.get("SESSION_INACTIVITY_TIMEOUT_MINUTES", 30)
     )
+    # Anti-brute-force /auth/login (verrouillage temporaire)
+    LOGIN_MAX_ATTEMPTS = int(os.environ.get("LOGIN_MAX_ATTEMPTS", 5))
+    LOGIN_WINDOW_MINUTES = int(os.environ.get("LOGIN_WINDOW_MINUTES", 15))
+    LOGIN_LOCKOUT_MINUTES = int(os.environ.get("LOGIN_LOCKOUT_MINUTES", 15))
     
     # Base de données PostgreSQL
     DB_USER = os.environ.get('DB_USER', 'postgres')
@@ -47,6 +66,12 @@ class BaseConfig:
     
     # CORS
     CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'http://localhost:8080').split(',')
+
+    # URL publique du frontend (liens d'invitation d'onboarding).
+    FRONTEND_BASE_URL = os.environ.get(
+        'FRONTEND_BASE_URL',
+        (CORS_ORIGINS[0].strip() if CORS_ORIGINS else 'http://localhost:8080'),
+    )
     
     # Upload fichiers
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')

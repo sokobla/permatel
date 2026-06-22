@@ -1,92 +1,233 @@
-version: '3.8'
-
-# ─────────────────────────────────────────────────────────────────────────────
-# PERMATEL — Docker Compose
+# ═════════════════════════════════════════════════════════════════════════════
+# PERMATEL — Stack de déploiement (production)
 #
-# Toutes les valeurs sensibles (credentials, secrets) sont lues depuis le
-# fichier .env à la racine du projet.
-# Ne jamais committer le .env — utiliser .env.example comme référence.
-# ─────────────────────────────────────────────────────────────────────────────
+# Sécurité / robustesse :
+#   - secrets obligatoires (échec au démarrage si absents),
+#   - DB et backend NON exposés sur l'hôte (réseau interne) ; seul le frontend
+#     publie un port et proxifie /api et /uploads vers le backend,
+#   - utilisateurs non-root, no-new-privileges, limites mémoire/CPU/PIDs,
+#     rotation des logs, healthchecks et redémarrage automatique.
+#
+# Pré-requis : un fichier .env à la racine (voir .env.example).
+#   docker compose up -d --build
+# ═════════════════════════════════════════════════════════════════════════════
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
 
-  # ── Base de données PostgreSQL ──────────────────────────────────────────────
+  # ── PostgreSQL (interne, non exposé) ────────────────────────────────────────
   db:
     image: postgres:15-alpine
     container_name: permatel_db
     environment:
-      POSTGRES_DB:       ${POSTGRES_DB:-permatel_db}
-      POSTGRES_USER:     ${POSTGRES_USER:-permatel_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-permatel_pass}
+      POSTGRES_DB:       ${POSTGRES_DB:?POSTGRES_DB requis dans .env}
+      POSTGRES_USER:     ${POSTGRES_USER:?POSTGRES_USER requis dans .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requis dans .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
     networks:
-      - permatel_network
+      - permatel_internal
     restart: unless-stopped
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 200
+    logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-permatel_user} -d ${POSTGRES_DB:-permatel_db}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # ── Backend Flask ───────────────────────────────────────────────────────────
+  # ── Backend Flask / Gunicorn (interne) ──────────────────────────────────────
   backend:
-    build: ./backend
+    build:
+      context: ./backend
     container_name: permatel_backend
+    env_file:
+      - .env
     environment:
-      # Chaîne de connexion construite depuis les variables individuelles
-      DATABASE_URL:   postgresql://${POSTGRES_USER:-permatel_user}:${POSTGRES_PASSWORD:-permatel_pass}@db:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-permatel_db}
-      # JWT — NE JAMAIS hardcoder cette valeur
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
-      # Flask
-      FLASK_APP:  ${FLASK_APP:-app}
-      FLASK_ENV:  ${FLASK_ENV:-development}
-      APP_NAME:   ${APP_NAME:-PERMATEL API}
-      APP_VERSION: ${APP_VERSION:-1.0.0}
-      PORT:       ${PORT:-5000}
-      # Timeouts JWT / sessions
-      JWT_ACCESS_TOKEN_EXPIRES_MINUTES:  ${JWT_ACCESS_TOKEN_EXPIRES_MINUTES:-15}
-      JWT_REFRESH_TOKEN_EXPIRES_DAYS:    ${JWT_REFRESH_TOKEN_EXPIRES_DAYS:-7}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      JWT_SECRET_KEY:          ${JWT_SECRET_KEY:?JWT_SECRET_KEY requis dans .env}
+      SETTINGS_ENCRYPTION_KEY: ${SETTINGS_ENCRYPTION_KEY:?SETTINGS_ENCRYPTION_KEY requis dans .env}
+      FLASK_ENV:   production
+      AUTO_MIGRATE: "false"            # migrations jouées par l'entrypoint
+      APP_NAME:    ${APP_NAME:-PERMATEL API}
+      APP_VERSION: ${APP_VERSION:-1.4.0}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost}
+      JWT_ACCESS_TOKEN_EXPIRES_MINUTES:   ${JWT_ACCESS_TOKEN_EXPIRES_MINUTES:-15}
+      JWT_REFRESH_TOKEN_EXPIRES_DAYS:     ${JWT_REFRESH_TOKEN_EXPIRES_DAYS:-1}
       SESSION_INACTIVITY_TIMEOUT_MINUTES: ${SESSION_INACTIVITY_TIMEOUT_MINUTES:-30}
-      # Configuration des uploads d'avatar
-      ALLOWED_AVATAR_EXTENSIONS: ${ALLOWED_AVATAR_EXTENSIONS:-.png,.jpg,.jpeg,.gif,.webp}
-      MAX_AVATAR_SIZE_MB: ${MAX_AVATAR_SIZE_MB:-2}
-      # CORS
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
     volumes:
-      - ./backend:/app
-    ports:
-      - "${PORT:-5000}:5000"
+      - backend_uploads:/app/app/uploads
+    networks:
+      - permatel_internal
     depends_on:
       db:
         condition: service_healthy
-    networks:
-      - permatel_network
     restart: unless-stopped
-    mem_limit: 2g
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    mem_limit: 1g
+    cpus: 1.5
+    pids_limit: 400
+    logging: *default-logging
 
-  # ── Frontend Vue 3 / Vite ───────────────────────────────────────────────────
+  # ── Frontend Nginx (interne — exposé via Traefik) ───────────────────────────
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_APP_NAME:    ${VITE_APP_NAME:-PERMATEL}
+        VITE_APP_VERSION: ${APP_VERSION:-1.4.0}
     container_name: permatel_frontend
-    environment:
-      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:5000/api}
-    volumes:
-      # Monte le code source local pour le hot-reloading
-      - ./frontend:/app
-      # "Masque" le node_modules local pour utiliser celui du conteneur (plus robuste)
-      - /app/node_modules
+    # Port publié pour le mode SANS Traefik (TLS géré autrement).
+    # Par défaut bind sur 127.0.0.1 (non exposé sur Internet) ; mettre
+    # FRONTEND_BIND=0.0.0.0 si votre proxy/LB tourne sur un autre hôte.
     ports:
-      - "${FRONTEND_PORT:-5173}:5173"
+      - "${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_PORT:-8080}:8080"
     networks:
-      - permatel_network
+      - permatel_internal
+    depends_on:
+      backend:
+        condition: service_started
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 100
+    logging: *default-logging
+    labels:
+      - "traefik.enable=true"
+      # ── Routeur principal (HTTPS) ─────────────────────────────────────────
+      - "traefik.http.routers.permatel.rule=Host(`${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.permatel.entrypoints=websecure"
+      - "traefik.http.routers.permatel.tls=true"
+      - "traefik.http.routers.permatel.tls.certresolver=le"
+      - "traefik.http.routers.permatel.tls.options=default@file"
+      - "traefik.http.routers.permatel.middlewares=permatel-sec@docker,permatel-ratelimit@docker,permatel-inflight@docker,permatel-buffer@docker"
+      - "traefik.http.services.permatel.loadbalancer.server.port=8080"
+      # ── Routeur dédié au login : limite stricte anti-brute-force (edge) ────
+      - "traefik.http.routers.permatel-auth.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/api/auth/login`)"
+      - "traefik.http.routers.permatel-auth.entrypoints=websecure"
+      - "traefik.http.routers.permatel-auth.tls=true"
+      - "traefik.http.routers.permatel-auth.tls.certresolver=le"
+      - "traefik.http.routers.permatel-auth.tls.options=default@file"
+      - "traefik.http.routers.permatel-auth.middlewares=permatel-sec@docker,permatel-authlimit@docker"
+      # ── Middleware : en-têtes de sécurité (HSTS, anti-clickjacking…) ───────
+      - "traefik.http.middlewares.permatel-sec.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.permatel-sec.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.permatel-sec.headers.stsPreload=true"
+      - "traefik.http.middlewares.permatel-sec.headers.forceSTSHeader=true"
+      - "traefik.http.middlewares.permatel-sec.headers.frameDeny=true"
+      - "traefik.http.middlewares.permatel-sec.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.permatel-sec.headers.browserXssFilter=true"
+      - "traefik.http.middlewares.permatel-sec.headers.referrerPolicy=strict-origin-when-cross-origin"
+      - "traefik.http.middlewares.permatel-sec.headers.permissionsPolicy=geolocation=(), microphone=(), camera=()"
+      # Masque les en-têtes révélateurs (anti-fuite d'info)
+      - "traefik.http.middlewares.permatel-sec.headers.customResponseHeaders.Server="
+      - "traefik.http.middlewares.permatel-sec.headers.customResponseHeaders.X-Powered-By="
+      # ── Middleware : limite de débit globale (anti-DoS) ───────────────────
+      - "traefik.http.middlewares.permatel-ratelimit.ratelimit.average=100"
+      - "traefik.http.middlewares.permatel-ratelimit.ratelimit.burst=50"
+      - "traefik.http.middlewares.permatel-ratelimit.ratelimit.period=1s"
+      # ── Middleware : requêtes concurrentes max (anti-DoS) ─────────────────
+      - "traefik.http.middlewares.permatel-inflight.inflightreq.amount=100"
+      # ── Middleware : taille max du corps (anti-abus / slow body) ──────────
+      - "traefik.http.middlewares.permatel-buffer.buffering.maxRequestBodyBytes=20971520"
+      - "traefik.http.middlewares.permatel-buffer.buffering.memRequestBodyBytes=2097152"
+      # ── Middleware : limite stricte sur le login (5/min) ──────────────────
+      - "traefik.http.middlewares.permatel-authlimit.ratelimit.average=5"
+      - "traefik.http.middlewares.permatel-authlimit.ratelimit.burst=10"
+      - "traefik.http.middlewares.permatel-authlimit.ratelimit.period=1m"
+
+  # ── Reverse-proxy Traefik (TLS, anti-DoS, anti-fuite) ────────────────────────
+  # ACTIVABLE/DÉSACTIVABLE via le profil "proxy" :
+  #   • activé   → COMPOSE_PROFILES=proxy (défaut .env) : Traefik gère le TLS (80/443).
+  #   • désactivé→ COMPOSE_PROFILES vide : Traefik ne démarre pas ; le frontend est
+  #                joignable sur FRONTEND_BIND:FRONTEND_PORT (gérez le TLS autrement).
+  traefik:
+    image: traefik:v3.2
+    container_name: permatel_traefik
+    profiles: ["proxy"]
+    command:
+      - "--global.checknewversion=false"
+      - "--global.sendanonymoususage=false"
+      - "--api.dashboard=false"
+      - "--api.insecure=false"
+      - "--ping=true"
+      - "--log.level=INFO"
+      - "--accesslog=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=permatel_internal"
+      - "--providers.file.filename=/etc/traefik/dynamic.yml"
+      - "--providers.file.watch=true"
+      # Entrypoint HTTP → redirection permanente vers HTTPS
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
+      - "--entrypoints.web.transport.respondingtimeouts.readtimeout=15s"
+      # Entrypoint HTTPS + timeouts (mitige slowloris)
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.websecure.transport.respondingtimeouts.readtimeout=15s"
+      - "--entrypoints.websecure.transport.respondingtimeouts.writetimeout=30s"
+      - "--entrypoints.websecure.transport.respondingtimeouts.idletimeout=60s"
+      # ACME / Let's Encrypt (challenge HTTP)
+      - "--certificatesresolvers.le.acme.email=${ACME_EMAIL:-admin@example.com}"
+      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.le.acme.httpchallenge=true"
+      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - traefik_letsencrypt:/letsencrypt
+    networks:
+      - permatel_internal
+    depends_on:
+      frontend:
+        condition: service_started
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 200
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 volumes:
   postgres_data:
+  backend_uploads:
+  traefik_letsencrypt:
 
 networks:
-  permatel_network:
+  permatel_internal:
     driver: bridge

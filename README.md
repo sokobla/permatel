@@ -1,8 +1,42 @@
 # PERMATEL - Gestion Intégrée de Demandes et Sessions
 
-**Version** : 1.1.0  
-**Dernière mise à jour** : 23 mai 2026  
-**Statut** : Backend 70% ✅ / Frontend 40% ✅ | **Tests** : 160 ✅
+**Version** : 1.4.0  
+**Dernière mise à jour** : 22 juin 2026  
+**Statut** : Backend ✅ / Frontend ✅ | **Tests** : 160 ✅
+
+### Changelog v1.4.0 (22 juin 2026)
+- 🏢 **Multi-tenant complet** :
+  - **Super-admin global** (rôle `ADMIN`) : accès à **tous** les tenants ; **admin de tenant** (`tenant_users.membership_role='admin'`) : périmètre limité à son tenant.
+  - **Écran de sélection de tenant** (`/select-tenant`) : standard mono-tenant connecté directement, ≥2 tenants ou admin → choix ; **sélecteur de bascule** dans l'app-bar (reset d'état au switch).
+  - `tenant_required` v2 (bypass super-admin), `tenant_admin_required`, `GET /api/auth/tenants`.
+- ✉️ **Onboarding par invitation** (admin de tenant) : `tenant_invitations` (token hashé, TTL 48h, usage unique) + acceptation publique `/accept-invite` ; gestion du **roster** via `/api/tenant/members` et `/api/tenant/invitations`.
+- 🆔 **Bascule identifiant = email** : `username = email` partout (connexion par email ou username).
+- 🔀 **Canaux métier par tenant** (`channel_telephonie/email/chat`, pilotés par l'admin global dans **Tenants**) → visibilité des onglets Workspace (**MAIL**/**CHAT**) et sections de config (IMAP/Intégrations) dérivées par `GET /api/tenant/features`. SMTP **toujours actif**. **Délégation** de la configuration du tenant (SMTP/IMAP/références/intégrations) à l'**admin de tenant**.
+- 📊 **KPI agents discriminants** : nature d'anomalie marquable **discriminante** par tenant (`reference_values.is_discriminant`). **« Incidents agent »** (anomalies discriminantes ou impact sécurité → impactent le **score** 0–100) vs **« Anomalies »** (toutes). Fiche agent + **dashboard « Agents »** (Rapports). Endpoints `/api/agents/<id>/kpis`, `/api/agents/kpis`.
+- 🔐 **Chiffrement du contenu des emails** (objet/corps/HTML) + **pièces jointes** au repos (Fernet) ; **rendu HTML** sanitisé (DOMPurify) à la lecture.
+- 🌱 **Seeding unique** : tenant **Root** + **admin global** (`adm_root@permatel.local`). CLI `seed` simplifiée ; **`flask superadmin`** (list/create/promote/demote/reset-password/disable/enable) — les super-admins ne sont plus gérables via l'UI ni `/api/users`.
+- 🔑 Variables d'env : `SETTINGS_ENCRYPTION_KEY`, `SUPPORT_EMAIL`, `LOGIN_*`, `FRONTEND_BASE_URL`. Retrait de `SEED_ON_STARTUP`/`SEEDING_ENABLED`.
+
+### Changelog v1.3.0 (21 juin 2026)
+- 📧 **Module Mail complet** : canal Mail du Workspace.
+  - **Envoi** vers contacts enregistrés via SMTP tenant, avec **Cc** et **pièces jointes**.
+  - **Réception** (IMAP polling, worker `flask mail-fetch` / cron) : collecte par tenant, dédup, matching contact, **boîte de triage** (Reçus / Non lus / Envoyés / Archivés).
+  - **Traitement** : lecture, réponse threadée, archivage, **conversion en demande** (nouvelle ou existante) créant une **interaction** de suivi.
+  - **KPI Email** (onglet Reports) : envoyés/reçus, taux d'échec, **taux & délai de réponse**, sans réponse, volume par utilisateur.
+- ⚙️ **Paramètres système** (`SettingsView`, ADMIN) : onglets **Général** (nom, logo, email support), **SMTP**, **IMAP**, **Valeurs de référence** (CRUD éditable), **Intégrations** (Slack/Téléphonie inactives).
+- 🆘 **Contacter le support** branché : endpoint public `/api/support` → email vers le `support_email` du tenant.
+- 🔐 Secrets SMTP/IMAP **chiffrés** (Fernet). Anti‑brute‑force login déjà en place.
+- 🧰 Nouvelles commandes CLI : `seed-prod`, `seed-refvalues`, `sessions-sweep`, `mail-fetch`, `seed-export`.
+
+### Changelog v1.2.0 (20 juin 2026)
+- 🔐 **Gestion des sessions** : tâche de fond d'expiration + purge blocklist (`flask sessions-sweep` / `backend/scripts/sessions_sweep.py` cron), anti-brute-force sur `/auth/login`, révocation à distance, KPI de sessions.
+- 🖥️ **Supervision** : nouvelle vue `/supervision` (STAFF) avec monitoring des sessions du tenant et révocation ; auto-logout d'inactivité côté client (modale d'avertissement).
+- 🛡️ **RBAC** : menu filtré par rôle, suppression masquée pour le PERMANENCIER, routes protégées par `meta.roles`.
+- 🏢 **Tenants** : vue d'administration `/tenants` (ADMIN), `logo_url` (upload + miniature + app-bar).
+- 💬 **Interactions** : champ `contact_id`, composant réutilisable `ContactSelectWithAdd` pour tous les sélecteurs de contact.
+- 📊 **Rapports** : onglet « Sessions » (KPI avec infobulles, filtre par utilisateur), sélection libre de plage de dates (daterange).
+- ♻️ **Seeding** : fichier unique `app/scripts/seed_data.json` rechargé au premier démarrage en dev (piloté par `.env`).
+- 🔧 **Config** : refresh token ramené à 24 h ; nom d'app paramétrable (`VITE_APP_NAME`) ; footer général (copyright + nom + version).
 
 ### Changelog v1.1.0 (23 mai 2026)
 - **MISE À JOUR MAJEURE** : Audit complet du projet révèle un état plus avancé que documenté
@@ -243,9 +277,22 @@ npm install
 ```bash
 cd backend
 
-flask db init
-flask db migrate -m "initial migration"
-flask db upgrade
+# Appliquer les migrations (gère les têtes multiples)
+flask db upgrade heads
+```
+
+Si la base est vide au premier démarrage, le schéma est créé puis une **amorce
+unique** est appliquée : tenant **Root** + **admin global** `adm_root@permatel.local`
+(aucune donnée de démonstration). `AUTO_MIGRATE` applique les migrations en attente
+si la base existe déjà.
+
+Commandes utiles :
+
+```bash
+flask init-db          # crée le schéma puis amorce Root + admin global (si BD vide)
+flask seed             # amorce unique : tenant Root + admin global (idempotent)
+flask sessions-sweep   # expire les sessions inactives + purge la blocklist
+flask superadmin list  # gestion des super-admins (create/promote/demote…)
 ```
 
 ---
@@ -263,8 +310,25 @@ flask db upgrade
 | `DATABASE_URL` | URL PostgreSQL | `postgresql://...` |
 | `UPLOAD_FOLDER` | Dossier des fichiers | `./uploads` |
 | `CORS_ORIGINS` | Origines autorisées | `["http://localhost:8080"]` |
-| `JWT_ACCESS_TOKEN_EXPIRES` | Expiration access token | `900` |
-| `JWT_REFRESH_TOKEN_EXPIRES` | Expiration refresh token | `2592000` |
+| `JWT_ACCESS_TOKEN_EXPIRES_MINUTES` | Expiration access token (min) | `15` |
+| `JWT_REFRESH_TOKEN_EXPIRES_DAYS` | Expiration refresh token (jours) | `1` |
+| `SESSION_INACTIVITY_TIMEOUT_MINUTES` | Délai d'inactivité avant expiration | `30` |
+| `AUTO_MIGRATE` | Applique les migrations au démarrage si BD existante | `true` |
+| `SETTINGS_ENCRYPTION_KEY` | Clé Fernet — chiffrement SMTP/IMAP + contenu emails + PJ (⚠ stable & secrète ; défaut = `JWT_SECRET_KEY`) | `<hex 64>` |
+| `SUPPORT_EMAIL` | Destinataire support de repli (si tenant sans `support_email`) | `support@…` |
+| `FRONTEND_BASE_URL` | URL publique du frontend (liens d'invitation) | `http://localhost:8080` |
+| `LOGIN_MAX_ATTEMPTS` | Tentatives avant verrouillage `/auth/login` | `5` |
+| `LOGIN_WINDOW_MINUTES` | Fenêtre glissante des tentatives | `15` |
+| `LOGIN_LOCKOUT_MINUTES` | Durée du verrouillage | `15` |
+
+**Frontend (`frontend/.env`, préfixe `VITE_`)** :
+
+| Variable | Description | Exemple |
+|----------|-------------|---------|
+| `VITE_API_BASE_URL` | URL de l'API | `http://localhost:5000/api` |
+| `VITE_APP_NAME` | Nom de l'application (menu, footer) | `PERMATEL` |
+| `VITE_APP_VERSION` | Version affichée | `1.0.0` |
+| `VITE_INACTIVITY_TIMEOUT_MINUTES` | Auto-logout client (= timeout serveur) | `30` |
 
 ### Paramètres multi-tenant
 
@@ -292,13 +356,19 @@ cd frontend
 npm run serve
 ```
 
-### Mode Docker
+### Mode Docker (production)
+
+La stack Compose est **orientée production** (Nginx + Gunicorn, durcie). Voir la section
+[Déploiement](#-déploiement-production) pour la procédure complète (secrets, cron, admin global).
 
 ```bash
-docker-compose up -d
-docker-compose logs -f backend
-docker-compose down
+cp .env.example .env   # puis renseigner les secrets (voir Déploiement)
+docker compose up -d --build
+docker compose logs -f backend
+docker compose down
 ```
+
+> Le développement courant se fait **hors Docker** (`flask run` + `npm run serve`) pour le hot-reload.
 
 ### Tests
 
@@ -377,6 +447,17 @@ Content-Type: application/json
 }
 ```
 
+#### Sessions
+
+| Méthode | URL | Rôle | Description |
+|---------|-----|------|-------------|
+| GET | `/api/auth/sessions` | JWT | Sessions de l'utilisateur courant |
+| GET | `/api/auth/sessions/monitoring` | STAFF | Sessions du tenant actif (supervision) |
+| DELETE | `/api/auth/sessions/:id` | propriétaire / STAFF | Révoque une session (blocklist refresh + statut `revoked`) |
+| GET | `/api/auth/sessions/stats` | STAFF | KPI de sessions (`?from=&to=&user_id=`) ; ADMIN = tous tenants, MANAGER = tenant actif |
+
+> Anti-brute-force : `/api/auth/login` renvoie `429 + Retry-After` après `LOGIN_MAX_ATTEMPTS` échecs (verrouillage `LOGIN_LOCKOUT_MINUTES`).
+
 ### Utilisateurs - `/api/users`
 
 Les utilisateurs sont **globaux** dans le système, mais leur accès métier dépend de leurs appartenances dans `tenant_users`.
@@ -397,6 +478,61 @@ Tous ces endpoints deviennent **tenant-scopés** :
 Les agents de sécurité sont gérés dans le tenant actif avec deux cas :
 - agent **interne**
 - agent **prestataire**
+
+### Tenants - `/api/tenants`
+
+CRUD des tenants (réservé **ADMIN** en écriture). Création/édition acceptent du `multipart/form-data` (`data` JSON + `logo`) pour téléverser le **logo** (`logo_url`). La suppression est bloquée (`409`) si des utilisateurs y sont encore rattachés.
+
+### Interactions - `/api/interactions`
+
+Création d'interactions de suivi sur une demande. Accepte un `contact_id` optionnel (contact concerné). Le suivi est aussi listé par `GET /api/demandes/:id/interactions`.
+
+### Mail - `/api/emails`
+
+| Méthode | URL | Description |
+|---------|-----|-------------|
+| POST | `/api/emails` | Envoi (JSON ou multipart) : `to`/`to_contact_id`, `cc`, `subject`, `body`, `reply_to?`, `attachments?`, `demande_id?` |
+| GET | `/api/emails?direction=&contact_id=&demande_id=` | Liste (sortants/entrants) |
+| GET | `/api/emails/:id` | Détail (+ pièces jointes) |
+| PATCH | `/api/emails/:id` | Statut (non_lu/lu/traite/archive/spam), rattachement |
+| POST | `/api/emails/:id/link-demande` | Rattache à une demande + crée une interaction EMAIL |
+| GET | `/api/emails/:id/attachments/:aid/download` | Téléchargement authentifié |
+| GET | `/api/emails/stats?from=&to=&user_id=` | KPI Email (envoi + réception + réactivité) |
+
+### Paramètres - `/api/settings` (ADMIN en écriture)
+
+| Méthode | URL | Description |
+|---------|-----|-------------|
+| GET/PUT | `/api/settings/smtp` · POST `/smtp/test` | Config envoi SMTP (+ test) |
+| GET/PUT | `/api/settings/imap` · POST `/imap/test` | Config réception IMAP (+ test) |
+| GET/POST/PUT/DELETE | `/api/settings/reference-values` | CRUD des valeurs métier (`?family=`) |
+
+### Support - `/api/support` (public)
+
+`POST /api/support` — formulaire « Contacter le support » (pré‑auth). Résout le tenant via l'email émetteur → envoie au `support_email` du tenant (repli `SUPPORT_EMAIL`).
+
+---
+
+## 🧰 Commandes CLI (Flask)
+
+```bash
+flask init-db          # crée le schéma si BD vide puis amorce Root + admin global
+flask seed             # amorce unique : tenant Root + admin global (idempotent)
+flask sessions-sweep   # expire les sessions inactives + purge la blocklist
+flask mail-fetch       # relève les emails entrants (IMAP) des tenants activés
+
+# Gestion des super-admins globaux (rôle ADMIN — hors UI / hors /api/users)
+flask superadmin list
+flask superadmin create  --email a@b.com --nom Doe --prenom John
+flask superadmin promote a@b.com
+flask superadmin demote  a@b.com [--to MANAGER|PERMANENCIER]
+flask superadmin reset-password a@b.com
+flask superadmin disable a@b.com   # / enable
+```
+
+> Amorce par défaut : tenant **Root** + admin global **`adm_root@permatel.local`** (mot de passe `admin123!`, à changer). Aucune donnée de démonstration.
+
+Scripts cron correspondants : `backend/scripts/sessions_sweep.py`, `backend/scripts/mail_fetch.py`.
 
 ---
 
@@ -426,25 +562,119 @@ Les fixtures de test doivent inclure au minimum :
 
 ---
 
-## 🐳 Déploiement
+## 🐳 Déploiement (production)
 
-### Principes
+La stack de production est définie dans [`docker-compose.yml`](docker-compose.yml). Elle est **durcie** :
 
-Le déploiement reste basé sur Docker Compose pour les environnements simples.  
-L'évolution multi-tenant n'impose pas de changement d'infrastructure majeur, mais nécessite :
+- **Reverse-proxy Traefik en edge** (seul service exposé, ports **80/443**) : **TLS automatique** Let's Encrypt (redirection HTTP→HTTPS, HSTS), options TLS strictes (TLS 1.2+, `sniStrict`, ciphers modernes — [`traefik/dynamic.yml`](traefik/dynamic.yml)).
+- **Anti-DoS** : limite de débit globale (100 req/s, burst 50), **login limité à 5/min** au niveau edge (complète l'anti-brute-force applicatif), plafond de **requêtes concurrentes**, **timeouts** (mitige slowloris), taille de corps bornée (20 Mo).
+- **Anti-fuite de données** : en-têtes de sécurité (HSTS, `frameDeny`, `nosniff`, Referrer/Permissions-Policy), suppression des en-têtes `Server`/`X-Powered-By`, `exposedByDefault=false` (Traefik n'expose que les services labellisés), **dashboard Traefik désactivé**, `docker.sock` monté **en lecture seule**.
+- **Frontend Nginx, backend et base sur réseau interne** (jamais publiés). Nginx proxifie `/api` et `/uploads` (**same-origin**). Backend **Gunicorn**, images **multi-stage**, conteneurs **non-root**, `no-new-privileges`, **limites** mémoire/CPU/PIDs, **logs** rotés, **healthchecks**, frontend **read-only**.
+- **Secrets obligatoires** : le démarrage échoue si `POSTGRES_PASSWORD`, `JWT_SECRET_KEY`, `SETTINGS_ENCRYPTION_KEY` ou `ACME_EMAIL` sont absents.
 
-- migrations Alembic ordonnées,
-- backfill des données existantes vers un tenant par défaut,
-- mise à jour des tests et seeds,
-- surveillance des performances sur les index `tenant_id`.
+### 1. Préparer le `.env`
 
-### Sécurité
+Copier le template puis générer des secrets forts :
 
-À prévoir en complément :
-- permissions par rôle **et** par tenant,
-- journalisation des changements de tenant actif,
-- durcissement des contrôles d'accès,
-- étude d'une activation future de **Row-Level Security PostgreSQL**.
+```bash
+cp .env.example .env
+
+# Secrets (à coller dans .env)
+python -c "import secrets; print('JWT_SECRET_KEY=' + secrets.token_hex(64))"
+python -c "import secrets; print('SETTINGS_ENCRYPTION_KEY=' + secrets.token_hex(32))"
+```
+
+Renseigner au minimum : `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `JWT_SECRET_KEY`,
+`SETTINGS_ENCRYPTION_KEY`, **`DOMAIN`** (FQDN public), **`ACME_EMAIL`** (Let's Encrypt),
+`CORS_ORIGINS` et `FRONTEND_BASE_URL` (= `https://<DOMAIN>`). ⚠️ `SETTINGS_ENCRYPTION_KEY`
+doit rester **stable** : la changer rend illisibles les données chiffrées (SMTP/IMAP,
+contenu des emails, pièces jointes).
+
+> **Prérequis TLS** : un enregistrement DNS **A/AAAA** de `DOMAIN` doit pointer vers l'hôte,
+> et les ports **80 et 443** doivent être accessibles (challenge ACME + HTTPS).
+
+#### Activer / désactiver le reverse-proxy TLS
+
+Le reverse-proxy Traefik est piloté par un **profil Compose** (`COMPOSE_PROFILES` dans `.env`) :
+
+| Mode | `.env` | Comportement |
+|------|--------|--------------|
+| **TLS géré par Traefik** (défaut) | `COMPOSE_PROFILES=proxy` | Traefik démarre, expose **80/443**, certificat Let's Encrypt automatique. `DOMAIN` + `ACME_EMAIL` requis. |
+| **TLS géré autrement** | `COMPOSE_PROFILES=` (vide) | Traefik **ne démarre pas**. Le frontend est publié sur `FRONTEND_BIND:FRONTEND_PORT` (défaut `127.0.0.1:8080`) — branchez-y votre proxy/LB/terminaison TLS. Mettre `FRONTEND_BIND=0.0.0.0` si le LB est sur un autre hôte. |
+
+```bash
+# Mode sans Traefik (TLS externe) :
+#   COMPOSE_PROFILES=        dans .env
+docker compose up -d --build           # db + backend + frontend, sans Traefik
+# → le frontend écoute sur http://127.0.0.1:8080 (à placer derrière votre proxy)
+```
+
+### 2. Démarrer
+
+```bash
+docker compose up -d --build
+docker compose ps
+docker compose logs -f backend
+```
+
+Au premier démarrage, l'entrypoint backend **attend la base**, **applique les migrations**
+(`flask db upgrade heads`) puis **amorce** le tenant **Root** + l'**admin global**
+`adm_root@permatel.local` (mot de passe `admin123!`). L'application est ensuite disponible
+sur **`https://<DOMAIN>`** (certificat Let's Encrypt émis au premier accès ; HTTP redirigé vers HTTPS).
+
+### 3. Première connexion & admin global
+
+```bash
+# Se connecter avec adm_root@permatel.local / admin123! puis changer le mot de passe :
+docker compose exec backend flask superadmin reset-password adm_root@permatel.local
+
+# Gérer les super-admins (non gérables via l'UI ni /api/users)
+docker compose exec backend flask superadmin list
+docker compose exec backend flask superadmin create --email ops@exemple.com --nom Ops --prenom Admin
+docker compose exec backend flask superadmin demote ops@exemple.com --to MANAGER
+docker compose exec backend flask superadmin disable ops@exemple.com   # / enable
+```
+
+> Les **tenants** et leurs **canaux** (Téléphonie / Email / Chat) se gèrent ensuite dans l'UI
+> (menu **Tenants**, admin global). Chaque **admin de tenant** configure son tenant
+> (SMTP/IMAP/valeurs de référence/intégrations) et invite ses utilisateurs (menu **Membres**).
+
+### 4. Tâches planifiées (cron)
+
+Deux tâches doivent tourner périodiquement. Via le planificateur de l'hôte (`crontab -e`) :
+
+```cron
+# Expiration des sessions inactives + purge de la blocklist — toutes les 15 min
+*/15 * * * * docker compose -f /chemin/permatel/docker-compose.yml exec -T backend flask sessions-sweep >> /var/log/permatel-sweep.log 2>&1
+
+# Collecte IMAP des emails entrants (tenants à réception activée) — toutes les 5 min
+*/5  * * * * docker compose -f /chemin/permatel/docker-compose.yml exec -T backend flask mail-fetch  >> /var/log/permatel-mailfetch.log 2>&1
+```
+
+Équivalents hors Docker : `backend/scripts/sessions_sweep.py` et `backend/scripts/mail_fetch.py`
+(à lancer dans le venv backend). La synchronisation manuelle est aussi possible depuis le
+canal **Mail** du Workspace (bouton **Synchroniser**).
+
+### 5. Mise à jour / sauvegarde
+
+```bash
+# Mise à jour (les migrations sont rejouées par l'entrypoint, idempotent)
+git pull && docker compose up -d --build
+
+# Sauvegarde de la base
+docker compose exec -T db pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > backup_$(date +%F).sql
+
+# Volumes persistants : postgres_data (BD) et backend_uploads (avatars, PJ chiffrées)
+```
+
+### Bonnes pratiques sécurité (production)
+- **TLS** géré par Traefik (Let's Encrypt). Ouvrir uniquement **80/443** sur le pare-feu de l'hôte ; tous les autres services sont internes.
+- **DoS** : ajuster les seuils des middlewares (`permatel-ratelimit`, `permatel-authlimit`, `permatel-inflight`) selon la charge réelle ; envisager un WAF/CDN (Cloudflare…) en amont pour le volumétrique (L3/L4).
+- **`docker.sock`** : monté en lecture seule ; pour un durcissement supplémentaire, interposer un **docker-socket-proxy** (expose uniquement l'API conteneurs en lecture).
+- Restreindre `CORS_ORIGINS` à l'URL HTTPS publique réelle.
+- Sauvegarder **`SETTINGS_ENCRYPTION_KEY`** dans un gestionnaire de secrets (perte = données chiffrées irrécupérables).
+- Sauvegardes régulières de `postgres_data` et `backend_uploads` (le volume `traefik_letsencrypt` contient les certificats).
+- Évolution envisagée : **Row-Level Security PostgreSQL** en complément de l'isolation applicative par `tenant_id`.
 
 ---
 
@@ -501,7 +731,7 @@ permatel/
 | Table | Rôle |
 |-------|------|
 | `users` | Utilisateurs globaux |
-| `tenants` | Entités propriétaires |
+| `tenants` | Entités propriétaires (+ `logo_url`) |
 | `tenant_users` | Appartenances utilisateurs ↔ tenants |
 
 ### Tables tenant-scopées
@@ -514,7 +744,7 @@ permatel/
 | `contacts` | Porte `tenant_id` |
 | `agents_securite` | Porte `tenant_id` + `prestataire_id` nullable, relation composite |
 | `demandes` | Porte `tenant_id`, relations composites avec clients et sites |
-| `interactions` | Porte `tenant_id`, relation composite avec demande |
+| `interactions` | Porte `tenant_id`, relation composite avec demande, `contact_id` nullable |
 | `fichiers` | Porte `tenant_id`, relation composite avec demande |
 | `audit_logs` | Porte `tenant_id` |
 | `user_sessions` | Porte `tenant_id` ou contexte actif selon implémentation |

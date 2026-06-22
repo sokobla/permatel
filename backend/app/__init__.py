@@ -61,22 +61,25 @@ def create_app(config_object=None):
         from . import seeding
 
     # --- Initialisation automatique de la base de données au démarrage ---
-    # Cette logique s'exécute à chaque démarrage de l'application.
-    # Elle est idempotente : elle crée la DB si elle n'existe pas, ou la met à jour si elle existe.
+    # - Base vide (1er démarrage) : création du schéma + amorce unique (Root + admin global).
+    # - Base existante : application des migrations en attente (si AUTO_MIGRATE).
     with app.app_context():
         inspector = inspect(db.engine)
-        if not inspector.has_table('alembic_version'):
-            app.logger.info("Création de la base de données à partir de zéro...")
+        db_is_empty = not inspector.has_table('alembic_version')
+
+        if db_is_empty:
+            app.logger.info("Base vide — création du schéma à partir des modèles...")
             db.create_all()
-            stamp()  # Marque la base comme à jour avec les migrations
-            app.logger.info("Insertion des données initiales (seeding)...")
-            seeding.seed_full_tenant_and_users(db)
+            stamp(revision='heads')  # Marque la base comme à jour avec les migrations
+            app.logger.info("Premier démarrage — amorce unique (tenant Root + admin global)...")
+            seeding.seed_root(db)
             app.logger.info("Initialisation de la base de données terminée.")
         else:
-            app.logger.info("Base de données existante. Application des migrations et du seeding...")
-            upgrade()
-            seeding.seed_full_tenant_and_users(db)
-            app.logger.info("Mise à jour de la base de données terminée.")
+            if app.config.get("AUTO_MIGRATE"):
+                app.logger.info("Base existante — application des migrations en attente...")
+                upgrade(revision='heads')
+            else:
+                app.logger.info("Base existante — migrations automatiques désactivées.")
     # --- Fin de l'initialisation automatique ---
 
     # Route pour servir les fichiers uploadés (avatars, etc.)
@@ -100,46 +103,54 @@ def create_app(config_object=None):
     @click.command("init-db")
     @with_appcontext
     def init_db_command():
-        """Initialise la base de données (crée ou met à jour le schéma) et insère les données de base."""
+        """Crée le schéma si la base est vide, puis amorce Root + admin global."""
         inspector = inspect(db.engine)
-        # alembic_version est la table que flask-migrate utilise pour suivre les migrations.
-        # Si elle n'existe pas, la base est probablement vide.
         if not inspector.has_table('alembic_version'):
             click.echo("Création de la base de données à partir de zéro...")
             db.create_all()
-            click.echo("Tables de la base de données créées.")
-            
-            click.echo("Marquage de la base de données avec la dernière version de migration...")
             stamp()
-            
-            click.echo("Insertion des données initiales (seeding)...")
-            seeding.seed_full_tenant_and_users(db)
-            click.echo("Données initiales insérées.")
+            click.echo("Schéma créé.")
+            seeding.seed_root(db)
         else:
-            click.echo("La structure de la base de données existe déjà. Application des migrations...")
-            upgrade()
+            click.echo("La structure de la base existe déjà. Application des migrations...")
+            upgrade(revision='heads')
             click.echo("Migrations appliquées.")
-            
-            click.echo("Vérification et insertion de nouvelles données de base (si nécessaire)...")
-            seeding.seed_full_tenant_and_users(db)
-            click.echo("Vérification des données de base terminée.")
-
-
-    @click.command("seed-users")
-    @with_appcontext
-    def seed_users_command():
-        """Insere les utilisateurs de test (admin, manager, permanencier) sans tenant."""
-        seeding.seed_standalone_users(db)
 
     @click.command("seed")
     @with_appcontext
     def seed_command():
-        """Crée le tenant par défaut et les utilisateurs associés."""
-        seeding.seed_full_tenant_and_users(db)
+        """Amorce unique : tenant Root + administrateur global (idempotent)."""
+        seeding.seed_root(db)
+
+    @click.command("sessions-sweep")
+    @with_appcontext
+    def sessions_sweep_command():
+        """Expire les sessions inactives et purge la blocklist des tokens expirés."""
+        from app.scripts.session_maintenance import sweep_sessions
+        result = sweep_sessions(db)
+        click.echo(
+            f"Sessions expirées : {result['expired']} | "
+            f"Entrées blocklist purgées : {result['purged']}"
+        )
+
+    @click.command("mail-fetch")
+    @with_appcontext
+    def mail_fetch_command():
+        """Relève les emails entrants (IMAP) des tenants à réception activée."""
+        from app.scripts.mail_fetch import fetch_all
+        summary = fetch_all(db)
+        if not summary:
+            click.echo("Aucun tenant avec réception IMAP activée.")
+        for code, n in summary.items():
+            click.echo(f"  {code} : {n}")
 
     app.cli.add_command(init_db_command, "init-db")
-    app.cli.add_command(seed_users_command, "seed-users")
     app.cli.add_command(seed_command, "seed")
+    app.cli.add_command(sessions_sweep_command, "sessions-sweep")
+    app.cli.add_command(mail_fetch_command, "mail-fetch")
+
+    from app.scripts.superadmin_cli import superadmin_cli
+    app.cli.add_command(superadmin_cli)
 
     # enregistrer les blueprints
     from app.routes.tenants import tenants_bp
@@ -169,7 +180,56 @@ def create_app(config_object=None):
     from app.routes.agents_securite import agents_securite_bp
     app.register_blueprint(agents_securite_bp)
 
+    from app.routes.interactions import interactions_bp
+    app.register_blueprint(interactions_bp)
 
+    from app.routes.settings import settings_bp
+    app.register_blueprint(settings_bp)
+
+    from app.routes.emails import emails_bp
+    app.register_blueprint(emails_bp)
+
+    from app.routes.support import support_bp
+    app.register_blueprint(support_bp)
+
+    from app.routes.tenant_members import tenant_members_bp
+    app.register_blueprint(tenant_members_bp)
+
+    from app.routes.invitations import invitations_bp
+    app.register_blueprint(invitations_bp)
+
+
+
+    # ── Gestionnaires d'erreurs globaux (sécurité : pas de fuite de stack trace) ──
+    # Transforme les erreurs SQL d'entrée (ex. valeur trop longue → 22001) en 400
+    # propres au lieu de 500 verbeux, et masque toute exception inattendue.
+    from sqlalchemy.exc import DataError, IntegrityError
+    from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
+
+    @app.errorhandler(DataError)
+    def _handle_data_error(err):
+        db.session.rollback()
+        app.logger.warning(f"DataError: {getattr(err, 'orig', err)}")
+        return {"error": "Données invalides ou trop volumineuses."}, 400
+
+    @app.errorhandler(IntegrityError)
+    def _handle_integrity_error(err):
+        db.session.rollback()
+        app.logger.warning(f"IntegrityError: {getattr(err, 'orig', err)}")
+        return {"error": "Conflit de données : une contrainte n'est pas respectée."}, 409
+
+    @app.errorhandler(RequestEntityTooLarge)
+    def _handle_too_large(err):
+        return {"error": "Charge utile trop volumineuse."}, 413
+
+    @app.errorhandler(Exception)
+    def _handle_unexpected(err):
+        # Laisse passer les erreurs HTTP normales (401/403/404/400…)
+        if isinstance(err, HTTPException):
+            return err
+        db.session.rollback()
+        app.logger.exception("Exception non gérée")
+        return {"error": "Une erreur interne est survenue."}, 500
 
     # Cabler la verification de blocklist (appelee automatiquement par Flask-JWT)
     @jwt.token_in_blocklist_loader

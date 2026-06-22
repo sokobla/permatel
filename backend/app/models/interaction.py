@@ -23,22 +23,24 @@ class Interaction(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     demande_id = Column(Integer, nullable=False, index=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
-    
+    contact_id = Column(Integer, ForeignKey('contacts.id'), nullable=True, index=True)
+
     type_interaction = Column(SQLEnum(TypeInteraction), nullable=False)
     contenu = Column(Text, nullable=True)
-    
+
     # Pour changement de statut
     ancien_statut = Column(String(50), nullable=True)
     nouveau_statut = Column(String(50), nullable=True)
-    
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    
+
     # Multi-tenant column (NOT NULL)
     tenant_id = Column(UUID(as_uuid=True), ForeignKey('tenants.id'), nullable=False, index=True)
-    
+
     # Relations
     demande = relationship("Demande", back_populates="interactions")
     user = relationship("User", back_populates="interactions")
+    contact = relationship("Contact", foreign_keys=[contact_id])
     
     def __repr__(self):
         return f"<Interaction {self.type_interaction.value} - Demande #{self.demande_id}>"

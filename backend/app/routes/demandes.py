@@ -1,5 +1,6 @@
 from datetime import datetime
 import uuid
+from flask_cors import CORS
 from flask import Blueprint, jsonify, request, g
 from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy.exc import IntegrityError
@@ -8,7 +9,7 @@ from app import db
 from app.models.demande import (
     Demande, DemandeAnomalie, DemandeCommande, DemandePlanning, DemandeAdmin,
     TypeDemande, StatutDemande, PrioriteDemande,
-    NatureAnomalie, EquipementConcerne, TypeCommande, TypeModificationPlanning, CategorieAdmin, TypeDocumentAdmin
+    NatureAnomalie, TypeCommande, TypeModificationPlanning, CategorieAdmin, TypeDocumentAdmin
 )
 from app.models.user import User, UserRole
 from app.models.client import Client
@@ -20,6 +21,21 @@ from app.utils.decorators import tenant_required
 
 
 demandes_bp = Blueprint("demandes", __name__, url_prefix="/api/demandes")
+CORS(demandes_bp, resources={r"/api/demandes/*": {"origins": "*"}})
+
+def _parse_datetime(value):
+    """Convertit une string date/datetime en objet datetime Python.
+    Accepte : 'YYYY-MM-DD', 'YYYY-MM-DDTHH:MM', 'YYYY-MM-DDTHH:MM:SS'.
+    Retourne None si la valeur est absente ou non parseable.
+    """
+    if not value:
+        return None
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(str(value), fmt)
+        except (ValueError, TypeError):
+            pass
+    return None
 
 
 def _get_tenant_id_from_claims(claims):
@@ -36,21 +52,104 @@ def _get_tenant_id_from_claims(claims):
 # SÉRIALISATION
 # ============================================================================
 
+def _agent_avatar(agent) -> str | None:
+    """Retourne l'avatar_url d'un AgentSecurite : préfère le contact lié, sinon le champ propre."""
+    if not agent:
+        return None
+    try:
+        if agent.contact and agent.contact.avatar_url:
+            return agent.contact.avatar_url
+    except Exception:
+        pass
+    return getattr(agent, "avatar_url", None)
+
+
 def _serialize_demande(demande: Demande) -> dict:
     """Sérialise une demande (parent + champs spécifiques selon type)."""
+    # Labels dénormalisés (évite des requêtes supplémentaires côté client)
+    client_nom = None
+    client_logo_url = None
+    try:
+        if demande.client:
+            client_nom     = demande.client.nom
+            client_logo_url = demande.client.logo_url
+    except Exception:
+        pass
+
+    site_nom = None
+    site_logo_url = None
+    try:
+        if demande.site:
+            site_nom     = demande.site.nom
+            site_logo_url = demande.site.logo_url
+    except Exception:
+        pass
+
+    contact_nom = None
+    contact_avatar_url = None
+    try:
+        if demande.contact:
+            c = demande.contact
+            contact_nom        = f"{c.prenom or ''} {c.nom or ''}".strip() or None
+            contact_avatar_url = c.avatar_url
+    except Exception:
+        pass
+
+    permanencier_nom = None
+    permanencier_avatar_url = None
+    try:
+        if demande.permanencier:
+            p = demande.permanencier
+            permanencier_nom        = f"{p.prenom or ''} {p.nom or ''}".strip() or None
+            permanencier_avatar_url = p.avatar_url
+    except Exception:
+        pass
+
+    created_by_nom  = None
+    created_by_role = None
+    try:
+        if demande.created_by:
+            u = demande.created_by
+            created_by_nom  = f"{u.prenom or ''} {u.nom or ''}".strip() or None
+            created_by_role = u.role.value if hasattr(u, 'role') and u.role else None
+    except Exception:
+        pass
+
+    updated_by_nom = None
+    try:
+        if demande.updated_by:
+            u = demande.updated_by
+            updated_by_nom = f"{u.prenom or ''} {u.nom or ''}".strip() or None
+    except Exception:
+        pass
+
     data = {
         "id": demande.id,
         "numero_ticket": demande.numero_ticket,
+        "client_nom": client_nom,
+        "client_logo_url": client_logo_url,
+        "site_nom": site_nom,
+        "site_logo_url": site_logo_url,
+        "permanencier_nom": permanencier_nom,
+        "permanencier_avatar_url": permanencier_avatar_url,
         "type_demande": demande.type_demande.value,
         "titre": demande.titre,
         "description": demande.description,
+        "adresse_intervention": demande.adresse_intervention,
         "statut": demande.statut.value,
         "priorite": demande.priorite.value,
         "client_id": demande.client_id,
         "site_id": demande.site_id,
         "contact_id": demande.contact_id,
+        "contact_nom": contact_nom,
+        "contact_avatar_url": contact_avatar_url,
         "permanencier_id": demande.permanencier_id,
         "closed_by_id": demande.closed_by_id,
+        "created_by_id":   demande.created_by_id,
+        "created_by_nom":  created_by_nom,
+        "created_by_role": created_by_role,
+        "updated_by_id": demande.updated_by_id,
+        "updated_by_nom": updated_by_nom,
         "sla_deadline": demande.sla_deadline.isoformat() if demande.sla_deadline else None,
         "date_resolution": demande.date_resolution.isoformat() if demande.date_resolution else None,
         "closed_at": demande.closed_at.isoformat() if demande.closed_at else None,
@@ -64,11 +163,17 @@ def _serialize_demande(demande: Demande) -> dict:
     # Ajouter champs spécifiques selon type
     if isinstance(demande, DemandeAnomalie):
         data["nature_anomalie"] = demande.nature_anomalie.value if demande.nature_anomalie else None
-        data["equipement_concerne"] = demande.equipement_concerne.value if demande.equipement_concerne else None
+        data["equipement_concerne"] = demande.equipement_concerne
         data["localisation_precise"] = demande.localisation_precise
         data["impact_securite"] = demande.impact_securite
         data["action_corrective"] = demande.action_corrective
-    
+        data["agent_concerne_id"] = demande.agent_concerne_id
+        agent = demande.agent_concerne
+        data["agent_concerne_label"] = (
+            " ".join(filter(None, [agent.prenom, agent.nom])) if agent else None
+        )
+        data["agent_concerne_avatar_url"] = _agent_avatar(agent)
+
     elif isinstance(demande, DemandeCommande):
         data["type_commande"] = demande.type_commande.value if demande.type_commande else None
         data["quantite"] = demande.quantite
@@ -76,6 +181,10 @@ def _serialize_demande(demande: Demande) -> dict:
         data["fournisseur_suggere"] = demande.fournisseur_suggere
         data["date_livraison_souhaitee"] = demande.date_livraison_souhaitee.isoformat() if demande.date_livraison_souhaitee else None
         data["bon_commande"] = demande.bon_commande
+        data["moyens_acces"] = demande.moyens_acces or []
+        data["equipements_site"] = demande.equipements_site or []
+        data["risques_specifiques"] = demande.risques_specifiques or []
+        data["besoins_agents"] = demande.besoins_agents or []
     
     elif isinstance(demande, DemandePlanning):
         data["type_modification"] = demande.type_modification.value if demande.type_modification else None
@@ -84,6 +193,16 @@ def _serialize_demande(demande: Demande) -> dict:
         data["date_debut"] = demande.date_debut.isoformat() if demande.date_debut else None
         data["date_fin"] = demande.date_fin.isoformat() if demande.date_fin else None
         data["motif"] = demande.motif
+        agent_c = demande.agent_concerne
+        data["agent_concerne_label"] = (
+            " ".join(filter(None, [agent_c.prenom, agent_c.nom])) if agent_c else None
+        )
+        data["agent_concerne_avatar_url"] = _agent_avatar(agent_c)
+        agent_r = demande.agent_remplacant
+        data["agent_remplacant_label"] = (
+            " ".join(filter(None, [agent_r.prenom, agent_r.nom])) if agent_r else None
+        )
+        data["agent_remplacant_avatar_url"] = _agent_avatar(agent_r)
     
     elif isinstance(demande, DemandeAdmin):
         data["categorie"] = demande.categorie.value if demande.categorie else None
@@ -107,11 +226,24 @@ def list_demandes():
     if not tenant_id:
         return jsonify({"message": "Aucun tenant actif sélectionné."}), 400
 
-    demandes = Demande.query.filter_by(
-        tenant_id=tenant_id,
-        is_deleted=False
-    ).order_by(Demande.created_at.desc()).all()
-    
+    query = Demande.query.filter_by(tenant_id=tenant_id, is_deleted=False)
+
+    if contact_id := request.args.get("contact_id", type=int):
+        query = query.filter(Demande.contact_id == contact_id)
+    if client_id := request.args.get("client_id", type=int):
+        query = query.filter(Demande.client_id == client_id)
+    if type_val := request.args.get("type_demande"):
+        try:
+            query = query.filter(Demande.type_demande == TypeDemande(type_val))
+        except ValueError:
+            pass
+    if statut_val := request.args.get("statut"):
+        try:
+            query = query.filter(Demande.statut == StatutDemande(statut_val))
+        except ValueError:
+            pass
+
+    demandes = query.order_by(Demande.created_at.desc()).all()
     return jsonify([_serialize_demande(d) for d in demandes]), 200
 
 
@@ -219,6 +351,7 @@ def create_demande():
         "permanencier_id": permanencier.id,
         "titre": payload["titre"],
         "description": payload.get("description"),
+        "adresse_intervention": payload.get("adresse_intervention"),
         "statut": statut,
         "priorite": priorite,
         "tenant_id": tenant_id,
@@ -242,14 +375,11 @@ def create_demande():
                     demande.nature_anomalie = NatureAnomalie(payload["nature_anomalie"])
                 except ValueError:
                     pass
-            if "equipement_concerne" in payload:
-                try:
-                    demande.equipement_concerne = EquipementConcerne(payload["equipement_concerne"])
-                except ValueError:
-                    pass
+            demande.equipement_concerne = payload.get("equipement_concerne")
             demande.localisation_precise = payload.get("localisation_precise")
             demande.impact_securite = payload.get("impact_securite", False)
             demande.action_corrective = payload.get("action_corrective")
+            demande.agent_concerne_id = payload.get("agent_concerne_id") or None
         
         elif type_demande == TypeDemande.COMMANDE:
             if "type_commande" in payload:
@@ -260,8 +390,12 @@ def create_demande():
             demande.quantite = payload.get("quantite")
             demande.budget_estime = payload.get("budget_estime")
             demande.fournisseur_suggere = payload.get("fournisseur_suggere")
-            demande.date_livraison_souhaitee = payload.get("date_livraison_souhaitee")
+            demande.date_livraison_souhaitee = _parse_datetime(payload.get("date_livraison_souhaitee"))
             demande.bon_commande = payload.get("bon_commande")
+            demande.moyens_acces = payload.get("moyens_acces") or []
+            demande.equipements_site = payload.get("equipements_site") or []
+            demande.risques_specifiques = payload.get("risques_specifiques") or []
+            demande.besoins_agents = payload.get("besoins_agents") or []
         
         elif type_demande == TypeDemande.PLANNING:
             if "type_modification" in payload:
@@ -271,10 +405,10 @@ def create_demande():
                     pass
             demande.agent_concerne_id = payload.get("agent_concerne_id")
             demande.agent_remplacant_id = payload.get("agent_remplacant_id")
-            demande.date_debut = payload.get("date_debut")
-            demande.date_fin = payload.get("date_fin")
+            demande.date_debut = _parse_datetime(payload.get("date_debut"))
+            demande.date_fin = _parse_datetime(payload.get("date_fin"))
             demande.motif = payload.get("motif")
-        
+
         elif type_demande == TypeDemande.ADMIN:
             if "categorie" in payload:
                 try:
@@ -286,12 +420,14 @@ def create_demande():
                     demande.document_type = TypeDocumentAdmin(payload["document_type"])
                 except ValueError:
                     pass
-            demande.date_echeance = payload.get("date_echeance")
+            demande.date_echeance = _parse_datetime(payload.get("date_echeance"))
             demande.validation_requise = payload.get("validation_requise", False)
         
+        demande.created_by_id = user_id
+
         db.session.add(demande)
         db.session.flush()  # Pour obtenir l'ID avant de générer le numéro de ticket
-        
+
         # Générer numéro ticket final
         demande.numero_ticket = f"{type_demande.value.upper()[:4]}_{demande.id}"
         db.session.commit()
@@ -312,6 +448,7 @@ def update_demande(demande_id):
     """Met à jour une demande existante."""
     claims = get_jwt()
     tenant_id = _get_tenant_id_from_claims(claims)
+    user_id = claims.get("sub")
     if not tenant_id:
         return jsonify({"message": "Aucun tenant actif sélectionné."}), 400
 
@@ -351,16 +488,15 @@ def update_demande(demande_id):
                 except ValueError:
                     pass
             if "equipement_concerne" in payload:
-                try:
-                    demande.equipement_concerne = EquipementConcerne(payload["equipement_concerne"])
-                except ValueError:
-                    pass
+                demande.equipement_concerne = payload["equipement_concerne"]
             if "localisation_precise" in payload:
                 demande.localisation_precise = payload["localisation_precise"]
             if "impact_securite" in payload:
                 demande.impact_securite = payload["impact_securite"]
             if "action_corrective" in payload:
                 demande.action_corrective = payload["action_corrective"]
+            if "agent_concerne_id" in payload:
+                demande.agent_concerne_id = payload["agent_concerne_id"] or None
         
         elif isinstance(demande, DemandeCommande):
             if "type_commande" in payload:
@@ -375,9 +511,17 @@ def update_demande(demande_id):
             if "fournisseur_suggere" in payload:
                 demande.fournisseur_suggere = payload["fournisseur_suggere"]
             if "date_livraison_souhaitee" in payload:
-                demande.date_livraison_souhaitee = payload["date_livraison_souhaitee"]
+                demande.date_livraison_souhaitee = _parse_datetime(payload["date_livraison_souhaitee"])
             if "bon_commande" in payload:
                 demande.bon_commande = payload["bon_commande"]
+            if "moyens_acces" in payload:
+                demande.moyens_acces = payload["moyens_acces"] or []
+            if "equipements_site" in payload:
+                demande.equipements_site = payload["equipements_site"] or []
+            if "risques_specifiques" in payload:
+                demande.risques_specifiques = payload["risques_specifiques"] or []
+            if "besoins_agents" in payload:
+                demande.besoins_agents = payload["besoins_agents"] or []
         
         elif isinstance(demande, DemandePlanning):
             if "type_modification" in payload:
@@ -390,9 +534,9 @@ def update_demande(demande_id):
             if "agent_remplacant_id" in payload:
                 demande.agent_remplacant_id = payload["agent_remplacant_id"]
             if "date_debut" in payload:
-                demande.date_debut = payload["date_debut"]
+                demande.date_debut = _parse_datetime(payload["date_debut"])
             if "date_fin" in payload:
-                demande.date_fin = payload["date_fin"]
+                demande.date_fin = _parse_datetime(payload["date_fin"])
             if "motif" in payload:
                 demande.motif = payload["motif"]
         
@@ -408,11 +552,12 @@ def update_demande(demande_id):
                 except ValueError:
                     pass
             if "date_echeance" in payload:
-                demande.date_echeance = payload["date_echeance"]
+                demande.date_echeance = _parse_datetime(payload["date_echeance"])
             if "validation_requise" in payload:
                 demande.validation_requise = payload["validation_requise"]
         
         demande.updated_at = datetime.utcnow()
+        demande.updated_by_id = user_id
         db.session.commit()
         
         return jsonify(_serialize_demande(demande)), 200
@@ -454,6 +599,84 @@ def patch_demande_status(demande_id):
     return jsonify(_serialize_demande(demande)), 200
 
 
+@demandes_bp.patch("/<int:demande_id>/pec")
+@tenant_required
+def pec_demande(demande_id):
+    """Prise en charge : passe le statut à en_cours et assigne le permanencier courant."""
+    claims = get_jwt()
+    tenant_id = _get_tenant_id_from_claims(claims)
+    user_id = claims.get("sub")
+    if not tenant_id:
+        return jsonify({"message": "Aucun tenant actif sélectionné."}), 400
+
+    demande = Demande.query.filter_by(
+        id=demande_id, tenant_id=tenant_id, is_deleted=False
+    ).first_or_404(description="Demande introuvable")
+
+    demande.statut = StatutDemande.EN_COURS
+    if user_id:
+        try:
+            demande.permanencier_id = int(user_id)
+        except (ValueError, TypeError):
+            pass
+    demande.updated_at = datetime.utcnow()
+    db.session.commit()
+
+    return jsonify(_serialize_demande(demande)), 200
+
+
+@demandes_bp.get("/<int:demande_id>/interactions")
+@tenant_required
+def get_demande_interactions(demande_id):
+    """Liste les interactions d'une demande, triées de la plus récente à la plus ancienne."""
+    from app.models.interaction import Interaction
+    claims = get_jwt()
+    tenant_id = _get_tenant_id_from_claims(claims)
+    if not tenant_id:
+        return jsonify({"message": "Aucun tenant actif sélectionné."}), 400
+
+    Demande.query.filter_by(
+        id=demande_id, tenant_id=tenant_id, is_deleted=False
+    ).first_or_404(description="Demande introuvable")
+
+    interactions = (
+        Interaction.query
+        .filter_by(demande_id=demande_id, tenant_id=tenant_id)
+        .order_by(Interaction.created_at.desc())
+        .all()
+    )
+
+    result = []
+    for i in interactions:
+        user_nom = None
+        try:
+            if i.user:
+                user_nom = f"{i.user.prenom or ''} {i.user.nom or ''}".strip() or None
+        except Exception:
+            pass
+        contact_nom = None
+        try:
+            if i.contact:
+                contact_nom = f"{i.contact.prenom or ''} {i.contact.nom or ''}".strip() or None
+        except Exception:
+            pass
+
+        result.append({
+            "id": i.id,
+            "type_interaction": i.type_interaction.value,
+            "contenu": i.contenu,
+            "ancien_statut": i.ancien_statut,
+            "nouveau_statut": i.nouveau_statut,
+            "user_id": i.user_id,
+            "user_nom": user_nom,
+            "contact_id": i.contact_id,
+            "contact_nom": contact_nom,
+            "created_at": i.created_at.isoformat() if i.created_at else None,
+        })
+
+    return jsonify(result), 200
+
+
 @demandes_bp.delete("/<int:demande_id>")
 @tenant_required
 @role_required(UserRole.ADMIN)
@@ -473,7 +696,7 @@ def delete_demande(demande_id):
         demande.deleted_at = datetime.utcnow()
         db.session.commit()
         
-        return jsonify({"message": "Demande supprimée"}), 200
+        return jsonify({"message": "Demande supprimée"}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "Erreur lors de la suppression.", "detail": str(e)}), 500

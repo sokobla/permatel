@@ -131,6 +131,7 @@ def list_sites():
             "code_postal": s.code_postal,
             "telephone": s.telephone,
             "email": s.email,
+            "type_site": s.type_site,
             "contact_principal_id": s.contact_principal_id,
             "contact_principal": {"nom": f"{s.contact_principal.prenom} {s.contact_principal.nom}"} if s.contact_principal else None,
             "effectif_requis": s.effectif_requis,
@@ -164,6 +165,7 @@ def get_site(site_id):
         "code_postal": site.code_postal,
         "telephone": site.telephone,
         "email": site.email,
+        "type_site": site.type_site,
         "contact_principal_id": site.contact_principal_id,
         "latitude": float(site.latitude) if site.latitude is not None else None,
         "longitude": float(site.longitude) if site.longitude is not None else None,
@@ -208,7 +210,7 @@ def create_site():
 
         updateable_fields = [
             "adresse", "ville", "code_postal", "telephone", "email",
-            "contact_principal_id", "effectif_requis", "latitude", "longitude", "is_active"
+            "type_site", "contact_principal_id", "effectif_requis", "latitude", "longitude", "is_active"
         ]
         for field in updateable_fields:
             if field in data:

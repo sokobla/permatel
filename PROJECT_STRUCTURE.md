@@ -1,6 +1,43 @@
 # Permatel - Architecture et Structure du Projet
 
-**Version** : 1.1.0 | **Statut** : Backend 70% ✅ / Frontend 40% ✅ | **Tests** : 160 ✅
+**Version** : 1.4.0 | **Statut** : Backend ✅ / Frontend ✅ | **Tests** : 160 ✅
+
+### Changelog v1.4.0 (22 juin 2026)
+> ⚠️ Les sections détaillées plus bas datent de v1.1.0 (mai 2026). Les changelogs font foi pour l'état courant.
+
+**Backend — nouveaux modules**
+- `models/` : `tenant_invitation.py` (invitations onboarding) ; `tenant_users.membership_role` (admin/member) ; `tenants.channel_telephonie/email/chat` ; `reference_values.is_discriminant` ; `users.username = email` (120) ; `emails` objet/corps chiffrés (`EncryptedText`).
+- `services/` (nouveau package) : `tenant_features.py` (dérivation onglets/sections par canaux), `agent_kpis.py` (Anomalies / Incidents agent / score discriminant).
+- `routes/` : `tenant_members.py` (roster + invitations, `/api/tenant/*`), `invitations.py` (acceptation publique), `/api/tenant/features`, `/api/agents/<id>/kpis` & `/api/agents/kpis`, `/api/auth/tenants`. `settings.py` délégué au tenant-admin.
+- `utils/decorators.py` : `tenant_required` v2 (bypass super-admin) + `tenant_admin_required`. `utils/invitations.py` (token/email).
+- `scripts/` : `seeding.py` réduit à `seed_root` (Root + admin global) ; `superadmin_cli.py` (`flask superadmin …`). Suppression de `seed_data.json` et des commandes `seed-prod`/`seed-refvalues`/`seed-export`.
+- Migrations ajoutées : `a8b9c0d1e2f3`, `b9c0d1e2f3a4`, `c0d1e2f3a4b5`, `d1e2f3a4b5c6`.
+
+**Frontend — nouveaux éléments**
+- `views/` : `SelectTenantView`, `AcceptInviteView` (publique), `TenantMembersView`. `WorkspaceView`/`SettingsView`/`TenantsView`/`AgentView`/`ReportView` adaptés (canaux, KPI, toggles).
+- `components/` : `agents/AgentKpiCards.vue` ; `settings/ReferenceValueList` (toggle discriminante) ; `workspace/ChannelTabs` (onglets dynamiques).
+- `services/` : `tenantMemberService`, `invitationService`, `agentKpiService` ; `auth` enrichi (`getTenants`, `getFeatures`). `utils/sanitizeHtml.js` (DOMPurify).
+- `store/auth.js` : `isGlobalAdmin`, `isTenantAdmin`, `features`, `selectTenant`/`switchTenant`/`fetchFeatures`.
+- `router` : `/select-tenant`, `/accept-invite`, `/members` + gardes (sélection tenant, capacité admin tenant).
+
+### Changelog v1.3.0 (21 juin 2026)
+> ⚠️ Les sections détaillées plus bas datent de v1.1.0 (mai 2026). Le projet a fortement évolué ; ce changelog fait foi pour l'état courant.
+
+**Backend — nouveaux modules**
+- `models/` : `setting.py` (`SmtpSetting` + IMAP, `ReferenceValue`), `email.py` (`Email`), `email_attachment.py` (`EmailAttachment`). Colonnes ajoutées : `tenants.logo_url`/`support_email`, `interactions.contact_id`.
+- `routes/` : `settings.py` (SMTP/IMAP/valeurs de référence), `emails.py` (envoi+réception, PJ, stats, conversion), `support.py` (public). `interactions.py` désormais implémenté.
+- `utils/` : `crypto.py` (Fernet), `mailer.py` (send SMTP), `login_throttle.py` (anti‑brute‑force), `auth.py` (`role_required`).
+- `scripts/` : `seeding.py` (fixture unique + prod + reference values), `session_maintenance.py`, `mail_fetch.py`.
+- `scripts/` (CLI cron) : `sessions_sweep.py`, `mail_fetch.py`.
+- Commandes CLI : `init-db`, `seed`, `seed-export`, `seed-prod`, `seed-refvalues`, `sessions-sweep`, `mail-fetch`.
+
+**Frontend — nouveaux éléments**
+- `views/` : `TenantsView`, `SupervisionView`, `SettingsView`, `ReportView` (onglets Sessions + Email).
+- `components/settings/` : `SettingsGeneral`, `SettingsSmtp`, `SettingsImap`, `SettingsReferenceValues`, `ReferenceValueList`, `SettingsIntegrations`.
+- `components/workspace/` : `MailChannel`, `MailConvertDialog`, `EmailAttachments`, `ChannelGate`, `DemandeInteractions`, `ContactSelectWithAdd`, `SessionMonitoring` (supervision).
+- `composables/` : `useIdleLogout`. `config/integrations.js`.
+- `services/` : `emailService`, `supportService`, `settingsService`, `tenantService`, `sessionService`.
+- RBAC menu par rôle, footer global, logo tenant dans l'app‑bar, nom d'app paramétrable.
 
 ### Changelog v1.1.0 (23 mai 2026)
 - **MISE À JOUR MAJEURE** : Audit révèle état réel du projet (plusieurs features manquaient dans la doc)

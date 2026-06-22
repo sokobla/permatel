@@ -1,7 +1,33 @@
 # Schéma de la base de données PERMATEL
 
-**Version** : 2.1.0 (Architecture Multi-Tenant Validée) | **Base de données** : PostgreSQL 15  
-**Dernière mise à jour** : 23 mai 2026 (Audit + Validation)
+**Version** : 2.4.0 (Multi-tenant, invitations, canaux, KPI agents) | **Base de données** : PostgreSQL 15  
+**Dernière mise à jour** : 22 juin 2026
+
+### Changelog v2.4.0 (22 juin 2026)
+- ➕ **`tenant_invitations`** : onboarding par invitation (`tenant_id`, `email`, `role`, `membership_role`, `token_hash`, `status` pending/accepted/revoked/expired, `invited_by_user_id`, `expires_at` (TTL 48h), `accepted_at`).
+- ➕ **`tenants.channel_telephonie` / `channel_email` / `channel_chat`** (Boolean, défaut `false`) : canaux métier pilotés par l'admin global ; dérivent la visibilité des onglets Workspace et sections de config (logique : `app/services/tenant_features.py`). SMTP reste toujours actif.
+- ➕ **`reference_values.is_discriminant`** (Boolean, défaut `false`) : nature d'anomalie « discriminante » (KPI *Incidents agent* + score agent).
+- 🆔 **`users.username` = email** (élargi à `String(120)`, données alignées sur `email`). Connexion par email ou username.
+- 🔑 **`tenant_users.membership_role`** désormais utilisé (`admin` = admin de tenant / `member`) — marqueur de délégation (≠ rôle global `users.role`).
+- 🔐 **`emails.subject` / `body_text` / `body_html` chiffrés au repos** (Fernet, type `EncryptedText`) ; `subject` passé en `TEXT`. Pièces jointes chiffrées sur disque.
+- 🗃️ Migrations : `a8b9c0d1e2f3` (emails.subject TEXT), `b9c0d1e2f3a4` (tenant_invitations + username=email), `c0d1e2f3a4b5` (tenants.channel_*), `d1e2f3a4b5c6` (reference_values.is_discriminant).
+- ♻️ Seeding réduit à une **amorce unique** (tenant Root + admin global) — plus de fixture `seed_data.json`.
+
+### Changelog v2.3.0 (21 juin 2026)
+- ➕ **`smtp_settings`** : configuration mail par tenant — envoi **SMTP** (`host`, `port`, `username`, `password` chiffré, `from_address`, `security`) **et** réception **IMAP** (`imap_host`, `imap_port`, `imap_security`, `imap_username`, `imap_password` chiffré, `inbound_enabled`).
+- ➕ **`reference_values`** : listes métier éditables par tenant (`family`, `label`, `code`, `is_active`, `position`) — familles : nature_anomalie, statut_demande, type_mission, moyens_acces, risques_specifiques, besoins_agents. `code` = clé d'enum pour les familles couplées.
+- ➕ **`emails`** : messages du canal Mail (`direction` outbound/inbound, `status`, `subject`, `body_text`, `cc`, `from_address`, `to_addresses`, `contact_id`, `demande_id`, `user_id`, threading `message_id`/`in_reply_to`/`thread_id`, `imap_uid`, `received_at`/`sent_at`).
+- ➕ **`email_attachments`** : pièces jointes (`email_id`, `filename`, `content_type`, `size`, `storage_path`).
+- ➕ `tenants.support_email` : destinataire « Contacter le support ».
+- 🔐 Secrets (mots de passe SMTP/IMAP) **chiffrés au repos** (Fernet, préfixe `enc::`).
+- 🗃️ Migrations : `b3c4d5e6f7a8` (settings), `c4d5e6f7a8b9` (reference_values.code), `d5e6f7a8b9c0` (emails), `e6f7a8b9c0d1` (email_attachments + support_email), `f7a8b9c0d1e2` (champs IMAP).
+
+### Changelog v2.2.0 (20 juin 2026)
+- ➕ `tenants.logo_url` (String 255, nullable) — logo du tenant (upload, miniature, app-bar).
+- ➕ `interactions.contact_id` (Integer, FK → contacts.id, nullable) — contact rattaché à une interaction de suivi.
+- 🔤 `user_sessions.status` : valeurs d'enum uniformisées en minuscules (`active`, `paused`, `ended`, `expired`, `revoked`).
+- 🗃️ Migrations Alembic ajoutées : `contact_id` interactions, `logo_url` tenants, fusions de têtes multiples (`e9f0a1b2c3d4`, `f1a2b3c4d5e6`).
+- ♻️ Seeding refondu : fixture unique `app/scripts/seed_data.json` rechargée au premier démarrage (dev) — voir README.
 
 ### Changelog v2.1.0 (23 mai 2026)
 - ✅ **VALIDATION COMPLÈTE** : Audit du code réel confirme fidélité du schéma
@@ -28,6 +54,7 @@ Ce document décrit fidèlement la structure de la base de données selon les mo
 - `code` : String(50), UNIQUE, NOT NULL
 - `nom` : String(200), NOT NULL
 - `slug` : String(100), UNIQUE
+- `logo_url` : String(255), nullable — chemin du logo (`/uploads/tenant_<id>_logo.<ext>`)
 - `is_active` : Boolean, default True
 - `created_at`, `updated_at` : DateTime
 
@@ -213,6 +240,7 @@ Ces tables ne contiennent pas de `tenant_id` car leurs données sont partagées 
 - `tenant_id` : UUID (FK -> tenants.id)
 - `demande_id` : Integer, NOT NULL
 - `user_id` : Integer (FK -> users.id), NOT NULL
+- `contact_id` : Integer (FK -> contacts.id), nullable — contact concerné par l'interaction
 - `type_interaction` : Enum (APPEL, EMAIL, WHATSAPP, NOTE, CHANGEMENT_STATUT)
 - `contenu` : Text, nullable
 - `ancien_statut`, `nouveau_statut` : String(50), nullable
@@ -274,7 +302,7 @@ CREATE INDEX idx_users_is_active ON users(is_active);
 - `ip_address` : String(45)
 - `user_agent` : String(500)
 - `agent_login`, `station_extension` : String, nullable
-- `status` : Enum (ACTIVE, PAUSED, ENDED, EXPIRED, REVOKED)
+- `status` : Enum — valeurs : `active`, `paused`, `ended`, `expired`, `revoked`
 - `created_at` : DateTime
 
 ----
@@ -300,12 +328,14 @@ CREATE INDEX idx_sessions_jti ON user_sessions(jti);
 CREATE INDEX idx_sessions_status ON user_sessions(status);
 ```
 
-**Status flow** :
-- `ACTIVE` → Utilisateur connecté, session valide
-- `PAUSED` → Session suspendue (inactivité timeout)
-- `ENDED` → Logout volontaire
-- `EXPIRED` → Session expirée (refresh_token expiré)
-- `REVOKED` → Token blocklisted (logout/password change)
+**Status flow** (valeurs stockées en minuscules) :
+- `active` → Utilisateur connecté, session valide
+- `paused` → Session suspendue (pause téléphonique ESL)
+- `ended` → Logout volontaire
+- `expired` → Session expirée par inactivité (détecté au refresh ou par la tâche de fond `flask sessions-sweep`)
+- `revoked` → Session révoquée à distance (supervision) — refresh token blocklisté
+
+> Maintenance : la commande `flask sessions-sweep` (ou `backend/scripts/sessions_sweep.py` via cron) passe les sessions `active` inactives en `expired` et purge `token_blocklist` des entrées expirées.
 
 **Relations** :
 - N:1 → `users` (relation inverse)
@@ -704,6 +734,56 @@ CREATE INDEX idx_telephony_events_demande ON telephony_events(demande_id);
 - N:1 → `demandes`
 
 **Status** : 🚧 Intégration ESL à implémenter
+
+----
+
+## Paramètres système & Messagerie (v2.3.0)
+
+### `smtp_settings` — config mail par tenant (une ligne/tenant)
+| Colonne | Type | Notes |
+|---|---|---|
+| `id` | Integer PK | |
+| `tenant_id` | UUID FK→tenants (CASCADE) | **UNIQUE** |
+| `host`, `port`, `username`, `password`, `from_address`, `security` | — | **Envoi SMTP** ; `password` chiffré ; `security` ∈ none/tls/ssl |
+| `imap_host`, `imap_port`, `imap_security`, `imap_username`, `imap_password`, `inbound_enabled` | — | **Réception IMAP** ; `imap_password` chiffré ; `imap_security` ∈ none/ssl/starttls |
+| `is_active`, `created_at`, `updated_at` | — | |
+
+### `reference_values` — listes métier éditables par tenant
+| Colonne | Type | Notes |
+|---|---|---|
+| `id` | Integer PK | |
+| `tenant_id` | UUID FK→tenants (CASCADE) | indexé |
+| `family` | String(50) | indexé — nature_anomalie / statut_demande / type_mission / moyens_acces / risques_specifiques / besoins_agents |
+| `label` | String(150) | libellé affiché (éditable) |
+| `code` | String(50) nullable | clé d'enum backend (familles couplées) ; NULL pour les libellés libres |
+| `is_active`, `position` | — | |
+| | | **UNIQUE(tenant_id, family, label)** |
+
+### `emails` — canal Mail (sortant + entrant)
+| Colonne | Type | Notes |
+|---|---|---|
+| `id` | Integer PK | |
+| `tenant_id` | UUID FK→tenants (CASCADE) | indexé |
+| `direction` | String(10) | `outbound` / `inbound` |
+| `status` | String(20) | sortant: sent/failed/draft — entrant: non_lu/lu/traite/archive/spam |
+| `from_address`, `to_addresses`, `cc`, `subject`, `body_text`, `body_html` | — | |
+| `contact_id` | Integer FK→contacts | rattachement (matching entrant) |
+| `demande_id` | Integer | rattachement métier (conversion) |
+| `user_id` | Integer FK→users | expéditeur / traitant |
+| `message_id`, `in_reply_to`, `thread_id` | — | threading |
+| `imap_uid`, `received_at` | — | flux entrant (dédup) |
+| `sent_at`, `error`, `has_attachments`, `created_at` | — | |
+
+### `email_attachments`
+| Colonne | Type | Notes |
+|---|---|---|
+| `id` | Integer PK | |
+| `email_id` | Integer FK→emails (CASCADE) | indexé |
+| `tenant_id` | UUID FK→tenants (CASCADE) | |
+| `filename`, `content_type`, `size`, `storage_path`, `created_at` | — | fichier sous `uploads/email_attachments/`, téléchargement authentifié |
+
+### `tenants` (rappel — colonnes ajoutées)
+- `logo_url` (v2.2.0), `support_email` (v2.3.0).
 
 ----
 

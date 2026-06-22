@@ -123,6 +123,7 @@ def list_clients():
             "code_postal": c.code_postal,
             "telephone": c.telephone,
             "email": c.email,
+            "siret": c.siret,
             "contact_principal": c.contact_principal,
             "is_active": c.is_active,
             "logo_url": c.logo_url,
@@ -186,7 +187,7 @@ def create_client():
             code_client=data["code_client"],
         )
         
-        update_fields = ["adresse", "telephone", "email", "contact_principal", "ville", "code_postal"]
+        update_fields = ["adresse", "telephone", "email", "contact_principal", "ville", "code_postal", "siret"]
         for field in update_fields:
             if field in data:
                 setattr(client, field, data.get(field))
@@ -245,7 +246,7 @@ def update_client(client_id):
 
     try:
         # Mise à jour des champs de manière dynamique
-        updateable_fields = ["nom", "code_client", "adresse", "telephone", "email", "contact_principal", "ville", "code_postal"]
+        updateable_fields = ["nom", "code_client", "adresse", "telephone", "email", "contact_principal", "ville", "code_postal", "siret"]
         for field in updateable_fields:
             if field in data:
                 setattr(client, field, data[field])

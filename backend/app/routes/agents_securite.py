@@ -14,8 +14,25 @@ from app.models import AgentSecurite, Contact, Prestataire, UserRole
 from app.utils.decorators import tenant_required
 from app.utils.auth import role_required
 from app.routes.contacts import _save_avatar, _delete_avatar
+from app.services.agent_kpis import agent_kpis
 
 agents_securite_bp = Blueprint('agents_securite', __name__, url_prefix='/api/agents')
+
+
+def _parse_kpi_period():
+    """Période [from, to] depuis la query (défaut : 30 derniers jours)."""
+    from datetime import datetime, timedelta
+    now = datetime.utcnow()
+
+    def _p(s, default):
+        if not s:
+            return default
+        try:
+            return datetime.fromisoformat(s.replace("Z", ""))
+        except ValueError:
+            return default
+
+    return _p(request.args.get("from"), now - timedelta(days=30)), _p(request.args.get("to"), now)
 CORS(agents_securite_bp, resources={r"/api/agents/*": {"origins": "*"}})
 
 def _sync_agent_contact(agent: AgentSecurite, data: dict):
@@ -238,3 +255,32 @@ def delete_agent(agent_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Erreur lors de la suppression: {str(e)}"}), 500
+
+
+# ── KPI agents (Anomalies / Incidents agent / Score) ─────────────────────────
+@agents_securite_bp.get('/<int:agent_id>/kpis')
+@tenant_required
+def agent_kpis_endpoint(agent_id):
+    """KPI d'un agent sur la période du filtre (?from&to, défaut 30j)."""
+    agent = AgentSecurite.query.filter_by(id=agent_id, tenant_id=g.tenant.id).first_or_404()
+    dt_from, dt_to = _parse_kpi_period()
+    data = agent_kpis(g.tenant.id, agent.id, dt_from, dt_to)
+    data["period"] = {"from": dt_from.isoformat(), "to": dt_to.isoformat()}
+    return jsonify(data), 200
+
+
+@agents_securite_bp.get('/kpis')
+@tenant_required
+@role_required(UserRole.ADMIN, UserRole.MANAGER)
+def agents_kpis_list():
+    """KPI agrégés de tous les agents actifs du tenant (tableau de bord)."""
+    dt_from, dt_to = _parse_kpi_period()
+    agents = AgentSecurite.query.filter_by(tenant_id=g.tenant.id, is_active=True).all()
+    rows = []
+    for a in agents:
+        k = agent_kpis(g.tenant.id, a.id, dt_from, dt_to)
+        k["matricule"] = a.matricule
+        k["nom"] = f"{a.prenom} {a.nom}".strip()
+        rows.append(k)
+    rows.sort(key=lambda r: (r["score"], -r["incidents"]))  # plus à risque en tête
+    return jsonify({"agents": rows, "period": {"from": dt_from.isoformat(), "to": dt_to.isoformat()}}), 200

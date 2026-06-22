@@ -24,6 +24,7 @@ class Site(Base):
     code_postal = Column(String(20), nullable=True)
     telephone = Column(String(20), nullable=True)
     email = Column(String(100), nullable=True)
+    type_site = Column(String(50), nullable=True)
     contact_principal_id = Column(Integer, ForeignKey('contacts.id'), nullable=True)
     effectif_requis = Column(Integer, nullable=True)
     latitude = Column(NUMERIC(10, 7), nullable=True)

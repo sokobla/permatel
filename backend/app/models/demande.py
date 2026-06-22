@@ -1,6 +1,10 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum as SQLEnum, Boolean, UniqueConstraint, ForeignKeyConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum as SQLEnum, Boolean, UniqueConstraint, ForeignKeyConstraint, JSON
+from sqlalchemy.dialects.postgresql import UUID, JSONB
+
+# JSONB en PostgreSQL, repli JSON sous SQLite (tests). Comportement runtime
+# inchangé en prod (PostgreSQL).
+JSONB_VARIANT = JSONB().with_variant(JSON(), "sqlite")
 from sqlalchemy.orm import relationship
 from app import db
 import enum
@@ -34,29 +38,29 @@ class PrioriteDemande(enum.Enum):
 
 
 class NatureAnomalie(enum.Enum):
-    DEFAUT_MATERIEL = "defaut_materiel"
-    BUG_LOGICIEL = "bug_logiciel"
-    PROBLEME_RESEAU = "probleme_reseau"
-    ERREUR_CONFIGURATION = "erreur_configuration"
-    AUTRE = "autre"
-
-
-class EquipementConcerne(enum.Enum):
-    SERVEUR = "serveur"
-    ORDINATEUR = "ordinateur"
-    IMPRIMANTE = "imprimante"
-    TELEPHONE = "telephone"
-    ROUTEUR = "routeur"
-    LOGICIEL = "logiciel"
-    AUTRE = "autre"
+    ANJ                        = "anj"
+    ABSENCE_JUSTIFIEE          = "absence_justifiee"
+    RETARD_PRISE_SERVICE       = "retard_prise_service"
+    AGENT_NON_SUR_SITE         = "agent_non_sur_site"
+    DOUBLON_PLANNING           = "doublon_planning"
+    REMPLACEMENT_PERMUTATION   = "remplacement_permutation"
+    MODIFICATION_VACATION      = "modification_vacation"
+    PROBLEME_TECHNIQUE         = "probleme_technique"
+    SITE_PRESTATAIRE_INJOIGNABLE = "site_prestataire_injoignable"
+    BLOCAGE_OUTIL_RH           = "blocage_outil_rh"
+    DEMANDE_DE_RENFORT         = "demande_de_renfort"
+    ANOMALIE_FACTURATION       = "anomalie_facturation"
+    AUTRE                      = "autre"
 
 
 class TypeCommande(enum.Enum):
-    ACHAT = "achat"
-    RENOUVELLEMENT = "renouvellement"
-    MAINTENANCE = "maintenance"
-    LICENCE = "licence"
-    CONSULTATION = "consultation"
+    GARDIENNAGE = "gardiennage"
+    SURVEILLANCE_MOBILE = "surveillance_mobile"
+    RONDES = "rondes"
+    INTERVENTION = "intervention"
+    FILTRAGE = "filtrage"
+    PROTECTION_RAPPROCHEE = "protection_rapprochee"
+    ACCUEIL_SECURITE = "accueil_securite"
     AUTRE = "autre"
 
 
@@ -96,7 +100,6 @@ statut_demande_enum = SQLEnum(StatutDemande, name="statut_demande_enum", native_
 priorite_demande_enum = SQLEnum(PrioriteDemande, name="priorite_demande_enum", native_enum=False)
 
 nature_anomalie_enum = SQLEnum(NatureAnomalie, name="nature_anomalie_enum", native_enum=False)
-equipement_concerne_enum = SQLEnum(EquipementConcerne, name="equipement_concerne_enum", native_enum=False)
 
 type_commande_enum = SQLEnum(TypeCommande, name="type_commande_enum", native_enum=False)
 
@@ -141,10 +144,13 @@ class Demande(db.Model):
     # Affectation
     permanencier_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
     closed_by_id = Column(Integer, ForeignKey('users.id'), nullable=True, index=True)
+    created_by_id = Column(Integer, ForeignKey('users.id'), nullable=True, index=True)
+    updated_by_id = Column(Integer, ForeignKey('users.id'), nullable=True, index=True)
     
     # Contenu
     titre = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
+    adresse_intervention = Column(String(300), nullable=True)
     
     # Workflow
     statut = Column(statut_demande_enum, default=StatutDemande.NOUVELLE, nullable=False, index=True)
@@ -181,6 +187,8 @@ class Demande(db.Model):
     contact = relationship("Contact", back_populates="demandes")
     permanencier = relationship("User", foreign_keys=[permanencier_id], back_populates="demandes_assignees")
     closed_by = relationship("User", foreign_keys=[closed_by_id], back_populates="demandes_closed")
+    created_by = relationship("User", foreign_keys=[created_by_id])
+    updated_by = relationship("User", foreign_keys=[updated_by_id])
     interactions = relationship("Interaction", back_populates="demande", cascade="all, delete-orphan")
     fichiers = relationship("Fichier", back_populates="demande", cascade="all, delete-orphan")
     telephony_events = relationship("TelephonyEvent", back_populates="demande")
@@ -201,10 +209,13 @@ class DemandeAnomalie(Demande):
     }
     
     nature_anomalie = Column(nature_anomalie_enum, nullable=True)
-    equipement_concerne = Column(equipement_concerne_enum, nullable=True)
+    equipement_concerne = Column(String(200), nullable=True)
     localisation_precise = Column(Text, nullable=True)
     impact_securite = Column(Boolean, default=False, nullable=False)
     action_corrective = Column(Text, nullable=True)
+    agent_concerne_id = Column(Integer, ForeignKey('agents_securite.id'), nullable=True, index=True)
+
+    agent_concerne = relationship("AgentSecurite", foreign_keys=[agent_concerne_id])
 
 
 class DemandeCommande(Demande):
@@ -219,10 +230,15 @@ class DemandeCommande(Demande):
     
     type_commande = Column(type_commande_enum, nullable=True)
     quantite = Column(Integer, nullable=True)
-    budget_estime = Column(String(50), nullable=True)  # Montant simple (ex: "1500.00 EUR")
+    budget_estime = Column(String(50), nullable=True)
     fournisseur_suggere = Column(String(200), nullable=True)
     date_livraison_souhaitee = Column(DateTime, nullable=True)
-    bon_commande = Column(String(100), nullable=True)  # Référence bon commande
+    bon_commande = Column(String(100), nullable=True)
+    # Données opérationnelles structurées (listes)
+    moyens_acces = Column(JSONB_VARIANT, nullable=True)
+    equipements_site = Column(JSONB_VARIANT, nullable=True)
+    risques_specifiques = Column(JSONB_VARIANT, nullable=True)
+    besoins_agents = Column(JSONB_VARIANT, nullable=True)
 
 
 class DemandePlanning(Demande):
