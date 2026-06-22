@@ -6,7 +6,10 @@ tls:
   options:
     default:
       minVersion: VersionTLS12
-      sniStrict: true
+      # sniStrict laissé à false : pour un domaine unique, l'activer renvoie
+      # SSL_ERROR_UNRECOGNIZED_NAME_ALERT tant que le certificat ACME n'est pas
+      # émis, ce qui masque la vraie cause. Réactiver seulement en multi-domaines maîtrisés.
+      sniStrict: false
       cipherSuites:
         - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
         - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
