@@ -1,0 +1,11 @@
+# Normalisation des fins de ligne et protection des fichiers critiques au build.
+* text=auto
+
+# Scripts shell exécutés dans les conteneurs Linux : toujours LF.
+*.sh            text eol=lf
+backend/entrypoint.sh text eol=lf
+
+# Fichiers consommés par des outils stricts (pip, Docker) : texte, LF.
+requirements.txt text eol=lf
+Dockerfile       text eol=lf
+*.Dockerfile     text eol=lf
