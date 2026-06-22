@@ -1,0 +1,50 @@
+BEGIN:VCALENDAR
+PRODID:-//Google Inc//Google Calendar 70.9054//EN
+VERSION:2.0
+CALSCALE:GREGORIAN
+METHOD:REQUEST
+BEGIN:VTIMEZONE
+TZID:Africa/Casablanca
+X-LIC-LOCATION:Africa/Casablanca
+BEGIN:STANDARD
+TZOFFSETFROM:+0000
+TZOFFSETTO:+0000
+TZNAME:+00
+DTSTART:19700101T000000
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+DTSTART;TZID=Africa/Casablanca:20240615T100000
+DTEND;TZID=Africa/Casablanca:20240615T113000
+DTSTAMP:20240613T140808Z
+ORGANIZER;CN=A H:mailto:ahaimar@gmail.com
+UID:7t7t1akp90fd58v4cfe139hdor@google.com
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;RSVP=TRUE
+ ;CN=A H;X-NUM-GUESTS=0:mailto:ahaimar@gmail.com
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=
+ TRUE;CN=h.eddine@libra-call.com;X-NUM-GUESTS=0:mailto:h.eddine@libra-call.c
+ om
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=
+ TRUE;CN=n.haimar@libra-call.com;X-NUM-GUESTS=0:mailto:n.haimar@libra-call.c
+ om
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=
+ TRUE;CN=sokoblagazaro@gmail.com;X-NUM-GUESTS=0:mailto:sokoblagazaro@gmail.c
+ om
+X-GOOGLE-CONFERENCE:https://meet.google.com/uvr-nimp-kui
+X-MICROSOFT-CDO-OWNERAPPTID:930231458
+CREATED:20240613T140534Z
+DESCRIPTION:-::~:~::~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~
+ :~:~:~:~:~:~:~:~::~:~::-\nParticiper via Google Meet : https://meet.google.
+ com/uvr-nimp-kui\n\nPour en savoir plus sur Meet : https://support.google.c
+ om/a/users/answer/9282720\n\nVeuillez ne pas modifier cette section.\n-::~:
+ ~::~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:
+ :~:~::-
+LAST-MODIFIED:20240613T140806Z
+LOCATION:Résidence WALILI Street \, 42 Bd Abdelmoumen 2éme étage\, Plateau 
+ N°13 & 14\, 20250 Casablanca
+SEQUENCE:0
+STATUS:CONFIRMED
+SUMMARY:Réunion Libracall - Sokobla GAZARO
+TRANSP:OPAQUE
+END:VEVENT
+END:VCALENDAR
