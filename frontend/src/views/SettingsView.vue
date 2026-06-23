@@ -14,6 +14,7 @@
       <v-tab value="smtp" class="text-none"><v-icon start size="16">mdi-email-arrow-right-outline</v-icon>SMTP</v-tab>
       <v-tab v-if="sections.imap" value="imap" class="text-none"><v-icon start size="16">mdi-email-arrow-left-outline</v-icon>IMAP</v-tab>
       <v-tab value="reference" class="text-none"><v-icon start size="16">mdi-format-list-bulleted</v-icon>Valeurs de référence</v-tab>
+      <v-tab value="sla" class="text-none"><v-icon start size="16">mdi-timer-alert-outline</v-icon>SLA</v-tab>
       <v-tab v-if="sections.integrations" value="integrations" class="text-none"><v-icon start size="16">mdi-puzzle-outline</v-icon>Intégrations</v-tab>
     </v-tabs>
 
@@ -31,6 +32,9 @@
       <v-window-item value="reference" transition="fade-transition">
         <SettingsReferenceValues />
       </v-window-item>
+      <v-window-item value="sla" transition="fade-transition">
+        <SettingsSla />
+      </v-window-item>
       <v-window-item v-if="sections.integrations" value="integrations" transition="fade-transition">
         <SettingsIntegrations />
       </v-window-item>
@@ -46,6 +50,7 @@ import SettingsGeneral from "@/components/settings/SettingsGeneral.vue";
 import SettingsSmtp from "@/components/settings/SettingsSmtp.vue";
 import SettingsImap from "@/components/settings/SettingsImap.vue";
 import SettingsReferenceValues from "@/components/settings/SettingsReferenceValues.vue";
+import SettingsSla from "@/components/settings/SettingsSla.vue";
 import SettingsIntegrations from "@/components/settings/SettingsIntegrations.vue";
 
 const route = useRoute();
@@ -57,7 +62,7 @@ const sections = computed(() => authStore.featureMap.settings_sections || {});
 const availableTabs = computed(() => [
   "general", "smtp",
   ...(sections.value.imap ? ["imap"] : []),
-  "reference",
+  "reference", "sla",
   ...(sections.value.integrations ? ["integrations"] : []),
 ]);
 

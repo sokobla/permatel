@@ -91,6 +91,59 @@
         </v-col>
       </v-row>
 
+      <!-- ── SLA (résolution) ──────────────────────────────────────────── -->
+      <v-row>
+        <v-col v-for="kpi in slaKpis" :key="kpi.label" cols="12" sm="6" md="3">
+          <v-card elevation="0" :class="['rp-kpi-card', kpi.alert && 'rp-kpi-card--alert']">
+            <v-card-text class="rp-kpi-body">
+              <div class="rp-kpi-top">
+                <v-icon :color="kpi.alert ? '#e74c3c' : '#00a8a8'" size="16">{{ kpi.icon }}</v-icon>
+                <span class="rp-kpi-lbl">{{ kpi.label }}</span>
+                <v-icon v-if="kpi.info" size="13" class="rp-info" color="#9aa0aa">mdi-information-outline
+                  <v-tooltip activator="parent" location="top" max-width="280">{{ kpi.info }}</v-tooltip>
+                </v-icon>
+              </div>
+              <div :class="['rp-kpi-val', kpi.alert && 'rp-kpi-val--alert']">{{ kpi.value }}</div>
+              <div v-if="kpi.sub" class="rp-kpi-sub">{{ kpi.sub }}</div>
+            </v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
+
+      <v-row>
+        <v-col cols="12">
+          <v-card elevation="0" class="rp-chart-card">
+            <div class="rp-chart-hdr"><span class="rp-chart-title">SLA RÉSOLUTION PAR PRIORITÉ</span></div>
+            <v-divider />
+            <v-card-text class="pa-0">
+              <table class="rp-table">
+                <thead>
+                  <tr>
+                    <th class="rp-th">Priorité</th>
+                    <th class="rp-th rp-th--r">Total</th>
+                    <th class="rp-th rp-th--r">Respect</th>
+                    <th class="rp-th rp-th--r">À risque</th>
+                    <th class="rp-th rp-th--r">Hors délai</th>
+                    <th class="rp-th rp-th--r">% dans les délais</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="!slaByPriorite.length"><td colspan="6" class="rp-td-empty">Aucune donnée SLA sur la période</td></tr>
+                  <tr v-for="r in slaByPriorite" :key="r.priorite" class="rp-tr">
+                    <td class="rp-td" style="text-transform:capitalize">{{ r.priorite }}</td>
+                    <td class="rp-td rp-td--mono rp-td--r">{{ r.total }}</td>
+                    <td class="rp-td rp-td--mono rp-td--r">{{ r.met }}</td>
+                    <td class="rp-td rp-td--mono rp-td--r" :class="r.at_risk ? 'rp-td--warn' : ''">{{ r.at_risk }}</td>
+                    <td class="rp-td rp-td--mono rp-td--r" :class="r.breached ? 'rp-td--warn' : ''">{{ r.breached }}</td>
+                    <td class="rp-td rp-td--mono rp-td--r">{{ r.pct_on_time }}%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
+
       <v-row>
         <v-col cols="12" lg="7">
           <v-card elevation="0" class="rp-chart-card">
@@ -1073,6 +1126,54 @@ const productionKpis = computed(() => {
     { icon: "mdi-clock-outline",          label: "Délai moyen",      value: delai ? `${delai}h` : "—" },
     { icon: "mdi-currency-eur",           label: "Budget commandes", value: budget > 0 ? `${Math.round(budget / 1000)}k€` : "—" },
   ];
+});
+
+// ── SLA (résolution) — calculé depuis le bloc `sla` de chaque demande ──────
+const slaResolution = computed(() =>
+  filteredAll.value
+    .map((d) => d.sla?.resolution?.status)
+    .filter(Boolean),
+);
+
+const slaKpis = computed(() => {
+  const s = slaResolution.value;
+  const met = s.filter((x) => x === "met").length;
+  const missed = s.filter((x) => x === "missed").length;
+  const breached = s.filter((x) => x === "breached").length;   // ouvertes hors délai
+  const atRisk = s.filter((x) => x === "at_risk").length;
+  const resolved = met + missed;
+  const pct = resolved ? Math.round((met / resolved) * 100) : null;
+  return [
+    { icon: "mdi-check-decagram-outline", label: "Résolues dans les délais",
+      value: pct == null ? "—" : `${pct}%`, alert: pct != null && pct < 80,
+      sub: resolved ? `${met}/${resolved} résolues` : "aucune résolue",
+      info: "Part des demandes résolues avant l'échéance SLA (met / met+missed)." },
+    { icon: "mdi-timer-alert-outline", label: "Hors délai (en cours)",
+      value: breached, alert: breached > 0,
+      info: "Demandes ouvertes dont l'échéance de résolution est dépassée." },
+    { icon: "mdi-progress-alert", label: "À risque",
+      value: atRisk, alert: atRisk > 0,
+      info: "Demandes ouvertes proches de l'échéance (≥ seuil d'alerte)." },
+    { icon: "mdi-close-octagon-outline", label: "Résolues en retard",
+      value: missed, alert: missed > 0,
+      info: "Demandes résolues après l'échéance SLA." },
+  ];
+});
+
+const slaByPriorite = computed(() => {
+  const order = ["urgente", "haute", "normale", "basse"];
+  const map = {};
+  for (const d of filteredAll.value) {
+    const st = d.sla?.resolution?.status;
+    if (!st) continue;
+    const p = d.priorite || "normale";
+    map[p] ??= { priorite: p, total: 0, met: 0, missed: 0, breached: 0, at_risk: 0 };
+    map[p].total++;
+    if (st in map[p]) map[p][st]++;
+  }
+  return Object.values(map)
+    .map((r) => ({ ...r, pct_on_time: (r.met + r.missed) ? Math.round((r.met / (r.met + r.missed)) * 100) : 0 }))
+    .sort((a, b) => order.indexOf(a.priorite) - order.indexOf(b.priorite));
 });
 
 // ── Trend ─────────────────────────────────────────────────────────────

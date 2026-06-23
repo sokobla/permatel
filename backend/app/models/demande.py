@@ -157,7 +157,11 @@ class Demande(db.Model):
     priorite = Column(priorite_demande_enum, default=PrioriteDemande.NORMALE, nullable=False)
     
     # SLA et résolution
-    sla_deadline = Column(DateTime, nullable=True)
+    sla_deadline = Column(DateTime, nullable=True)          # échéance de RÉSOLUTION
+    sla_response_deadline = Column(DateTime, nullable=True)  # échéance de PRISE EN CHARGE
+    prise_en_charge_at = Column(DateTime, nullable=True)     # 1ère sortie du statut "nouvelle"
+    sla_warning_notified = Column(Boolean, default=False, nullable=False)  # anti-doublon alerte SLA
+    sla_breach_notified = Column(Boolean, default=False, nullable=False)
     date_resolution = Column(DateTime, nullable=True)
     closed_at = Column(DateTime, nullable=True)
     

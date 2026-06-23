@@ -161,6 +161,17 @@ def fetch_inbound_for_tenant(db, cfg):
             client.store(uid, "+FLAGS", "\\Seen")
             inserted += 1
 
+        # Notification in-app/email des emails entrants (non bloquant)
+        if inserted:
+            try:
+                from app.services.notifications import notify, tenant_members
+                members = tenant_members(tenant_id)
+                notify(tenant_id, members, "mail.inbound",
+                       title=f"{inserted} nouvel(s) email(s) reçu(s)",
+                       body="De nouveaux emails sont arrivés dans la boîte du tenant.",
+                       entity_type="email", entity_id=None)
+            except Exception:  # noqa: BLE001
+                pass
         db.session.commit()
     finally:
         try:

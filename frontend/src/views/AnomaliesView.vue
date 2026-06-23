@@ -234,6 +234,7 @@
                         <span class="av-statut-chip__dot"></span>
                         {{ statutLabels[row.statut] }}
                       </span>
+                      <SlaBadge :state="row.sla && row.sla.resolution" />
                       <v-icon size="10" color="#ccc">mdi-chevron-down</v-icon>
                     </div>
                   </td>
@@ -312,6 +313,7 @@
                     <span class="av-statut-chip__dot"></span>
                     {{ statutLabels[row.statut] }}
                   </span>
+                  <SlaBadge :state="row.sla && row.sla.resolution" />
                   <v-icon size="10" color="#ccc">mdi-chevron-down</v-icon>
                 </div>
               </td>
@@ -391,6 +393,7 @@
 import { ref, computed, watch, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { listDemandes } from "@/services/demandeService";
+import SlaBadge from "@/components/sla/SlaBadge.vue";
 import EditAnomalieDrawer from "@/components/workspace/EditAnomalieDrawer.vue";
 
 const route = useRoute();

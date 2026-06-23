@@ -16,6 +16,7 @@ from flask_jwt_extended import jwt_required, get_jwt
 
 from app import db
 from app.models.setting import SmtpSetting, ReferenceValue
+from app.models.sla import SlaPolicy
 from app.utils.decorators import tenant_admin_required
 from app.utils.crypto import encrypt_secret, decrypt_secret
 
@@ -343,3 +344,79 @@ def delete_reference_value(value_id):
     db.session.delete(item)
     db.session.commit()
     return jsonify({"message": "Valeur supprimée.", "id": value_id}), 200
+
+
+# ══════════════════════════════════════════════════════════════
+#  POLITIQUES SLA (cibles par priorité × type × client)
+# ══════════════════════════════════════════════════════════════
+SLA_PRIORITES = {"basse", "normale", "haute", "urgente"}
+SLA_TYPES = {"anomalie", "commande", "planning", "admin"}
+
+
+@settings_bp.get("/sla")
+@jwt_required()
+def list_sla():
+    tenant_id, err = _tenant_uuid()
+    if err:
+        return err
+    rows = SlaPolicy.query.filter_by(tenant_id=tenant_id).order_by(
+        SlaPolicy.priorite, SlaPolicy.type_demande, SlaPolicy.client_id
+    ).all()
+    return jsonify([r.to_dict() for r in rows]), 200
+
+
+@settings_bp.put("/sla")
+@tenant_admin_required
+def upsert_sla():
+    """Crée ou met à jour une cible SLA pour un périmètre (priorité[, type][, client])."""
+    tenant_id, err = _tenant_uuid()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+
+    priorite = (data.get("priorite") or "").strip().lower()
+    if priorite not in SLA_PRIORITES:
+        return jsonify({"error": f"Priorité invalide : {sorted(SLA_PRIORITES)}"}), 422
+    type_demande = (data.get("type_demande") or None)
+    if type_demande and type_demande not in SLA_TYPES:
+        return jsonify({"error": f"Type invalide : {sorted(SLA_TYPES)}"}), 422
+    client_id = data.get("client_id")
+    try:
+        resp = int(data.get("response_minutes"))
+        reso = int(data.get("resolution_minutes"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "response_minutes et resolution_minutes (entiers) requis."}), 422
+    if resp <= 0 or reso <= 0:
+        return jsonify({"error": "Les délais doivent être positifs."}), 422
+    warning_pct = int(data.get("warning_pct", 80))
+    if not (1 <= warning_pct <= 100):
+        return jsonify({"error": "warning_pct doit être entre 1 et 100."}), 422
+    pause = bool(data.get("pause_on_waiting", True))
+
+    row = SlaPolicy.query.filter_by(
+        tenant_id=tenant_id, priorite=priorite, type_demande=type_demande, client_id=client_id
+    ).first()
+    if not row:
+        row = SlaPolicy(tenant_id=tenant_id, priorite=priorite,
+                        type_demande=type_demande, client_id=client_id)
+        db.session.add(row)
+    row.response_minutes = resp
+    row.resolution_minutes = reso
+    row.warning_pct = warning_pct
+    row.pause_on_waiting = pause
+    db.session.commit()
+    return jsonify(row.to_dict()), 200
+
+
+@settings_bp.delete("/sla/<int:policy_id>")
+@tenant_admin_required
+def delete_sla(policy_id):
+    tenant_id, err = _tenant_uuid()
+    if err:
+        return err
+    row = SlaPolicy.query.filter_by(id=policy_id, tenant_id=tenant_id).first()
+    if not row:
+        return jsonify({"error": "Politique SLA introuvable."}), 404
+    db.session.delete(row)
+    db.session.commit()
+    return jsonify({"message": "Politique SLA supprimée.", "id": policy_id}), 200

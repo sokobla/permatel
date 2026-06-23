@@ -133,6 +133,33 @@ def create_app(config_object=None):
             f"Entrées blocklist purgées : {result['purged']}"
         )
 
+    @click.command("sla-backfill")
+    @with_appcontext
+    def sla_backfill_command():
+        """Amorce les politiques SLA par défaut des tenants existants + recalcule les demandes actives."""
+        from app.services.sla import backfill_all
+        r = backfill_all(db)
+        click.echo(
+            f"Tenants : {r['tenants']} | politiques créées : {r['policies_created']} | "
+            f"demandes recalculées : {r['demandes_recomputed']}"
+        )
+
+    @click.command("sla-sweep")
+    @with_appcontext
+    def sla_sweep_command():
+        """Émet les alertes SLA (à risque / dépassé) pour les demandes ouvertes."""
+        from app.services.sla import sla_sweep
+        r = sla_sweep(db)
+        click.echo(f"Alertes SLA — à risque : {r['warnings']} | dépassements : {r['breaches']}")
+
+    @click.command("notifications-dispatch")
+    @with_appcontext
+    def notifications_dispatch_command():
+        """Envoie les emails de notification en file (via le SMTP du tenant)."""
+        from app.services.notifications import dispatch_emails
+        r = dispatch_emails(db)
+        click.echo(f"Emails — envoyés : {r['sent']} | échecs : {r['failed']}")
+
     @click.command("mail-fetch")
     @with_appcontext
     def mail_fetch_command():
@@ -147,6 +174,9 @@ def create_app(config_object=None):
     app.cli.add_command(init_db_command, "init-db")
     app.cli.add_command(seed_command, "seed")
     app.cli.add_command(sessions_sweep_command, "sessions-sweep")
+    app.cli.add_command(sla_backfill_command, "sla-backfill")
+    app.cli.add_command(sla_sweep_command, "sla-sweep")
+    app.cli.add_command(notifications_dispatch_command, "notifications-dispatch")
     app.cli.add_command(mail_fetch_command, "mail-fetch")
 
     from app.scripts.superadmin_cli import superadmin_cli
@@ -197,6 +227,9 @@ def create_app(config_object=None):
 
     from app.routes.invitations import invitations_bp
     app.register_blueprint(invitations_bp)
+
+    from app.routes.notifications import notifications_bp
+    app.register_blueprint(notifications_bp)
 
 
 

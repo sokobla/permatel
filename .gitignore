@@ -1,6 +1,26 @@
+# Dépendances / build
 /frontend/node_modules/
-/backend/.venv/
-/backend/__pycache__/
-/backend/migrations/
-/backend/app/uploads/*/frontend/.env
 /frontend/dist/
+/backend/.venv/
+
+# Secrets — NE JAMAIS versionner
+.env
+*.env
+!.env.example
+/backend/.env
+/frontend/.env
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Uploads (contenu) — garder le dossier
+/backend/app/uploads/*
+!/backend/app/uploads/.gitkeep
+
+# Divers
+*.sqlite
+*.log

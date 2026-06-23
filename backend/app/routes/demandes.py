@@ -18,6 +18,7 @@ from app.models.contact import Contact
 from app.models.tenant import Tenant
 from app.utils.auth import role_required
 from app.utils.decorators import tenant_required
+from app.services.sla import apply_sla, on_status_change, sla_state
 
 
 demandes_bp = Blueprint("demandes", __name__, url_prefix="/api/demandes")
@@ -151,6 +152,9 @@ def _serialize_demande(demande: Demande) -> dict:
         "updated_by_id": demande.updated_by_id,
         "updated_by_nom": updated_by_nom,
         "sla_deadline": demande.sla_deadline.isoformat() if demande.sla_deadline else None,
+        "sla_response_deadline": demande.sla_response_deadline.isoformat() if demande.sla_response_deadline else None,
+        "prise_en_charge_at": demande.prise_en_charge_at.isoformat() if demande.prise_en_charge_at else None,
+        "sla": sla_state(demande),
         "date_resolution": demande.date_resolution.isoformat() if demande.date_resolution else None,
         "closed_at": demande.closed_at.isoformat() if demande.closed_at else None,
         "is_deleted": demande.is_deleted,
@@ -430,8 +434,28 @@ def create_demande():
 
         # Générer numéro ticket final
         demande.numero_ticket = f"{type_demande.value.upper()[:4]}_{demande.id}"
+        # SLA : échéances calculées depuis created_at + politique du tenant
+        apply_sla(demande)
+        on_status_change(demande, demande.statut)   # prise en charge si créée hors "nouvelle"
         db.session.commit()
-        
+
+        # ── Notifications (non bloquant) ───────────────────────────────────
+        try:
+            from app.services.notifications import notify, tenant_members
+            members = tenant_members(g.tenant_id)
+            notify(g.tenant_id, members, "demande.created",
+                   title=f"Nouvelle demande — {demande.numero_ticket}",
+                   body=f"{demande.titre} (priorité {demande.priorite.value}).",
+                   entity_type="demande", entity_id=demande.id)
+            assignee = User.query.get(demande.permanencier_id) if demande.permanencier_id else None
+            if assignee:
+                notify(g.tenant_id, [assignee], "demande.assigned",
+                       title=f"Demande qui vous est assignée — {demande.numero_ticket}",
+                       body=demande.titre, entity_type="demande", entity_id=demande.id)
+            db.session.commit()
+        except Exception:  # noqa: BLE001
+            db.session.rollback()
+
         return jsonify(_serialize_demande(demande)), 201
     
     except IntegrityError as e:
@@ -470,15 +494,16 @@ def update_demande(demande_id):
                 demande.statut = StatutDemande(payload["statut"])
             except ValueError:
                 return jsonify({"message": "statut invalide"}), 400
-        
+            # Horodatages de cycle de vie (prise en charge / résolution / clôture)
+            on_status_change(demande, demande.statut)
+
         if "priorite" in payload:
             try:
                 demande.priorite = PrioriteDemande(payload["priorite"])
             except ValueError:
                 return jsonify({"message": "priorite invalide"}), 400
-        
-        if "sla_deadline" in payload:
-            demande.sla_deadline = payload["sla_deadline"]
+            # Recalcule les échéances SLA (pas de surcharge manuelle)
+            apply_sla(demande)
         
         # Champs spécifiques selon type
         if isinstance(demande, DemandeAnomalie):

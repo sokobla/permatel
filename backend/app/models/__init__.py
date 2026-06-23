@@ -31,6 +31,8 @@ from .tenant_user import TenantUser, MEMBERSHIP_ADMIN, MEMBERSHIP_MEMBER
 from .tenant_invitation import TenantInvitation
 from .prestataire import Prestataire
 from .setting import SmtpSetting, ReferenceValue
+from .sla import SlaPolicy
+from .notification import Notification, NotificationPreference, EmailOutbox
 from .email import Email
 from .email_attachment import EmailAttachment
 

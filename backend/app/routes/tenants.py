@@ -228,6 +228,13 @@ def create_tenant():
             db.session.rollback()
             return jsonify({"error": str(e)}), 422
 
+    # Amorce les cibles SLA par défaut (priorité) pour le nouveau tenant
+    try:
+        from app.services.sla import seed_sla_policies
+        seed_sla_policies(db, tenant.id)
+    except Exception as exc:  # noqa: BLE001
+        tenant_logger.warning(f"CREATE_TENANT | seed SLA échoué : {exc}")
+
     # Amorce les valeurs de référence par défaut pour le nouveau tenant
     try:
         from app.scripts.seeding import seed_reference_values

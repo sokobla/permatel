@@ -60,4 +60,19 @@ export const settingsService = {
     const { data } = await apiClient.delete(`/settings/reference-values/${id}`);
     return data;
   },
+
+  // ── Politiques SLA ──────────────────────────────────────────────────────────
+  async getSlaPolicies() {
+    const { data } = await apiClient.get("/settings/sla");
+    return data;
+  },
+  async upsertSlaPolicy(payload) {
+    // { priorite, type_demande?, client_id?, response_minutes, resolution_minutes, warning_pct?, pause_on_waiting? }
+    const { data } = await apiClient.put("/settings/sla", payload);
+    return data;
+  },
+  async deleteSlaPolicy(id) {
+    const { data } = await apiClient.delete(`/settings/sla/${id}`);
+    return data;
+  },
 };

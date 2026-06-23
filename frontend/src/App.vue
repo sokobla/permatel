@@ -44,6 +44,7 @@
         <v-toolbar-title v-else class="app-bar-title">{{ tenantName }}</v-toolbar-title>
 
         <v-spacer></v-spacer>
+        <NotificationBell />
         <v-avatar :src="profileAvatarUrl" size="32" class="mr-2"></v-avatar>
         <v-btn
           color="#000b23"
@@ -95,6 +96,7 @@
 <script setup>
 import { computed, watch } from "vue";
 import SideMenue from "@/components/Menu2.vue";
+import NotificationBell from "@/components/notifications/NotificationBell.vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/store/auth";
 import { useIdleLogout } from "@/composables/useIdleLogout";
