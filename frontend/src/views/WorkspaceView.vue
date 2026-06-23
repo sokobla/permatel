@@ -20,11 +20,7 @@
         @contact-selected="onContactSelected"
       />
 
-      <CommunicationHistoryPanel
-        :history="communicationHistory"
-        :channel-meta="channelMeta"
-        :is-loading="historyLoading"
-      />
+      <WorkspaceOpenDemandes ref="openDemandesRef" @select="onSelectDemande" />
 
     </aside>
 
@@ -54,26 +50,11 @@
         </template>
 
         <!-- ── Canal WORKSPACE (par défaut) ─────────────────────────────── -->
-        <!-- État vide — aucun contact sélectionné -->
-        <WorkspaceEmptyState v-else-if="!selectedContact" />
-
-        <!-- Panneau actif — contact identifié -->
-        <div v-else class="ws-active-content">
-          <!-- Bandeau contact sélectionné -->
-          <SelectedContactBanner
-            :contact="bannerContact"
-            :loading="historyLoading"
-            :can-create-demande="true"
-            @email="onAction('email')"
-            @call="onAction('call')"
-            @new-demande="onNewDemande"
-          />
-
-          <!-- Zone formulaire / liste demandes -->
-          <div :class="['ws-form-area', { 'ws-form-area--filled': activeDemandeType }]">
+        <template v-else>
+          <!-- Création d'une demande (avec OU sans contact) -->
+          <div v-if="activeDemandeType" class="ws-form-area ws-form-area--filled">
             <v-slide-y-transition>
               <component
-                v-if="activeDemandeType"
                 :is="FORM_COMPONENTS[activeDemandeType]"
                 :key="activeDemandeType"
                 :contact-id="selectedContact?.id ?? null"
@@ -81,15 +62,31 @@
                 @cancel="activeDemandeType = null"
               />
             </v-slide-y-transition>
-            <DemandesListPanel
-              v-if="!activeDemandeType"
-              :contact-id="selectedContact?.id ?? null"
-              :contact-nom="selectedContact?.fullName ?? null"
-              :key="`dlp-${selectedContact?.id}-${demandeListKey}`"
-              @refresh="demandeListKey++"
-            />
           </div>
-        </div>
+
+          <!-- État vide — aucun contact + bouton nouvelle demande -->
+          <WorkspaceEmptyState v-else-if="!selectedContact" @new-demande="onNewDemande" />
+
+          <!-- Panneau actif — contact identifié -->
+          <div v-else class="ws-active-content">
+            <SelectedContactBanner
+              :contact="bannerContact"
+              :loading="historyLoading"
+              :can-create-demande="true"
+              @email="onAction('email')"
+              @call="onAction('call')"
+              @new-demande="onNewDemande"
+            />
+            <div class="ws-form-area">
+              <DemandesListPanel
+                :contact-id="selectedContact?.id ?? null"
+                :contact-nom="selectedContact?.fullName ?? null"
+                :key="`dlp-${selectedContact?.id}-${demandeListKey}`"
+                @refresh="demandeListKey++"
+              />
+            </div>
+          </div>
+        </template>
 
       </div>
 
@@ -102,7 +99,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useAuthStore }           from '@/store/auth'
 import ContactSearchPanel        from '@/components/workspace/ContactSearchPanel.vue'
-import CommunicationHistoryPanel from '@/components/workspace/CommunicationHistoryPanel.vue'
+import WorkspaceOpenDemandes     from '@/components/workspace/WorkspaceOpenDemandes.vue'
 import ChannelTabs               from '@/components/workspace/ChannelTabs.vue'
 import WorkspaceEmptyState       from '@/components/workspace/WorkspaceEmptyState.vue'
 import SelectedContactBanner     from '@/components/workspace/SelectedContactBanner.vue'
@@ -194,6 +191,7 @@ const demandeListKey       = ref(0)
 
 const selectedChannel      = ref('workspace')
 const composeContact       = ref(null)  // contact pré-rempli pour le composer email
+const openDemandesRef      = ref(null)  // réf du panneau "demandes en cours" (gauche)
 
 // ─── Onglets pilotés par les canaux du tenant (source : backend, store) ──────
 const authStore = useAuthStore()
@@ -254,7 +252,22 @@ function onNewDemande(type) {
 function onDemandeSubmitted(demande) {
   activeDemandeType.value = null
   demandeListKey.value++
+  openDemandesRef.value?.reload?.()   // rafraîchit la liste des demandes en cours
   console.log('[Workspace] demande créée →', demande.numero_ticket)
+}
+
+// Sélection d'une demande dans la liste de gauche → charge son contact
+function onSelectDemande(d) {
+  activeDemandeType.value = null
+  if (d.contact_id) {
+    selectedContact.value = {
+      id: d.contact_id,
+      contactId: `ID-${d.contact_id}`,
+      name: d.contact_nom || `#${d.contact_id}`,
+      fullName: d.contact_nom || '—',
+      status: 'active',
+    }
+  }
 }
 
 function onContactSelected(contact) {

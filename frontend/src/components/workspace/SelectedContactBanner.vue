@@ -61,6 +61,7 @@
       aria-label="Actions rapides contact"
     >
       <button
+        v-if="showCall"
         class="scb-btn scb-btn--secondary"
         :disabled="loading"
         aria-label="Passer un appel"
@@ -71,6 +72,7 @@
       </button>
 
       <button
+        v-if="showEmail"
         class="scb-btn scb-btn--secondary"
         :disabled="loading"
         aria-label="Envoyer un email"
@@ -116,6 +118,16 @@
 
 <script setup>
 import { computed } from "vue";
+import { useAuthStore } from "@/store/auth";
+
+const authStore = useAuthStore();
+const features = computed(() => authStore.featureMap);
+
+// EMAIL : visible seulement si la messagerie est complètement fonctionnelle
+// (canal email + SMTP + IMAP configurés → workspace_tabs.mail).
+const showEmail = computed(() => features.value.workspace_tabs?.mail === true);
+// APPEL : visible seulement si l'intégration téléphonie est activée.
+const showCall = computed(() => features.value.integrations?.telephony === true);
 
 const DEMANDE_TYPES = [
   { type: "anomalie", label: "Anomalie", icon: "mdi-alert-circle-outline" },
