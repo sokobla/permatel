@@ -7,6 +7,9 @@ import vuetify from "./plugins/vuetify";
 import { loadFonts } from "./plugins/webfontloader";
 import { setupInterceptors } from "@/services/http/interceptor";
 
+// Titre de l'onglet = nom réel de l'application (configurable via VITE_APP_NAME)
+document.title = import.meta.env.VITE_APP_NAME || "PERMATEL";
+
 loadFonts();
 
 const app = createApp(App);
