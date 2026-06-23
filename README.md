@@ -566,11 +566,35 @@ Les fixtures de test doivent inclure au minimum :
 
 La stack de production est définie dans [`docker-compose.yml`](docker-compose.yml). Elle est **durcie** :
 
-- **Reverse-proxy Traefik en edge** (seul service exposé, ports **80/443**) : **TLS automatique** Let's Encrypt (redirection HTTP→HTTPS, HSTS), options TLS strictes (TLS 1.2+, `sniStrict`, ciphers modernes — [`traefik/dynamic.yml`](traefik/dynamic.yml)).
+- **Reverse-proxy Traefik en edge** (seul service exposé, ports **80/443**) : **TLS automatique** Let's Encrypt (redirection HTTP→HTTPS, HSTS). TLS 1.2/1.3 par défaut Traefik ; durcissement ciphers/minVersion **optionnel** via [`traefik/dynamic.yml`](traefik/dynamic.yml) (à ré-activer une fois le mount vérifié — cf. § Dépannage).
 - **Anti-DoS** : limite de débit globale (100 req/s, burst 50), **login limité à 5/min** au niveau edge (complète l'anti-brute-force applicatif), plafond de **requêtes concurrentes**, **timeouts** (mitige slowloris), taille de corps bornée (20 Mo).
 - **Anti-fuite de données** : en-têtes de sécurité (HSTS, `frameDeny`, `nosniff`, Referrer/Permissions-Policy), suppression des en-têtes `Server`/`X-Powered-By`, `exposedByDefault=false` (Traefik n'expose que les services labellisés), **dashboard Traefik désactivé**, `docker.sock` monté **en lecture seule**.
 - **Frontend Nginx, backend et base sur réseau interne** (jamais publiés). Nginx proxifie `/api` et `/uploads` (**same-origin**). Backend **Gunicorn**, images **multi-stage**, conteneurs **non-root**, `no-new-privileges`, **limites** mémoire/CPU/PIDs, **logs** rotés, **healthchecks**, frontend **read-only**.
 - **Secrets obligatoires** : le démarrage échoue si `POSTGRES_PASSWORD`, `JWT_SECRET_KEY`, `SETTINGS_ENCRYPTION_KEY` ou `ACME_EMAIL` sont absents.
+
+### 0. Pré-vol (à vérifier AVANT de pousser/déployer)
+
+Ces points ont chacun bloqué un déploiement réel (voir § Dépannage) :
+
+```bash
+# a) Aucun dépôt Git imbriqué (gitlink) — sinon le dossier est VIDE sur le serveur
+git ls-files -s | awk '$1==160000{print "GITLINK:",$4}'   # doit être vide
+# b) Tout est commité (le serveur ne build que ce qui est dans Git)
+git status --short                                         # doit être propre
+# c) requirements.txt en UTF-8/ASCII (UTF-16 casse pip)
+grep -qP '\x00' backend/requirements.txt && echo "⚠ UTF-16 à corriger" || echo "UTF-8 OK"
+```
+
+- Sur Docker récent, si Traefik logue `client version 1.24 is too old`, **abaisser
+  le minimum d'API du démon** (une fois pour toutes) :
+  ```bash
+  sudo systemctl edit docker     # ajouter :  [Service]\n Environment="DOCKER_MIN_API_VERSION=1.24"
+  sudo systemctl daemon-reload && sudo systemctl restart docker
+  ```
+- Ne **jamais éditer `docker-compose.yml` sur le serveur** (conflits à chaque `git pull`) :
+  toute variation passe par le `.env`.
+
+> Astuce build : `> /dockerdeploy` (skill) automatise ce pré-vol + le dépannage.
 
 ### 1. Préparer le `.env`
 
@@ -641,19 +665,24 @@ docker compose exec backend flask superadmin disable ops@exemple.com   # / enabl
 
 ### 4. Tâches planifiées (cron)
 
-Deux tâches doivent tourner périodiquement. Via le planificateur de l'hôte (`crontab -e`) :
+Deux tâches doivent tourner périodiquement. On utilise **`docker exec`** (plus
+robuste en cron que `docker compose exec` : pas de dépendance au `.env`/dossier
+projet) avec le **chemin absolu** de `docker` (le PATH de cron est minimal).
 
+```bash
+sudo mkdir -p /var/log/permatel
+crontab -e
+```
 ```cron
-# Expiration des sessions inactives + purge de la blocklist — toutes les 15 min
-*/15 * * * * docker compose -f /chemin/permatel/docker-compose.yml exec -T backend flask sessions-sweep >> /var/log/permatel-sweep.log 2>&1
-
-# Collecte IMAP des emails entrants (tenants à réception activée) — toutes les 5 min
-*/5  * * * * docker compose -f /chemin/permatel/docker-compose.yml exec -T backend flask mail-fetch  >> /var/log/permatel-mailfetch.log 2>&1
+# Collecte IMAP des emails entrants — toutes les 5 min
+*/5  * * * * /usr/bin/docker exec permatel_backend flask mail-fetch     >> /var/log/permatel/mail-fetch.log     2>&1
+# Expiration des sessions inactives + purge blocklist — toutes les 15 min
+*/15 * * * * /usr/bin/docker exec permatel_backend flask sessions-sweep >> /var/log/permatel/sessions-sweep.log 2>&1
 ```
 
-Équivalents hors Docker : `backend/scripts/sessions_sweep.py` et `backend/scripts/mail_fetch.py`
-(à lancer dans le venv backend). La synchronisation manuelle est aussi possible depuis le
-canal **Mail** du Workspace (bouton **Synchroniser**).
+`permatel_backend` = `container_name` du backend ; adapter `/usr/bin/docker` selon
+`which docker`. Synchronisation manuelle possible depuis le canal **Mail** du
+Workspace (bouton **Synchroniser**).
 
 ### 5. Mise à jour / sauvegarde
 
@@ -666,6 +695,24 @@ docker compose exec -T db pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > backup_$(
 
 # Volumes persistants : postgres_data (BD) et backend_uploads (avatars, PJ chiffrées)
 ```
+
+> Si `git pull` refuse à cause d'un `docker-compose.yml` modifié sur le serveur :
+> `git checkout -- docker-compose.yml` puis `git pull` (les variations vont dans `.env`).
+
+### 6. Dépannage déploiement (retour d'expérience)
+
+| Symptôme | Cause | Correctif |
+|---|---|---|
+| `failed to read dockerfile: open Dockerfile: no such file…` (fichier pourtant présent) | bug du **mode bake** de Compose | `COMPOSE_BAKE=false docker compose up -d --build` (ou désactiver « Use Compose bake » dans Docker Desktop) |
+| Même erreur mais fichier **absent sur le serveur** | dossier = **dépôt Git imbriqué** (gitlink) non récupéré | dé-imbriquer : `git rm --cached <dir> && rm -rf <dir>/.git && git add <dir>` puis push/pull |
+| `Invalid requirement: 'a\x00l\x00e…'` (pip) | `requirements.txt` en **UTF-16** | réécrire en UTF-8 (heredoc bash) ; `.gitattributes` impose `requirements.txt text eol=lf` |
+| Traefik `client version 1.24 is too old. Minimum supported API version is 1.40` | provider Docker de Traefik (n'ignore pas `DOCKER_API_VERSION`) | `DOCKER_MIN_API_VERSION=1.24` sur le **démon** (cf. § Pré-vol) |
+| Traefik `Could not find network "permatel_internal"` | Compose **préfixe** le réseau | réseau à **nom fixe** (`networks: permatel_internal: { name: permatel_internal }`) — déjà en place |
+| Traefik `unknown TLS options: default@file` | `traefik/dynamic.yml` non monté/chargé | vérifier `docker compose exec traefik cat /etc/traefik/dynamic.yml` ; sinon laisser le TLS par défaut (labels `tls.options` retirés) |
+| Navigateur `SSL_ERROR_UNRECOGNIZED_NAME_ALERT` | `sniStrict:true` **+** cert ACME non émis | `sniStrict:false` (déjà) + corriger l'émission (provider Docker, port 80, DNS) |
+| ACME `timeout` / `too many certificates` | port 80 fermé / DNS / rate-limit LE | ouvrir 80‑443, vérifier `dig +short <DOMAIN>` ; itérer en **staging** puis revenir prod |
+
+> Référence détaillée : skill **`/dockerdeploy`** (matrice complète + pré-vol).
 
 ### Bonnes pratiques sécurité (production)
 - **TLS** géré par Traefik (Let's Encrypt). Ouvrir uniquement **80/443** sur le pare-feu de l'hôte ; tous les autres services sont internes.
