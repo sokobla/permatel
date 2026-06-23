@@ -160,6 +160,21 @@ def create_app(config_object=None):
         r = dispatch_emails(db)
         click.echo(f"Emails — envoyés : {r['sent']} | échecs : {r['failed']}")
 
+    @click.command("reencrypt-secrets")
+    @click.argument("old_key")
+    @with_appcontext
+    def reencrypt_secrets_command(old_key):
+        """Re-chiffre les données (ancienne clé -> SETTINGS_ENCRYPTION_KEY courante).
+
+        Lancer APRÈS avoir mis la nouvelle clé en place : flask reencrypt-secrets <ancienne_cle>
+        """
+        from app.services.reencrypt import reencrypt_all
+        r = reencrypt_all(db, old_key)
+        click.echo(
+            f"Re-chiffrement — SMTP : {r['smtp']} | IMAP : {r['imap']} | "
+            f"emails : {r['emails']} | pièces jointes : {r['attachments']}"
+        )
+
     @click.command("mail-fetch")
     @with_appcontext
     def mail_fetch_command():
@@ -177,6 +192,7 @@ def create_app(config_object=None):
     app.cli.add_command(sla_backfill_command, "sla-backfill")
     app.cli.add_command(sla_sweep_command, "sla-sweep")
     app.cli.add_command(notifications_dispatch_command, "notifications-dispatch")
+    app.cli.add_command(reencrypt_secrets_command, "reencrypt-secrets")
     app.cli.add_command(mail_fetch_command, "mail-fetch")
 
     from app.scripts.superadmin_cli import superadmin_cli
