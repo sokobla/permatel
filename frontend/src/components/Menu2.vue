@@ -10,7 +10,6 @@
   >
     <v-list>
       <v-list-item
-        prepend-avatar="https://randomuser.me/api/portraits/men/85.jpg"
         :title="authUser.fullName"
         :subtitle="authUser.role"
       >
@@ -18,7 +17,11 @@
           <v-avatar
             :class="{ 'mx-1': wider }"
             :size="wider && rail ? 40 : undefined"
-          ></v-avatar>
+            color="#00a8a8"
+          >
+            <v-img v-if="userAvatarUrl" :src="userAvatarUrl" alt="Avatar utilisateur" />
+            <span v-else class="menu-avatar-initials">{{ userInitials }}</span>
+          </v-avatar>
         </template>
         <template v-slot:append>
           <v-btn
@@ -101,6 +104,23 @@ const authStore = useAuthStore();
 // Identité applicative (footer du menu)
 const APP_NAME = import.meta.env.VITE_APP_NAME ?? "PERMATEL";
 const APP_VERSION = import.meta.env.VITE_APP_VERSION ?? "1.0.0";
+
+// Avatar réel du tenant/utilisateur connecté (sinon initiales)
+const BACKEND_ORIGIN = (
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api"
+).replace(/\/api\/?$/, "");
+
+const userAvatarUrl = computed(() => {
+  const path = authStore.user?.avatar_url;
+  if (!path) return null;
+  return /^https?:\/\//.test(path) ? path : BACKEND_ORIGIN + path;
+});
+
+const userInitials = computed(() => {
+  const u = authStore.user;
+  const ini = `${u?.prenom?.[0] ?? ""}${u?.nom?.[0] ?? ""}`.trim();
+  return (ini || u?.username?.slice(0, 2) || "?").toUpperCase();
+});
 
 const authUser = computed(() => ({
   username: authStore.user?.username ? `@${authStore.user.username}` : "@—",
@@ -263,6 +283,15 @@ aside {
 
 .font-mono {
   font-family: var(--font-mono);
+}
+
+/* Initiales dans l'avatar du menu (fallback sans photo) */
+.menu-avatar-initials {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.02em;
 }
 
 /* Footer du menu : nom application + version */
