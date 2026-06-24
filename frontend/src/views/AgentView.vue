@@ -82,7 +82,8 @@
             :items="agents"
             :items-length="totalAgents"
             :loading="loading"
-            :items-per-page="itemsPerPage"
+            v-model:page="page"
+            v-model:items-per-page="itemsPerPage"
             density="compact"
             class="users-table"
             item-value="id"
@@ -194,6 +195,69 @@
               </div>
             </template>
           </v-data-table-server>
+
+          <!-- Pagination -->
+          <div class="table-pagination">
+            <span class="pag-info">
+              PAGE&nbsp;<span class="mono-text">{{ page }}</span
+              >&nbsp;/&nbsp;<span class="mono-text">{{ totalPages }}</span>
+              &nbsp;—&nbsp;<span class="mono-text">{{ totalAgents }}</span
+              >&nbsp;ENTRÉE(S)
+            </span>
+            <div class="pag-controls">
+              <button
+                class="pag-btn"
+                :disabled="page <= 1"
+                @click="goToPage(1)"
+                title="Première page"
+              >
+                <v-icon size="13">mdi-page-first</v-icon>
+              </button>
+              <button
+                class="pag-btn"
+                :disabled="page <= 1"
+                @click="goToPage(page - 1)"
+              >
+                <v-icon size="13">mdi-chevron-left</v-icon>
+              </button>
+              <button
+                v-for="p in visiblePages"
+                :key="p"
+                :class="['pag-btn', { 'pag-btn--active': p === page }]"
+                @click="goToPage(p)"
+              >
+                {{ p }}
+              </button>
+              <button
+                class="pag-btn"
+                :disabled="page >= totalPages"
+                @click="goToPage(page + 1)"
+              >
+                <v-icon size="13">mdi-chevron-right</v-icon>
+              </button>
+              <button
+                class="pag-btn"
+                :disabled="page >= totalPages"
+                @click="goToPage(totalPages)"
+                title="Dernière page"
+              >
+                <v-icon size="13">mdi-page-last</v-icon>
+              </button>
+            </div>
+            <div class="pag-perpage">
+              <label class="pag-perpage__label">PAR PAGE</label>
+              <select
+                v-model="itemsPerPage"
+                class="pag-perpage__select"
+                @change="goToPage(1)"
+              >
+                <option :value="10">10</option>
+                <option :value="25">25</option>
+                <option :value="50">50</option>
+                <option :value="100">100</option>
+              </select>
+            </div>
+          </div>
         </div>
       </main>
 
@@ -546,6 +610,8 @@ const {
   statusFilter,
   typeFilter,
   itemsPerPage,
+  page,
+  totalPages,
   init,
   loadAgents,
   onSearchInput,
@@ -555,6 +621,15 @@ const {
   deleteAgent,
   resetSubmissionState,
 } = useAgents();
+
+const visiblePages = computed(() => {
+  let pages = [];
+  for (let i = 1; i <= totalPages.value; i++) pages.push(i);
+  return pages;
+});
+const goToPage = (p) => {
+  page.value = p;
+};
 
 const panelOpen = ref(false);
 const panelMode = ref("create");
