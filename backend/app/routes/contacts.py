@@ -63,6 +63,7 @@ def _contact_to_dict(contact: Contact) -> dict:
         "telephone": contact.telephone,
         "email": contact.email,
         "type": contact.type,
+        "agent_securite_id": contact.agent_securite_id,
         "fonction": contact.fonction,
         "notes": contact.notes,
         "tenant_id": str(contact.tenant_id) if contact.tenant_id else None,

@@ -58,6 +58,9 @@
                 :is="FORM_COMPONENTS[activeDemandeType]"
                 :key="activeDemandeType"
                 :contact-id="selectedContact?.id ?? null"
+                v-bind="activeDemandeType === 'prise_de_service'
+                  ? { agentId: selectedContact?.agentId ?? null, agentNom: selectedContact?.fullName ?? '' }
+                  : {}"
                 @submitted="onDemandeSubmitted"
                 @cancel="activeDemandeType = null"
               />
@@ -73,6 +76,7 @@
               :contact="bannerContact"
               :loading="historyLoading"
               :can-create-demande="true"
+              :is-agent="selectedContact?.isAgent ?? false"
               @email="onAction('email')"
               @call="onAction('call')"
               @new-demande="onNewDemande"
@@ -109,6 +113,7 @@ import DemandeAnomalieForm        from '@/components/workspace/forms/DemandeAnom
 import DemandeCommandeForm        from '@/components/workspace/forms/DemandeCommandeForm.vue'
 import DemandeAdminForm           from '@/components/workspace/forms/DemandeAdminForm.vue'
 import DemandePlanningForm        from '@/components/workspace/forms/DemandePlanningForm.vue'
+import DemandePriseDeServiceForm  from '@/components/workspace/forms/DemandePriseDeServiceForm.vue'
 import DemandesListPanel          from '@/components/workspace/DemandesListPanel.vue'
 import ChatBox                    from '@/components/workspace/ChatBox.vue'
 import MailChannel               from '@/components/workspace/MailChannel.vue'
@@ -120,6 +125,7 @@ const FORM_COMPONENTS = {
   commande: DemandeCommandeForm,
   admin:    DemandeAdminForm,
   planning: DemandePlanningForm,
+  prise_de_service: DemandePriseDeServiceForm,
 }
 
 function resolveAvatarUrl(relativeUrl) {
@@ -145,6 +151,9 @@ function normalizeContact(c) {
     avatarUrl:   resolveAvatarUrl(c.avatar_url),
     statusColor: 'teal',
     email:       c.email ?? null,
+    type:        c.type ?? null,
+    agentId:     c.agent_securite_id ?? null,
+    isAgent:     c.agent_securite_id != null || c.type === 'Agent de sécurité',
   }
 }
 

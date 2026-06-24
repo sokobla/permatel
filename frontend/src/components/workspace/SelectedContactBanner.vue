@@ -102,7 +102,7 @@
         </template>
         <v-list density="compact" min-width="220">
           <v-list-item
-            v-for="opt in DEMANDE_TYPES"
+            v-for="opt in demandeTypes"
             :key="opt.type"
             :prepend-icon="opt.icon"
             :title="opt.label"
@@ -146,6 +146,13 @@ const DEMANDE_TYPES = [
   },
 ];
 
+// "Prise de service" : exclusivement pour les contacts de type agent.
+const demandeTypes = computed(() =>
+  props.isAgent
+    ? [...DEMANDE_TYPES, { type: "prise_de_service", label: "Prise de service", icon: "mdi-clock-start" }]
+    : DEMANDE_TYPES,
+);
+
 const props = defineProps({
   contact: {
     type: Object,
@@ -163,6 +170,7 @@ const props = defineProps({
   showActions: { type: Boolean, default: true },
   canCreateDemande: { type: Boolean, default: true },
   loading: { type: Boolean, default: false },
+  isAgent: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(["call", "email", "new-demande"]);
