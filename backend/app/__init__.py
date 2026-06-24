@@ -195,6 +195,9 @@ def create_app(config_object=None):
     app.cli.add_command(reencrypt_secrets_command, "reencrypt-secrets")
     app.cli.add_command(mail_fetch_command, "mail-fetch")
 
+    from app.scripts.seed_prestataires import seed_prestataires_command
+    app.cli.add_command(seed_prestataires_command, "seed-prestataires")
+
     from app.scripts.superadmin_cli import superadmin_cli
     app.cli.add_command(superadmin_cli)
 
