@@ -216,6 +216,9 @@ def create_app(config_object=None):
     from app.scripts.seed_prestataires import seed_prestataires_command
     app.cli.add_command(seed_prestataires_command, "seed-prestataires")
 
+    from app.scripts.seed_agents import seed_agents_command
+    app.cli.add_command(seed_agents_command, "seed-agents")
+
     from app.scripts.superadmin_cli import superadmin_cli
     app.cli.add_command(superadmin_cli)
 

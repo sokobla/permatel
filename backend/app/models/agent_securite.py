@@ -18,6 +18,7 @@ class AgentSecurite(Base):
     nom = Column(String(100), nullable=False)
     adresse = Column(String(200), nullable=True)
     ville = Column(String(100), nullable=True)
+    code_postal = Column(String(20), nullable=True)
     type_agent = Column(String(50), nullable=True)  # Ex: Agent de sécurité, Chef d'équipe, etc.
     prenom = Column(String(100), nullable=False)
     telephone = Column(String(20), nullable=True)

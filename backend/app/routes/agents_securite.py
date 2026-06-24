@@ -78,6 +78,7 @@ def _agent_to_dict(agent: AgentSecurite) -> dict:
         "prenom": agent.prenom,
         "adresse": agent.adresse,
         "ville": agent.ville,
+        "code_postal": agent.code_postal,
         "telephone": agent.telephone,
         "email": agent.email,
         "type_agent": agent.type_agent,
@@ -147,7 +148,7 @@ def create_agent():
     
     # Mettre à jour les attributs de l'agent
     allowed_fields = [
-        "matricule", "nom", "prenom", "adresse", "ville", 
+        "matricule", "nom", "prenom", "adresse", "ville", "code_postal",
         "telephone", "email", "type_agent", "motorise", "is_active", "prestataire_id"
     ]
     for field in allowed_fields:
@@ -203,7 +204,7 @@ def update_agent(agent_id):
 
     # Mettre à jour les attributs de l'agent
     allowed_fields = [
-        "matricule", "nom", "prenom", "adresse", "ville", 
+        "matricule", "nom", "prenom", "adresse", "ville", "code_postal",
         "telephone", "email", "type_agent", "motorise", "is_active", "prestataire_id"
     ]
     for field in allowed_fields:

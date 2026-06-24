@@ -125,6 +125,10 @@
                 <v-icon start size="x-small">mdi-email-outline</v-icon>
                 <span class="mono-text cell-email">{{ item.email }}</span>
               </div>
+              <div v-if="item.ville || item.code_postal" class="d-flex align-center mt-1 text-grey-lighten-1 text-caption">
+                <v-icon start size="x-small">mdi-map-marker-outline</v-icon>
+                <span>{{ [item.code_postal, item.ville].filter(Boolean).join(' ') }}</span>
+              </div>
             </template>
 
             <template #[`item.type_agent`]="{ item }">
@@ -326,6 +330,20 @@
                 />
                 <span v-if="formErrors.ville" class="form-errmsg">{{
                   formErrors.ville
+                }}</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label"
+                  >CODE POSTAL</label
+                >
+                <input
+                  v-model="form.code_postal"
+                  class="form-input"
+                  :class="{ 'form-input--err': formErrors.code_postal }"
+                  placeholder="20000"
+                />
+                <span v-if="formErrors.code_postal" class="form-errmsg">{{
+                  formErrors.code_postal
                 }}</span>
               </div>
               <div class="form-group">
@@ -547,6 +565,7 @@ const form = reactive({
   matricule: "",
   adresse: "",
   ville: "",
+  code_postal: "",
   telephone: "",
   email: "",
   type_agent: "",
@@ -554,7 +573,7 @@ const form = reactive({
   motorise: false,
   is_active: true,
 });
-const formErrors = reactive({ avatar: "" });
+const formErrors = reactive({ avatar: "", code_postal: "" });
 const avatarFile = ref(null);
 const avatarPreview = ref(null);
 const avatarInputRef = ref(null);
@@ -628,6 +647,7 @@ function resetForm() {
     matricule: "",
     adresse: "",
     ville: "",
+    code_postal: "",
     telephone: "",
     email: "",
     type_agent: "",
