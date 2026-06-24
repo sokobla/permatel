@@ -258,6 +258,30 @@ def delete_agent(agent_id):
 
 
 # ── KPI agents (Anomalies / Incidents agent / Score) ─────────────────────────
+@agents_securite_bp.get('/stats')
+@tenant_required
+def agents_stats():
+    """Répartition des agents actifs par qualification (type_agent) pour le tenant."""
+    from sqlalchemy import func
+    rows = (
+        db.session.query(
+            AgentSecurite.type_agent,
+            func.count(AgentSecurite.id).label('count')
+        )
+        .filter(
+            AgentSecurite.tenant_id == g.tenant.id,
+            AgentSecurite.is_active.is_(True),
+        )
+        .group_by(AgentSecurite.type_agent)
+        .order_by(func.count(AgentSecurite.id).desc())
+        .all()
+    )
+    return jsonify([
+        {"qualification": r.type_agent or "Non renseigné", "count": r.count}
+        for r in rows
+    ]), 200
+
+
 @agents_securite_bp.get('/<int:agent_id>/kpis')
 @tenant_required
 def agent_kpis_endpoint(agent_id):
@@ -281,6 +305,7 @@ def agents_kpis_list():
         k = agent_kpis(g.tenant.id, a.id, dt_from, dt_to)
         k["matricule"] = a.matricule
         k["nom"] = f"{a.prenom} {a.nom}".strip()
+        k["type_agent"] = a.type_agent
         rows.append(k)
     rows.sort(key=lambda r: (r["score"], -r["incidents"]))  # plus à risque en tête
     return jsonify({"agents": rows, "period": {"from": dt_from.isoformat(), "to": dt_to.isoformat()}}), 200

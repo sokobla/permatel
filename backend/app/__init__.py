@@ -186,6 +186,23 @@ def create_app(config_object=None):
         for code, n in summary.items():
             click.echo(f"  {code} : {n}")
 
+    @click.command("backfill-qualifications")
+    @with_appcontext
+    def backfill_qualifications_command():
+        """Injecte la famille 'qualification_agent' dans les tenants existants (idempotent)."""
+        from app.models.tenant import Tenant
+        tenants = Tenant.query.filter_by(is_active=True).all()
+        total = 0
+        for t in tenants:
+            created = seeding.seed_reference_values(db, t.id)
+            if created:
+                click.echo(f"  OK  Tenant '{t.code}' : {created} valeur(s) ajoutée(s).")
+            else:
+                click.echo(f"  --  Tenant '{t.code}' : déjà à jour.")
+            total += created
+        db.session.commit()
+        click.echo(f"Backfill terminé. Total : {total} valeur(s) insérée(s).")
+
     app.cli.add_command(init_db_command, "init-db")
     app.cli.add_command(seed_command, "seed")
     app.cli.add_command(sessions_sweep_command, "sessions-sweep")
@@ -194,6 +211,7 @@ def create_app(config_object=None):
     app.cli.add_command(notifications_dispatch_command, "notifications-dispatch")
     app.cli.add_command(reencrypt_secrets_command, "reencrypt-secrets")
     app.cli.add_command(mail_fetch_command, "mail-fetch")
+    app.cli.add_command(backfill_qualifications_command, "backfill-qualifications")
 
     from app.scripts.seed_prestataires import seed_prestataires_command
     app.cli.add_command(seed_prestataires_command, "seed-prestataires")

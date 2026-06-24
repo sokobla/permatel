@@ -60,6 +60,7 @@ const FAMILIES = [
   { key: "risques_specifiques", label: "Risques spécifiques",   icon: "mdi-shield-alert-outline" },
   { key: "besoins_agents",      label: "Besoins agent",         icon: "mdi-account-check-outline" },
   { key: "type_mission",        label: "Types de mission",      icon: "mdi-briefcase-outline" },
+  { key: "qualification_agent", label: "Qualifications Agent",  icon: "mdi-shield-star-outline" },
 ];
 
 const activeFamily = ref(FAMILIES[0].key);

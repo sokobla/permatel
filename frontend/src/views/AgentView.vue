@@ -369,8 +369,12 @@
                   v-model="form.type_agent"
                   class="form-input form-select"
                   :class="{ 'form-input--err': formErrors.type_agent }"
+                  :disabled="agentTypesLoading"
                 >
                   <option value="">— SÉLECTIONNER —</option>
+                  <option v-if="isOrphanType" :value="form.type_agent" disabled>
+                    {{ form.type_agent }} (inactif / hors référentiel)
+                  </option>
                   <option v-for="t in agentTypes" :key="t" :value="t">
                     {{ t }}
                   </option>
@@ -508,6 +512,7 @@ import { useAgents } from "@/composables/useAgents";
 import apiClient from "@/services/http/axios";
 import AgentKpiCards from "@/components/agents/AgentKpiCards.vue";
 import { agentKpiService } from "@/services/agentKpiService";
+import { settingsService } from "@/services/settingsService";
 import "@/assets/styles/crud-view.css";
 
 const {
@@ -584,7 +589,24 @@ const headers = [
   { title: "ACTIONS", key: "actions", sortable: false, align: "center" },
 ];
 
-const agentTypes = ["Agent de sécurité", "Agent Cynophile", "SSIAP", "SSIAP2"];
+const agentTypes = ref([]);
+const agentTypesLoading = ref(false);
+
+async function loadAgentTypes() {
+  agentTypesLoading.value = true;
+  try {
+    const data = await settingsService.getReferenceValues("qualification_agent");
+    agentTypes.value = data.filter(v => v.active).sort((a, b) => a.position - b.position).map(v => v.label);
+  } catch (err) {
+    console.error("Erreur chargement qualifications agent", err);
+  } finally {
+    agentTypesLoading.value = false;
+  }
+}
+
+const isOrphanType = computed(() => {
+  return form.type_agent && !agentTypes.value.includes(form.type_agent);
+});
 
 const panelTitle = computed(() =>
   panelMode.value === "edit" ? "MODIFIER L'AGENT" : "NOUVEL AGENT",
@@ -776,5 +798,8 @@ function getAvatarFullUrl(relativeUrl) {
   }
 }
 
-onMounted(init);
+onMounted(() => {
+  init();
+  loadAgentTypes();
+});
 </script>

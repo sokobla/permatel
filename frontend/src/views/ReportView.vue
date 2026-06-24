@@ -47,6 +47,21 @@
             style="max-width:180px"
           />
 
+          <template v-if="activeTab === 'agents'">
+            <v-divider vertical class="mx-2" style="height:24px" />
+            <span class="rp-filter-lbl">QUALIFICATION</span>
+            <v-select
+              v-model="filterQualification"
+              :items="qualificationOptions"
+              clearable
+              density="compact"
+              variant="outlined"
+              hide-details
+              placeholder="Toutes"
+              style="max-width:180px"
+            />
+          </template>
+
           <v-spacer />
 
           <div class="rp-status">
@@ -257,6 +272,31 @@
               <div class="rp-kpi-val">{{ kpi.value }}</div>
               <div v-if="kpi.sub" class="rp-kpi-sub">{{ kpi.sub }}</div>
             </v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
+
+      <v-row>
+        <v-col cols="12">
+          <v-card elevation="0" class="rp-block">
+            <div class="rp-block-hd">
+              <span class="rp-block-title">RÉPARTITION PAR QUALIFICATION</span>
+              <v-icon size="13" class="rp-info" color="#9aa0aa">
+                mdi-information-outline
+                <v-tooltip activator="parent" location="top" max-width="300">
+                  Répartition des agents actifs du tenant selon leur qualification (type_agent).
+                </v-tooltip>
+              </v-icon>
+            </div>
+            <div v-if="agentsStatsLoading" class="pa-4 text-center text-grey-darken-1">Chargement…</div>
+            <div v-else-if="agentsStatsBars.length" class="rp-hbars">
+              <div v-for="q in agentsStatsBars" :key="q.qualification" class="rp-hbar-row">
+                <span class="rp-hbar-lbl">{{ q.qualification }}</span>
+                <div class="rp-hbar-track"><div class="rp-hbar-fill" :style="{ width: q.pct + '%' }"></div></div>
+                <span class="rp-hbar-val">{{ q.count }}</span>
+              </div>
+            </div>
+            <p v-else class="rp-block-empty">Aucune donnée de qualification.</p>
           </v-card>
         </v-col>
       </v-row>
@@ -746,6 +786,7 @@ import { sessionService } from "@/services/sessionService";
 import { userService } from "@/services/userService";
 import { emailService } from "@/services/emailService";
 import { agentKpiService } from "@/services/agentKpiService";
+import { settingsService } from "@/services/settingsService";
 import { useAuthStore } from "@/store/auth";
 
 const authStore = useAuthStore();
@@ -792,6 +833,8 @@ const SOUFFRANCE_DAYS = 3;
 const activeTab      = ref("production");
 const filterPeriod   = ref("30j");
 const filterClientId = ref(null);
+const filterQualification = ref(null);
+const qualificationOptions = ref([]);
 const loading        = ref(false);
 
 // Période libre (daterange) — prioritaire sur les chips si renseignée
@@ -821,7 +864,19 @@ async function loadData() {
   }
 }
 
-onMounted(loadData);
+async function loadQualificationOptions() {
+  try {
+    const data = await settingsService.getReferenceValues("qualification_agent");
+    qualificationOptions.value = data.filter(v => v.active).sort((a, b) => a.position - b.position).map(v => v.label);
+  } catch {
+    qualificationOptions.value = [];
+  }
+}
+
+onMounted(() => {
+  loadData();
+  loadQualificationOptions();
+});
 
 // ── KPI Sessions ─────────────────────────────────────────────────────
 
@@ -1402,6 +1457,8 @@ const prioriteOptions = computed(() => {
 
 const agentKpiRows    = ref([]);
 const agentKpiLoading = ref(false);
+const agentsStats        = ref([]);
+const agentsStatsLoading = ref(false);
 
 async function loadAgentKpis() {
   agentKpiLoading.value = true;
@@ -1416,9 +1473,32 @@ async function loadAgentKpis() {
   }
 }
 
+async function loadAgentsStats() {
+  agentsStatsLoading.value = true;
+  try {
+    const { data } = await agentKpiService.getAgentsStats();
+    agentsStats.value = data ?? [];
+  } catch {
+    agentsStats.value = [];
+  } finally {
+    agentsStatsLoading.value = false;
+  }
+}
+
+const agentsStatsBars = computed(() => {
+  const list = agentsStats.value;
+  const max = Math.max(1, ...list.map(q => q.count));
+  return list.map(q => ({ ...q, pct: Math.round((q.count / max) * 100) }));
+});
+
 watch(
   [activeTab, filterPeriod, customFrom, customTo],
-  () => { if (activeTab.value === "agents") loadAgentKpis(); },
+  () => {
+    if (activeTab.value === "agents") {
+      loadAgentKpis();
+      loadAgentsStats();
+    }
+  },
   { immediate: true },
 );
 
@@ -1429,7 +1509,11 @@ function scoreColor(score) {
 // Classement : agents impliqués (≥1 anomalie), les plus à risque en tête (ordre backend).
 const agentRanking = computed(() =>
   agentKpiRows.value
-    .filter(a => a.anomalies > 0)
+    .filter(a => {
+      if (a.anomalies === 0) return false;
+      if (filterQualification.value && a.type_agent !== filterQualification.value) return false;
+      return true;
+    })
     .map(a => ({
       id: a.agent_id,
       nom: a.nom || a.matricule || `Agent #${a.agent_id}`,
@@ -1441,7 +1525,10 @@ const agentRanking = computed(() =>
 );
 
 const agentsKpis = computed(() => {
-  const rows = agentKpiRows.value;
+  const rows = agentKpiRows.value.filter(a => {
+    if (filterQualification.value && a.type_agent !== filterQualification.value) return false;
+    return true;
+  });
   const impliques = rows.filter(r => r.anomalies > 0);
   const incidentsTot = rows.reduce((s, r) => s + r.incidents, 0);
   const anomaliesTot = rows.reduce((s, r) => s + r.anomalies, 0);

@@ -13,4 +13,8 @@ export const agentKpiService = {
   getAgentsKpis(params = {}) {
     return apiClient.get("/agents/kpis", { params });
   },
+  /** Répartition des agents par qualification */
+  getAgentsStats() {
+    return apiClient.get("/agents/stats");
+  },
 };

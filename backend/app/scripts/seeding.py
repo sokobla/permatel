@@ -111,6 +111,12 @@ DEFAULT_REFERENCE_VALUES = {
     "moyens_acces": [(None, x) for x in ["Clé", "Digicode", "Badge magnétique", "Interphone", "Accès libre", "Autre"]],
     "risques_specifiques": [(None, x) for x in ["Vol", "Intrusion", "Incendie", "Vandalisme", "Conflit social", "Risque terroriste"]],
     "besoins_agents": [(None, x) for x in ["Tenue fournie", "Formation SSIAP", "Habilitation électrique", "Maîtrise anglais", "Permis B", "Agent APS qualifié", "Autre"]],
+    "qualification_agent": [
+        ("agent_securite",  "Agent de sécurité"),
+        ("agent_cynophile", "Agent cynophile"),
+        ("ssiap",           "SSIAP"),
+        ("ssiap2",          "SSIAP2"),
+    ],
 }
 
 

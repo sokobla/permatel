@@ -29,6 +29,7 @@ IMAP_SECURITY_VALUES = {"none", "ssl", "starttls"}
 ALLOWED_FAMILIES = {
     "nature_anomalie", "statut_demande", "moyens_acces",
     "risques_specifiques", "besoins_agents", "type_mission",
+    "qualification_agent",
 }
 
 
