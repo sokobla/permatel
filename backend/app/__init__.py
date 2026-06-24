@@ -247,6 +247,9 @@ def create_app(config_object=None):
     from app.routes.notifications import notifications_bp
     app.register_blueprint(notifications_bp)
 
+    from app.routes.prises_de_service import prises_de_service_bp
+    app.register_blueprint(prises_de_service_bp)
+
 
 
     # ── Gestionnaires d'erreurs globaux (sécurité : pas de fuite de stack trace) ──

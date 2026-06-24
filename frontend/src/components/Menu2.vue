@@ -218,6 +218,12 @@ const groups = [
         value: "/orders",
         roles: ALL,
       },
+      {
+        label: "Prises de services",
+        icon: "mdi-clock-start",
+        value: "/shifts",
+        roles: ALL,
+      },
     ],
   },
   {

@@ -32,6 +32,7 @@ from .tenant_invitation import TenantInvitation
 from .prestataire import Prestataire
 from .setting import SmtpSetting, ReferenceValue
 from .sla import SlaPolicy
+from .prise_de_service import PriseDeService
 from .notification import Notification, NotificationPreference, EmailOutbox
 from .email import Email
 from .email_attachment import EmailAttachment

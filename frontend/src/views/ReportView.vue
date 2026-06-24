@@ -197,6 +197,52 @@
 
     </template>
 
+    <!-- ══ PRISES DE SERVICE ═══════════════════════════════════════════════ -->
+    <template v-if="activeTab === 'vacations'">
+
+      <v-row>
+        <v-col v-for="kpi in vacationsKpis" :key="kpi.label" cols="12" sm="6" md="4" lg="2">
+          <v-card elevation="0" :class="['rp-kpi-card', kpi.alert && 'rp-kpi-card--alert']">
+            <v-card-text class="rp-kpi-body">
+              <div class="rp-kpi-top">
+                <v-icon :color="kpi.alert ? '#e74c3c' : '#00a8a8'" size="16">{{ kpi.icon }}</v-icon>
+                <span class="rp-kpi-lbl">{{ kpi.label }}</span>
+              </div>
+              <div :class="['rp-kpi-val', kpi.alert && 'rp-kpi-val--alert']">{{ kpi.value }}</div>
+            </v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
+
+      <v-row>
+        <v-col cols="12" md="6">
+          <v-card elevation="0" class="rp-chart-card">
+            <div class="rp-chart-hdr"><span class="rp-chart-title">PRISES DE SERVICE PAR CLIENT</span></div>
+            <v-divider />
+            <v-card-text class="pa-0">
+              <table class="rp-table">
+                <thead>
+                  <tr><th>Client</th><th style="text-align:right">Vacations</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="[name, count] in vacationsByClient" :key="name">
+                    <td>{{ name }}</td>
+                    <td style="text-align:right">{{ count }}</td>
+                  </tr>
+                  <tr v-if="vacationsByClient.length === 0">
+                    <td colspan="2" style="text-align:center; color:#bbb; padding:24px 0">
+                      Aucune prise de service sur la période
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
+
+    </template>
+
     <!-- ══ AGENTS ══════════════════════════════════════════════════════════ -->
     <template v-if="activeTab === 'agents'">
 
@@ -695,6 +741,7 @@
 import { ref, computed, watch, onMounted } from "vue";
 import ApexChart from "vue3-apexcharts";
 import { listDemandes } from "@/services/demandeService";
+import { listPrisesDeService } from "@/services/priseDeServiceService";
 import { sessionService } from "@/services/sessionService";
 import { userService } from "@/services/userService";
 import { emailService } from "@/services/emailService";
@@ -715,6 +762,7 @@ const PERIODS = [
 
 const TABS = [
   { key: "production",    label: "Production",    icon: "mdi-chart-bar" },
+  { key: "vacations",     label: "Prises de service", icon: "mdi-clock-start" },
   { key: "agents",        label: "Agents",        icon: "mdi-shield-account-outline" },
   { key: "permanenciers", label: "Opérateurs",    icon: "mdi-account-key-outline" },
   { key: "sessions",      label: "Sessions",      icon: "mdi-monitor-account" },
@@ -753,18 +801,21 @@ const useCustomRange = computed(() => !!(customFrom.value || customTo.value));
 
 const rawAnomalies = ref([]);
 const rawCommandes = ref([]);
+const rawPrises    = ref([]);
 
 // ── Load ─────────────────────────────────────────────────────────────
 
 async function loadData() {
   loading.value = true;
   try {
-    const [a, c] = await Promise.all([
+    const [a, c, p] = await Promise.all([
       listDemandes({ type_demande: "anomalie" }),
       listDemandes({ type_demande: "commande" }),
+      listPrisesDeService().catch(() => []),
     ]);
     rawAnomalies.value = Array.isArray(a) ? a : (a.items ?? []);
     rawCommandes.value = Array.isArray(c) ? c : (c.items ?? []);
+    rawPrises.value    = Array.isArray(p) ? p : (p.items ?? []);
   } finally {
     loading.value = false;
   }
@@ -1097,6 +1148,45 @@ function applyFilters(list) {
 const filteredA   = computed(() => applyFilters(rawAnomalies.value));
 const filteredC   = computed(() => applyFilters(rawCommandes.value));
 const filteredAll = computed(() => [...filteredA.value, ...filteredC.value]);
+
+// ══ PRISES DE SERVICE (vacations) ═════════════════════════════════════
+// Filtré sur date_debut + client, cohérent avec la période globale.
+const filteredPrises = computed(() => {
+  let d = rawPrises.value;
+  if (cutoff.value)  d = d.filter(x => new Date(x.date_debut) >= cutoff.value);
+  if (rangeTo.value) d = d.filter(x => new Date(x.date_debut) <= rangeTo.value);
+  if (filterClientId.value != null) d = d.filter(x => x.client_id === filterClientId.value);
+  return d;
+});
+
+const vacationsKpis = computed(() => {
+  const list = filteredPrises.value;
+  const total = list.length;
+  const enCours = list.filter(p => p.statut === "en_cours").length;
+  const terminees = total - enCours;
+  const done = list.filter(p => p.statut === "terminee");
+  const avgMin = done.length
+    ? Math.round(done.reduce((s, p) => s + (p.duree_minutes || 0), 0) / done.length)
+    : 0;
+  const avgTxt = avgMin ? `${Math.floor(avgMin / 60)}h ${String(avgMin % 60).padStart(2, "0")}` : "—";
+  const agents = new Set(list.map(p => p.agent_id)).size;
+  return [
+    { icon: "mdi-clock-start",          label: "Prises de service", value: total },
+    { icon: "mdi-progress-clock",       label: "En cours",          value: enCours, alert: enCours > 0 ? false : false },
+    { icon: "mdi-check-circle-outline", label: "Terminées",         value: terminees },
+    { icon: "mdi-timer-outline",        label: "Durée moyenne",     value: avgTxt },
+    { icon: "mdi-shield-account-outline", label: "Agents actifs",   value: agents },
+  ];
+});
+
+const vacationsByClient = computed(() => {
+  const map = {};
+  for (const p of filteredPrises.value) {
+    const name = p.client_nom || `Client #${p.client_id}`;
+    map[name] = (map[name] || 0) + 1;
+  }
+  return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 8);
+});
 
 // ══ PRODUCTION ════════════════════════════════════════════════════════
 
