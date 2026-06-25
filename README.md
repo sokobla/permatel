@@ -1,8 +1,15 @@
 # PERMATEL - Gestion Intégrée de Demandes et Sessions
 
-**Version** : 1.4.0  
-**Dernière mise à jour** : 22 juin 2026  
+**Version** : 1.5.0  
+**Dernière mise à jour** : 25 juin 2026  
 **Statut** : Backend ✅ / Frontend ✅ | **Tests** : 160 ✅
+
+### Changelog v1.5.0 (25 juin 2026)
+- 🚀 **Seeding & Import Avancé (CLI)** :
+  - `flask seed-prestataires` : Import robuste de prestataires par tenant, création et association automatique des Clients et Sites correspondants avec gestion d'idempotence.
+  - `flask seed-agents` : Import d'agents de sécurité depuis fichiers de données Excel (`lists_agents_secu.xlsx`), scission intelligente des Noms/Prénoms, gestion du `code_postal`, affectation en mode `INTERNE` ou à un prestataire externe (`--prestataire-code`), et synchronisation stricte avec la table `contacts` (gestion de la contrainte `NOT NULL` sur l'adresse).
+- 🏢 **Modèle AgentSecurite enrichi** : Ajout natif de la colonne `code_postal` (migration Alembic épurée et sécurisée pour la production), prise en compte de bout en bout (API, sérialisation et formulaires).
+- 🎨 **Améliorations Frontend & Pagination** : Implémentation complète de la pagination côté serveur sur `AgentView.vue` (alignée sur le design premium de `ContactsView`), correction des filtres dynamiques (statut, qualification/type) et réinitialisation automatique de la pagination au changement de filtres.
 
 ### Changelog v1.4.0 (22 juin 2026)
 - 🏢 **Multi-tenant complet** :
@@ -520,6 +527,11 @@ flask init-db          # crée le schéma si BD vide puis amorce Root + admin gl
 flask seed             # amorce unique : tenant Root + admin global (idempotent)
 flask sessions-sweep   # expire les sessions inactives + purge la blocklist
 flask mail-fetch       # relève les emails entrants (IMAP) des tenants activés
+
+# Seeding & Import Avancé par Tenant (Idempotent, Dry-run par défaut)
+flask seed-prestataires --tenant-code ADM --no-dry-run --yes
+flask seed-agents --tenant-code ADM --no-dry-run --yes
+flask seed-agents --tenant-code ADM --prestataire-code CODE_PRESTA --no-dry-run --yes
 
 # Gestion des super-admins globaux (rôle ADMIN — hors UI / hors /api/users)
 flask superadmin list
