@@ -36,7 +36,7 @@
             <select
               v-model="typeFilter"
               class="cb-filter__select"
-              @change="loadAgents"
+              @change="onFilterChange"
             >
               <option value="">TOUS</option>
               <option v-for="t in agentTypes" :key="t" :value="t">
@@ -49,7 +49,7 @@
             <select
               v-model="statusFilter"
               class="cb-filter__select"
-              @change="loadAgents"
+              @change="onFilterChange"
             >
               <option value="">TOUS</option>
               <option value="true">ACTIF</option>
@@ -891,6 +891,11 @@ function getAvatarFullUrl(relativeUrl) {
   } catch (e) {
     return relativeUrl;
   }
+}
+
+function onFilterChange() {
+  page.value = 1;
+  loadAgents();
 }
 
 onMounted(() => {

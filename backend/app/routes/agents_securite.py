@@ -99,6 +99,10 @@ def list_agents():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 10, type=int)
     search = request.args.get("search", "", type=str).strip()
+    status = request.args.get("status", "", type=str).strip()
+    type_filter = request.args.get("type", "", type=str).strip()
+    sort_by = request.args.get("sort_by", "nom", type=str).strip()
+    sort_order = request.args.get("sort_order", "asc", type=str).strip()
 
     query = AgentSecurite.query.filter(AgentSecurite.tenant_id == g.tenant.id)
 
@@ -110,7 +114,24 @@ def list_agents():
             AgentSecurite.matricule.ilike(search_term)
         ))
 
-    pagination = query.order_by(AgentSecurite.nom.asc()).paginate(page=page, per_page=per_page, error_out=False)
+    if status:
+        is_active = (status.lower() == 'true')
+        query = query.filter(AgentSecurite.is_active == is_active)
+
+    if type_filter:
+        query = query.filter(AgentSecurite.type_agent == type_filter)
+
+    # Sort
+    if hasattr(AgentSecurite, sort_by):
+        col = getattr(AgentSecurite, sort_by)
+        if sort_order.lower() == 'desc':
+            query = query.order_by(col.desc())
+        else:
+            query = query.order_by(col.asc())
+    else:
+        query = query.order_by(AgentSecurite.nom.asc())
+
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
     return jsonify({
         "agents": [_agent_to_dict(agent) for agent in pagination.items],
