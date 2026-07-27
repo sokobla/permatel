@@ -32,6 +32,58 @@ CORS(telephony_bp, supports_credentials=True)
 TERMINAL_STATUSES = {"ended", "missed", "abandoned", "technical_failure"}
 
 
+def _require_connector_token():
+    """Auth partagée par les routes appelées par le Core Connector (Phase 12) :
+    jeton technique global, pas de JWT (le connecteur n'est pas un utilisateur
+    PERMATEL). Retourne une réponse d'erreur si invalide, sinon None."""
+    from flask import current_app
+
+    expected_token = current_app.config.get("TELEPHONY_CONNECTOR_TOKEN")
+    provided_token = request.headers.get("X-Connector-Token")
+    if not expected_token or not provided_token or provided_token != expected_token:
+        return jsonify({"error": "Jeton connecteur invalide ou manquant."}), 401
+    return None
+
+
+# ═════════════════════════════════════════════════════════════════════════
+#  Bootstrap config (connecteur PBX — jeton technique, pas de JWT)
+# ═════════════════════════════════════════════════════════════════════════
+
+@telephony_bp.get("/connectors/config")
+def connectors_bootstrap_config():
+    """
+    Config dynamique consommée par le Core Connector (Phase 12) au démarrage
+    (et périodiquement) : liste des `pbx_connectors` actifs, identifiants
+    déchiffrés inclus, avec leurs rattachements `pbx_domains_tenants`
+    (queues supervisées). Le connecteur orchestre un `PBXAdapter` par
+    connecteur retourné ici — pas de config statique dupliquée côté
+    connecteur, la source de vérité reste l'UI admin PERMATEL (CRUD
+    /api/telephony/connectors, Phase 11).
+
+    Auth par jeton technique partagé (même trust boundary que l'ingestion) :
+    le connecteur qui peut écrire des événements peut légitimement lire sa
+    propre config, y compris les secrets PBX qu'il doit utiliser pour se
+    connecter.
+    """
+    if (err := _require_connector_token()) is not None:
+        return err
+
+    connectors = PbxConnector.query.filter_by(is_active=True).all()
+    result = []
+    for c in connectors:
+        data = c.to_dict(include_secrets=True)
+        data["domains"] = [
+            {
+                "pbx_domain": b.pbx_domain,
+                "tenant_id": str(b.tenant_id),
+                "queue_ids": b.queue_ids or [],
+            }
+            for b in c.domains
+        ]
+        result.append(data)
+    return jsonify({"connectors": result}), 200
+
+
 # ═════════════════════════════════════════════════════════════════════════
 #  Ingestion (connecteur PBX — jeton technique, pas de JWT)
 # ═════════════════════════════════════════════════════════════════════════
@@ -54,12 +106,8 @@ def ingest_event():
     utile ici (ce serait révoquer une partie du même process, pas un
     déploiement distinct).
     """
-    from flask import current_app
-
-    expected_token = current_app.config.get("TELEPHONY_CONNECTOR_TOKEN")
-    provided_token = request.headers.get("X-Connector-Token")
-    if not expected_token or not provided_token or provided_token != expected_token:
-        return jsonify({"error": "Jeton connecteur invalide ou manquant."}), 401
+    if (err := _require_connector_token()) is not None:
+        return err
 
     data = request.get_json(silent=True) or {}
 

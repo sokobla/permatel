@@ -1,6 +1,6 @@
 # PERMATEL — Module Téléphonie : Plan d'intégration
 
-**Statut** : Phase 11 (fondations backend) implémentée et testée (188/188 tests verts). Phase 11bis (infra WebSocket) implémentée et validée en test de charge Docker réel (§7). Phases 12-14 non démarrées.
+**Statut** : Phases 11 et 11bis implémentées et validées (188/188 tests backend, test de charge Docker réel — §7). **Phase 12 implémentée** (Core Connector ESL + UI d'administration) — voir §8, validation contre un FusionPBX réel restant à faire. Phases 13-14 non démarrées.
 **Date** : 27 juillet 2026
 **Source** : `docs/cdc/CDC-Module-Telephonie.md` (v1.0, 27 juillet 2026)
 **Suivi des tâches** : `docs/suivi_taches_permatel.xlsx` (Phases 11 à 14)
@@ -98,7 +98,7 @@ Le détail tâche-par-tâche est dans `docs/suivi_taches_permatel.xlsx`, onglet
 |---|---|---|
 | **Phase 11** | Fondations backend | Migration d'extension `telephony_events`, tables `pbx_connectors`/`pbx_domains_tenants`, route `POST /api/telephony/events/ingest` (auth `X-Connector-Token`), routes `/api/telephony/kpis/*` et `/api/telephony/active-calls` (snapshot initial), route settings CRUD `pbx_connectors`, `config_state.telephony_configured` dans `tenant_features()` |
 | **Phase 11bis** | Infra WebSocket | Ajout `flask-socketio`, worker Gunicorn `eventlet`/`gevent`, Redis en *message queue* Socket.IO, namespace `/telephony` avec auth JWT + *room* par tenant, diffusion des événements depuis la route d'ingestion |
-| **Phase 12** | Connecteur FusionPBX (ESL) | **Un seul** process Docker autonome (`Core Connector`), `ESLAdapter` (port 8021, `CHANNEL_*` + `mod_callcenter`), `Normalizer`, résilience (reconnexion, backoff, file Redis), healthcheck |
+| **Phase 12** | Connecteur FusionPBX (ESL) | **Fait** (voir §8) — **Un seul** process Docker autonome (`Core Connector`), `ESLAdapter` (port 8021, `CHANNEL_*` + `mod_callcenter`), `Normalizer`, résilience (reconnexion, backoff), healthcheck. Bootstrap config + UI admin (`/pbx-connectors`) et réglages tenant (`Paramètres > Téléphonie`) inclus. |
 | **Phase 13** | Supervision frontend (WebSocket) | `SupervisionTelephonieView.vue` (calque de `SupervisionView.vue`), `useTelephonySocket` (connexion Socket.IO + fallback reconnect), `TelephonyKpiCards.vue`, `ActiveCallsTable.vue`, `AgentsGrid.vue`, store `useTelephonyStore` |
 | **Phase 14** | Connecteur Asterisk (AMI) | `AMIAdapter` ajouté au **même** process connecteur (pas un second déploiement), orchestré en parallèle de `ESLAdapter` par le `Core Connector` — même contrat `PBXAdapter`, aucun changement API/frontend attendu, validation de l'architecture Adapter |
 
@@ -186,3 +186,72 @@ vigilance conservé (pas bloquant) : si `/api/auth/login` devait être exposé �
 une charge concurrente nettement supérieure (>30-40 requêtes simultanées),
 revalider la marge face au `pingTimeout` Socket.IO ou envisager d'augmenter
 `GUNICORN_WORKERS`.
+
+---
+
+## 8. Phase 12 — Connecteur FusionPBX (ESL)
+
+### 8.1 Bootstrap config + administration (préalable à l'implémentation du connecteur)
+
+Avant d'écrire le connecteur lui-même, deux lacunes ont été comblées (elles
+n'étaient pas explicitement dans le phasage initial, mais bloquaient toute
+implémentation réelle) :
+
+- **`GET /api/telephony/connectors/config`** (backend, `routes/telephony.py`) :
+  auth par jeton technique partagé (même trust boundary que l'ingestion), 
+  retourne les `pbx_connectors` actifs avec identifiants déchiffrés + leurs
+  rattachements `pbx_domains_tenants`. C'est la source de config du Core
+  Connector — pas de fichier de config statique dupliqué, la source de
+  vérité reste l'UI admin PERMATEL.
+- **UI d'administration globale `/pbx-connectors`** (`PbxConnectorsView.vue`,
+  ADMIN uniquement, sur le modèle de `TenantsView.vue`) : CRUD des
+  `pbx_connectors` (nom, type, hôte, port, identifiants) + gestion des
+  rattachements domaine PBX ↔ tenant ↔ files supervisées.
+- **Réglages tenant `Paramètres > Téléphonie`** (`SettingsTelephony.vue`,
+  nouvel onglet piloté par `settings_sections.telephony`, déjà exposé par
+  `tenant_features()` depuis la Phase 11 mais jamais consommé côté
+  frontend) : lecture des rattachements du tenant + édition des files
+  d'attente supervisées (`PUT /api/telephony/settings/<id>/queues`). Le
+  bouton « Configurer » de la tuile Téléphonie (Réglages > Intégrations),
+  jusque-là désactivé sans action, y renvoie désormais.
+
+### 8.2 Core Connector — `connector/` (nouveau répertoire, process Docker séparé)
+
+Bibliothèque ESL retenue : **greenswitch** (implémentation gevent, pas
+asyncio — décision actée lors du "attaquons le point 12", en alternative à
+`python-ESL` officiel qui nécessite de compiler les bindings C depuis les
+sources FreeSWITCH). Le process entier est donc gevent, monkey-patché dès la
+première ligne de `core_connector.py` (avant tout import réseau) — modèle
+similaire au worker Gunicorn `eventlet` du backend (§7), mais processus
+indépendant.
+
+| Fichier | Rôle |
+|---|---|
+| `connector/core_connector.py` | Entrypoint. Boucle de réconciliation : `GET /connectors/config` au démarrage puis toutes les `CONFIG_REFRESH_SECONDS` (défaut 60s), démarre/arrête une greenlet `PBXAdapter` par connecteur actif vu/disparu. Un seul process (jamais un process par PBX). |
+| `connector/adapters/base.py` | Contrat `PBXAdapter` (`run()`/`stop()`) — future implémentation AMI (Phase 14) s'y conforme. |
+| `connector/adapters/esl_adapter.py` | `ESLAdapter` : connexion ESL inbound (greenswitch), souscription `CHANNEL_CREATE/CHANNEL_PROGRESS_MEDIA/CHANNEL_ANSWER/CHANNEL_HANGUP_COMPLETE` + `CUSTOM callcenter::info` (mod_callcenter), reconnexion avec backoff exponentiel borné sur déconnexion, filtrage des événements de file par `queue_ids` supervisées (tenant). |
+| `connector/normalizer.py` | Fonctions pures FreeSWITCH → format d'ingestion PERMATEL (`event_type`/`call_status` — vocabulaire documenté dans `models/telephony_event.py`). Testé isolément (`connector/tests/test_normalizer.py`, 10 tests). |
+| `connector/ingest_client.py` | POST vers `/api/telephony/events/ingest` + GET config bootstrap, via `requests` (rendu coopératif par le monkey-patch gevent, aucun adaptateur dédié requis contrairement à psycopg2 côté backend). |
+| `connector/Dockerfile` | Multi-stage, non-root, `tini` PID 1. Pas de serveur HTTP dans ce process : healthcheck via fichier heartbeat rafraîchi à chaque cycle de réconciliation. |
+
+Intégré à `docker-compose.yml` en service **opt-in** (`profiles: [telephony]`)
+— démarré uniquement via `docker compose --profile telephony up -d`, pour ne
+pas forcer son exécution sur les déploiements sans téléphonie configurée.
+
+### 8.3 Ce qui reste à valider (accès FusionPBX réel disponible)
+
+Le mapping des causes de raccrochage et surtout des en-têtes `CC-*` de
+mod_callcenter (`CC-Action`, `CC-Queue`, `CC-Member-Uuid`, `CC-Agent`) a été
+écrit à partir de la documentation FreeSWITCH/FusionPBX, **pas encore
+confronté à un flux d'événements réel**. Avant mise en production :
+
+1. Démarrer le connecteur (`docker compose --profile telephony up -d
+   --build`) contre le FusionPBX de test, avec au moins un `pbx_connectors`
+   + un rattachement `pbx_domains_tenants` configurés via `/pbx-connectors`.
+2. Passer un appel de test et comparer les événements réellement reçus
+   (logs `connector.esl`) aux en-têtes supposés dans `normalizer.py` —
+   ajuster `CC-*` et les causes de raccrochage si l'écart le justifie.
+3. Vérifier la valeur réelle de `variable_domain_name` sur un environnement
+   FusionPBX multi-domaine (résolution du tenant à l'ingestion en dépend).
+4. Confirmer le comportement de reconnexion (redémarrage du service
+   `mod_event_socket` côté FusionPBX) sans perte prolongée d'événements.

@@ -23,7 +23,13 @@
           </div>
           <p class="int-item__desc">{{ i.desc }}</p>
         </div>
-        <v-btn variant="outlined" size="small" class="text-none int-item__btn" :disabled="!isActive(i.key)">
+        <v-btn
+          variant="outlined"
+          size="small"
+          class="text-none int-item__btn"
+          :disabled="!isActive(i.key)"
+          @click="configure(i.key)"
+        >
           Configurer
         </v-btn>
       </div>
@@ -33,13 +39,21 @@
 
 <script setup>
 import { computed } from "vue";
+import { useRouter } from "vue-router";
 import { integrationList } from "@/config/integrations";
 import { useAuthStore } from "@/store/auth";
 
 const INTEGRATIONS = integrationList();
 const authStore = useAuthStore();
+const router = useRouter();
 const availability = computed(() => authStore.featureMap.integrations || {});
 const isActive = (key) => availability.value[key] === true;
+
+// Seule la Téléphonie a une page de configuration dédiée pour l'instant
+// (Slack n'est pas encore implémenté côté backend).
+function configure(key) {
+  if (key === "telephony") router.push({ path: "/parameters", query: { tab: "telephony" } });
+}
 </script>
 
 <style scoped>

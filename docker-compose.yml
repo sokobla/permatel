@@ -119,6 +119,38 @@ services:
     pids_limit: 400
     logging: *default-logging
 
+  # ── Core Connector Téléphonie (Phase 12, opt-in) ────────────────────────────
+  # Process UNIQUE orchestrant tous les PBXAdapter (ESL/AMI/TSAPI) configurés
+  # via /pbx-connectors (UI admin globale). Inactif par défaut : n'a d'intérêt
+  # que si au moins un connecteur PBX est configuré. Démarrer avec :
+  #   docker compose --profile telephony up -d
+  telephony-connector:
+    build:
+      context: ./connector
+      dockerfile: Dockerfile
+    container_name: permatel_telephony_connector
+    profiles:
+      - telephony
+    environment:
+      PERMATEL_API_URL: "http://backend:5000/api"
+      TELEPHONY_CONNECTOR_TOKEN: ${TELEPHONY_CONNECTOR_TOKEN:?TELEPHONY_CONNECTOR_TOKEN requis dans .env pour le profil telephony}
+      CONFIG_REFRESH_SECONDS: ${TELEPHONY_CONFIG_REFRESH_SECONDS:-60}
+    networks:
+      - permatel_internal
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped
+    stop_grace_period: 15s
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 100
+    logging: *default-logging
+
   # ── Frontend Nginx (exposé via le Traefik partagé du serveur) ───────────────
   frontend:
     build:

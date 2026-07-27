@@ -90,6 +90,49 @@ class TestIngestEvent:
         assert event.raw_payload == payload
 
 
+class TestBootstrapConfig:
+    """GET /api/telephony/connectors/config — bootstrap consommé par le Core Connector."""
+
+    def test_sans_token_retourne_401(self, client, pbx_binding):
+        resp = client.get("/api/telephony/connectors/config")
+        assert resp.status_code == 401
+
+    def test_mauvais_token_retourne_401(self, client, pbx_binding):
+        resp = client.get(
+            "/api/telephony/connectors/config",
+            headers={"X-Connector-Token": "wrong-token"},
+        )
+        assert resp.status_code == 401
+
+    def test_retourne_connecteurs_actifs_avec_secrets_et_domaines(
+        self, client, db, pbx_connector, pbx_binding, default_tenant
+    ):
+        pbx_connector.username = "esl_user"
+        pbx_connector.password = "esl_secret"
+        db.session.commit()
+
+        resp = client.get("/api/telephony/connectors/config", headers=CONNECTOR_TOKEN_HEADERS)
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert len(body["connectors"]) == 1
+
+        c = body["connectors"][0]
+        assert c["id"] == pbx_connector.id
+        assert c["password"] == "esl_secret"
+        assert len(c["domains"]) == 1
+        assert c["domains"][0]["pbx_domain"] == pbx_binding.pbx_domain
+        assert c["domains"][0]["tenant_id"] == str(default_tenant.id)
+        assert c["domains"][0]["queue_ids"] == ["queue-support"]
+
+    def test_exclut_les_connecteurs_inactifs(self, client, db, pbx_connector):
+        pbx_connector.is_active = False
+        db.session.commit()
+
+        resp = client.get("/api/telephony/connectors/config", headers=CONNECTOR_TOKEN_HEADERS)
+        assert resp.status_code == 200
+        assert resp.get_json()["connectors"] == []
+
+
 class TestActiveCalls:
     def test_active_calls_exclut_les_appels_termines(self, client, db, auth_headers, pbx_binding, default_tenant):
         # Appel en cours (dernier évènement = ringing)

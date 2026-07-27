@@ -139,6 +139,12 @@ const routes = [
     meta: { requiresAuth: true, roles: ADMIN },
   },
   {
+    path: "/pbx-connectors",
+    name: "PbxConnectors",
+    component: () => import("../views/PbxConnectorsView.vue"),
+    meta: { requiresAuth: true, roles: ADMIN },
+  },
+  {
     // Configuration du tenant : déléguée à l'admin de tenant (et super-admin)
     path: "/parameters",
     name: "Settings",

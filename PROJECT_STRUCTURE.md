@@ -14,7 +14,7 @@ file de retry `odoo_sync_queue` + cron, **pas de Celery**), client
 → 7 (infra + partenaires F1) → 8 (commande→devis F2/F4) → 9 (vacation→temps
 F3) → 10 (planning agents F5). **Aucune implémentation lancée à ce stade.**
 
-### 🚧 TODO planifié — Module Téléphonie (collecte ESL/AMI + supervision, non démarré)
+### 🚧 TODO planifié — Module Téléphonie (collecte ESL/AMI + supervision, en cours)
 > Plan détaillé : [`TELEPHONIE_INTEGRATION_PLAN.md`](TELEPHONIE_INTEGRATION_PLAN.md) · CDC : [`docs/cdc/CDC-Module-Telephonie.md`](docs/cdc/CDC-Module-Telephonie.md) · Suivi tâche-par-tâche : `docs/suivi_taches_permatel.xlsx` (Phases 11-14).
 
 Collecte/standardisation/historisation des événements de téléphonie agents
@@ -25,12 +25,15 @@ existait déjà mais dormante (posée, non alimentée) : **étendue par migratio
 (non recréée)**. Décisions actées : `event_type`/`call_status` en `String`
 (pas enum Postgres, cohérent avec `use_varchar_for_enums`), **supervision en
 WebSocket** (namespace `/telephony`, Flask-SocketIO + worker Gunicorn
-`eventlet`/`gevent` + Redis comme message queue multi-worker — changement
-d'infra explicite, phase 11bis dédiée). Phasage : **11 (fondations backend) ✅
-implémenté** (`routes/telephony.py` : ingestion, KPIs, appels actifs, CRUD
-connecteurs PBX, réglages tenant ; 16 tests, 188/188 verts) → 11bis (infra
-WebSocket) → 12 (connecteur FusionPBX/ESL) → 13 (supervision frontend) → 14
-(connecteur Asterisk/AMI), ces 4 dernières phases non démarrées.
+`eventlet` + Redis comme message queue multi-worker). Phasage : **11
+(fondations backend) ✅**, **11bis (infra WebSocket) ✅** validée en test de
+charge Docker réel, **12 (connecteur FusionPBX/ESL) ✅** — process Docker
+séparé `connector/` (bibliothèque `greenswitch`, gevent), UI admin globale
+`/pbx-connectors` (CRUD connecteurs + rattachements domaine/tenant/queues) et
+réglages tenant `Paramètres > Téléphonie` ; **reste à valider contre un
+FusionPBX réel** (accès de test disponible — voir §8.3 du plan). → 13
+(supervision frontend) → 14 (connecteur Asterisk/AMI), ces 2 dernières
+phases non démarrées.
 
 ### Changelog v1.4.0 (22 juin 2026)
 > ⚠️ Les sections détaillées plus bas datent de v1.1.0 (mai 2026). Les changelogs font foi pour l'état courant.

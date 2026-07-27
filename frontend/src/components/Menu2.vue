@@ -245,6 +245,12 @@ const groups = [
         roles: ADMIN,
       },
       {
+        label: "Connecteurs PBX",
+        icon: "mdi-phone-settings-outline",
+        value: "/pbx-connectors",
+        roles: ADMIN,
+      },
+      {
         label: "Paramètres",
         icon: "mdi-tune",
         value: "/parameters",
