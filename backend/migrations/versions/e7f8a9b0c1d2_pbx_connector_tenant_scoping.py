@@ -41,6 +41,24 @@ depends_on = None
 _JSONB_VARIANT = postgresql.JSONB(astext_type=sa.Text()).with_variant(sa.JSON(), "sqlite")
 
 
+def _drop_telephony_events_pbx_fk(bind):
+    """Retire la FK telephony_events -> pbx_connectors avant de DROP cette
+    dernière. Le nom réel de la contrainte dépend de la façon dont la base a
+    été amorcée : une base créée via `flask db upgrade` (replay complet des
+    migrations) porte le nom explicite donné dans d0e1f2a3b4c5
+    (`fk_telephony_events_pbx_connector`) ; une base amorcée via
+    `db.create_all()` (1er démarrage sur base vide, cf. create_app()) obtient
+    le nom auto-généré par Postgres à partir du seul `ForeignKey(...)` du
+    modèle (`telephony_events_pbx_connector_id_fkey`), sans jamais rejouer
+    les fichiers de migration eux-mêmes. Recherche dynamique par table
+    référencée plutôt que par nom, pour fonctionner dans les deux cas."""
+    inspector = sa.inspect(bind)
+    for fk in inspector.get_foreign_keys('telephony_events'):
+        if fk.get('referred_table') == 'pbx_connectors' and fk.get('name'):
+            op.drop_constraint(fk['name'], 'telephony_events', type_='foreignkey')
+            return
+
+
 def upgrade():
     bind = op.get_bind()
     existing = bind.execute(sa.text("SELECT id, name FROM pbx_connectors")).fetchall()
@@ -57,8 +75,7 @@ def upgrade():
 
     # FK entrante (telephony_events.pbx_connector_id) à retirer avant de
     # pouvoir DROP la table, réajoutée en fin de migration.
-    with op.batch_alter_table('telephony_events', schema=None) as batch_op:
-        batch_op.drop_constraint('fk_telephony_events_pbx_connector', type_='foreignkey')
+    _drop_telephony_events_pbx_fk(bind)
 
     op.drop_table('pbx_domains_tenants')
     op.drop_table('pbx_connectors')
@@ -110,8 +127,7 @@ def upgrade():
 
 
 def downgrade():
-    with op.batch_alter_table('telephony_events', schema=None) as batch_op:
-        batch_op.drop_constraint('fk_telephony_events_pbx_connector', type_='foreignkey')
+    _drop_telephony_events_pbx_fk(op.get_bind())
 
     op.drop_table('pbx_connector_domains')
     op.drop_table('pbx_connectors')
