@@ -17,7 +17,7 @@ class Site(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     client_id = Column(Integer, nullable=False, index=True)
     nom = Column(String(200), nullable=False)
-    code_site = Column(String(50), nullable=False, index=True)
+    code_site = Column(String(50), nullable=False)
     logo_url = Column(String(255), nullable=True)
     adresse = Column(Text, nullable=True)
     ville = Column(String(100), nullable=True)
@@ -34,7 +34,7 @@ class Site(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
     # Multi-tenant column
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey('tenants.id'), nullable=True, index=True)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey('tenants.id'), nullable=False, index=True)
     
     # Relations
     client = relationship("Client", back_populates="sites")

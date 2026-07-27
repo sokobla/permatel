@@ -46,6 +46,27 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Redis (interne, non exposé) — compteur anti-brute-force partagé ────────
+  redis:
+    image: redis:7-alpine
+    container_name: permatel_redis
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    networks:
+      - permatel_internal
+    restart: unless-stopped
+    stop_grace_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 50
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ── Backend Flask / Gunicorn (interne) ──────────────────────────────────────
   backend:
     build:
@@ -56,6 +77,7 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
       JWT_SECRET_KEY:          ${JWT_SECRET_KEY:?JWT_SECRET_KEY requis dans .env}
       SETTINGS_ENCRYPTION_KEY: ${SETTINGS_ENCRYPTION_KEY:?SETTINGS_ENCRYPTION_KEY requis dans .env}
       FLASK_ENV:   production
@@ -74,6 +96,8 @@ services:
       - permatel_internal
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
     stop_grace_period: 30s
@@ -143,6 +167,13 @@ services:
       - "traefik.http.middlewares.permatel-sec.headers.browserXssFilter=true"
       - "traefik.http.middlewares.permatel-sec.headers.referrerPolicy=strict-origin-when-cross-origin"
       - "traefik.http.middlewares.permatel-sec.headers.permissionsPolicy=geolocation=(), microphone=(), camera=()"
+      # Content-Security-Policy : filet de sécurité navigateur derrière la
+      # sanitisation DOMPurify déjà en place sur les 3 `v-html` de l'app — une
+      # régression future (DOMPurify retiré/contourné, dépendance compromise)
+      # est bloquée par le navigateur plutôt qu'exécutée. 'unsafe-inline' sur
+      # style-src reste nécessaire pour les styles dynamiques de Vuetify ;
+      # fonts.googleapis.com/gstatic.com pour le chargement Google Fonts (Roboto).
+      - "traefik.http.middlewares.permatel-sec.headers.contentSecurityPolicy=default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
       # Masque les en-têtes révélateurs (anti-fuite d'info)
       - "traefik.http.middlewares.permatel-sec.headers.customResponseHeaders.Server="
       - "traefik.http.middlewares.permatel-sec.headers.customResponseHeaders.X-Powered-By="

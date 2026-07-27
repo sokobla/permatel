@@ -165,3 +165,69 @@ def auth_headers(tokens_permanencier):
 def refresh_headers(tokens_permanencier):
     """Header Authorization avec le refresh token."""
     return {"Authorization": f"Bearer {tokens_permanencier['refresh_token']}"}
+
+
+@pytest.fixture
+def tokens_manager(client, user_manager):
+    """Effectue un login MANAGER et retourne les tokens + session_id.
+
+    Utile pour les routes protégées par @role_required(MANAGER, ADMIN)
+    (ex. CRUD clients/sites/contacts), où auth_headers (PERMANENCIER) reçoit 403.
+    """
+    resp = client.post("/api/auth/login", json={
+        "username": "manager1",
+        "password": "Password123!",
+    })
+    data = resp.get_json()
+    return {
+        "access_token":  data["access_token"],
+        "refresh_token": data["refresh_token"],
+        "session_id":    data["session_id"],
+        "user":          data["user"],
+    }
+
+
+@pytest.fixture
+def auth_headers_manager(tokens_manager):
+    """Header Authorization prêt à l'emploi (rôle MANAGER)."""
+    return {"Authorization": f"Bearer {tokens_manager['access_token']}"}
+
+
+@pytest.fixture
+def tokens_admin(client, user_admin, default_tenant):
+    """Effectue un login ADMIN et retourne les tokens + session_id.
+
+    Utile pour les routes protégées par @role_required(ADMIN) uniquement
+    (ex. suppression de contact).
+
+    Le super-admin global voit potentiellement plusieurs tenants (Root +
+    default_tenant) et n'est JAMAIS auto-sélectionné sur un tenant au login
+    (contrairement à un utilisateur standard mono-tenant) — un select-tenant
+    explicite est donc nécessaire pour obtenir un token avec `tid`, requis
+    par les routes @tenant_required.
+    """
+    resp = client.post("/api/auth/login", json={
+        "username": "admin1",
+        "password": "Password123!",
+    })
+    data = resp.get_json()
+
+    select_resp = client.post(
+        "/api/auth/select-tenant",
+        json={"tenant_id": str(default_tenant.id)},
+        headers={"Authorization": f"Bearer {data['access_token']}"},
+    )
+    select_data = select_resp.get_json()
+
+    return {
+        "access_token":  select_data["access_token"],
+        "refresh_token": select_data["refresh_token"],
+        "session_id":    data["session_id"],
+        "user":          data["user"],
+    }
+
+
+@pytest.fixture
+def auth_headers_admin(tokens_admin):
+    """Header Authorization prêt à l'emploi (rôle ADMIN)."""
+    return {"Authorization": f"Bearer {tokens_admin['access_token']}"}

@@ -12,22 +12,24 @@ class TestClientsList:
         assert response.status_code == 200
 
     def test_list_clients_retourne_list(self, client, auth_headers):
-        """Test que la réponse contient une liste"""
+        """Test que la réponse contient une liste paginée"""
         response = client.get("/api/clients", headers=auth_headers)
         assert response.status_code == 200
         data = response.get_json()
-        assert isinstance(data, list)
+        assert isinstance(data["clients"], list)
 
-    def test_list_clients_ne_retourne_que_actifs(self, client, auth_headers, db):
+    def test_list_clients_ne_retourne_que_actifs(self, client, auth_headers, db, default_tenant):
         """Test que seuls les clients actifs sont retournés"""
         # Créer un client actif
         active_client = Client(
+            tenant_id=default_tenant.id,
             nom="Client Actif",
             code_client="CLI001",
             is_active=True
         )
         # Créer un client inactif
         inactive_client = Client(
+            tenant_id=default_tenant.id,
             nom="Client Inactif",
             code_client="CLI002",
             is_active=False
@@ -38,7 +40,7 @@ class TestClientsList:
 
         response = client.get("/api/clients", headers=auth_headers)
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.get_json()["clients"]
 
         # Vérifier qu'on a qu'un seul client (l'actif)
         assert len(data) == 1
@@ -49,9 +51,10 @@ class TestClientsList:
 class TestClientsGet:
     """Tests pour GET /api/clients/<id>"""
 
-    def test_get_client_retourne_200(self, client, auth_headers, db):
+    def test_get_client_retourne_200(self, client, auth_headers, db, default_tenant):
         """Test récupération d'un client existant"""
         test_client = Client(
+            tenant_id=default_tenant.id,
             nom="Test Client",
             code_client="CLI001",
             adresse="123 Rue Test",
@@ -82,9 +85,9 @@ class TestClientsGet:
 
 
 class TestClientsCreate:
-    """Tests pour POST /api/clients"""
+    """Tests pour POST /api/clients (rôle MANAGER/ADMIN requis)"""
 
-    def test_create_client_valide_retourne_201(self, client, auth_headers, db):
+    def test_create_client_valide_retourne_201(self, client, auth_headers_manager, db):
         """Test création d'un client valide"""
         payload = {
             "nom": "Nouveau Client",
@@ -95,7 +98,7 @@ class TestClientsCreate:
             "contact_principal": "Marie Martin"
         }
 
-        response = client.post("/api/clients", json=payload, headers=auth_headers)
+        response = client.post("/api/clients", json=payload, headers=auth_headers_manager)
         assert response.status_code == 201
 
         data = response.get_json()
@@ -108,37 +111,37 @@ class TestClientsCreate:
         assert client_db is not None
         assert client_db.nom == "Nouveau Client"
 
-    def test_create_client_nom_requis(self, client, auth_headers):
+    def test_create_client_nom_requis(self, client, auth_headers_manager):
         """Test que nom est requis"""
         payload = {"code_client": "CLI001"}
-        response = client.post("/api/clients", json=payload, headers=auth_headers)
+        response = client.post("/api/clients", json=payload, headers=auth_headers_manager)
         assert response.status_code == 400
         assert "nom" in response.get_json()["error"]
 
-    def test_create_client_code_client_requis(self, client, auth_headers):
+    def test_create_client_code_client_requis(self, client, auth_headers_manager):
         """Test que code_client est requis"""
         payload = {"nom": "Test Client"}
-        response = client.post("/api/clients", json=payload, headers=auth_headers)
+        response = client.post("/api/clients", json=payload, headers=auth_headers_manager)
         assert response.status_code == 400
         assert "code_client" in response.get_json()["error"]
 
-    def test_create_client_code_client_unique(self, client, auth_headers, db):
+    def test_create_client_code_client_unique(self, client, auth_headers_manager, db, default_tenant):
         """Test unicité du code_client"""
         # Créer un premier client
-        existing_client = Client(nom="Client Existant", code_client="CLI001")
+        existing_client = Client(tenant_id=default_tenant.id, nom="Client Existant", code_client="CLI001")
         db.session.add(existing_client)
         db.session.commit()
 
         # Tenter de créer un second avec même code
         payload = {"nom": "Nouveau Client", "code_client": "CLI001"}
-        response = client.post("/api/clients", json=payload, headers=auth_headers)
+        response = client.post("/api/clients", json=payload, headers=auth_headers_manager)
         assert response.status_code == 409
         assert "existe déjà" in response.get_json()["error"]
 
-    def test_create_client_champs_optionnels(self, client, auth_headers):
+    def test_create_client_champs_optionnels(self, client, auth_headers_manager):
         """Test création avec seulement les champs requis"""
         payload = {"nom": "Client Minimal", "code_client": "CLI002"}
-        response = client.post("/api/clients", json=payload, headers=auth_headers)
+        response = client.post("/api/clients", json=payload, headers=auth_headers_manager)
         assert response.status_code == 201
 
         data = response.get_json()
@@ -151,11 +154,12 @@ class TestClientsCreate:
 
 
 class TestClientsUpdate:
-    """Tests pour PUT /api/clients/<id>"""
+    """Tests pour PUT /api/clients/<id> (rôle MANAGER/ADMIN requis)"""
 
-    def test_update_client_retourne_200(self, client, auth_headers, db):
+    def test_update_client_retourne_200(self, client, auth_headers_manager, db, default_tenant):
         """Test mise à jour réussie"""
         test_client = Client(
+            tenant_id=default_tenant.id,
             nom="Client Original",
             code_client="CLI001",
             adresse="Adresse Originale"
@@ -168,7 +172,7 @@ class TestClientsUpdate:
             "adresse": "Nouvelle Adresse"
         }
 
-        response = client.put(f"/api/clients/{test_client.id}", json=payload, headers=auth_headers)
+        response = client.put(f"/api/clients/{test_client.id}", json=payload, headers=auth_headers_manager)
         assert response.status_code == 200
 
         data = response.get_json()
@@ -176,28 +180,29 @@ class TestClientsUpdate:
         assert data["adresse"] == "Nouvelle Adresse"
         assert data["code_client"] == "CLI001"  # Non modifié
 
-    def test_update_client_code_client_unique(self, client, auth_headers, db):
+    def test_update_client_code_client_unique(self, client, auth_headers_manager, db, default_tenant):
         """Test unicité du code_client lors de la mise à jour"""
-        client1 = Client(nom="Client 1", code_client="CLI001")
-        client2 = Client(nom="Client 2", code_client="CLI002")
+        client1 = Client(tenant_id=default_tenant.id, nom="Client 1", code_client="CLI001")
+        client2 = Client(tenant_id=default_tenant.id, nom="Client 2", code_client="CLI002")
         db.session.add_all([client1, client2])
         db.session.commit()
 
         # Tenter de changer CLI002 en CLI001 (déjà pris)
         payload = {"code_client": "CLI001"}
-        response = client.put(f"/api/clients/{client2.id}", json=payload, headers=auth_headers)
+        response = client.put(f"/api/clients/{client2.id}", json=payload, headers=auth_headers_manager)
         assert response.status_code == 409
         assert "existe déjà" in response.get_json()["error"]
 
-    def test_update_client_404_si_non_existent(self, client, auth_headers):
+    def test_update_client_404_si_non_existent(self, client, auth_headers_manager):
         """Test 404 pour client inexistant"""
         payload = {"nom": "Nouveau Nom"}
-        response = client.put("/api/clients/99999", json=payload, headers=auth_headers)
+        response = client.put("/api/clients/99999", json=payload, headers=auth_headers_manager)
         assert response.status_code == 404
 
-    def test_update_client_champs_partiels(self, client, auth_headers, db):
+    def test_update_client_champs_partiels(self, client, auth_headers_manager, db, default_tenant):
         """Test mise à jour partielle (seuls certains champs)"""
         test_client = Client(
+            tenant_id=default_tenant.id,
             nom="Client Original",
             code_client="CLI001",
             adresse="Adresse Originale",
@@ -208,7 +213,7 @@ class TestClientsUpdate:
 
         # Modifier seulement le téléphone
         payload = {"telephone": "0987654321"}
-        response = client.put(f"/api/clients/{test_client.id}", json=payload, headers=auth_headers)
+        response = client.put(f"/api/clients/{test_client.id}", json=payload, headers=auth_headers_manager)
         assert response.status_code == 200
 
         data = response.get_json()
@@ -217,15 +222,15 @@ class TestClientsUpdate:
 
 
 class TestClientsDelete:
-    """Tests pour DELETE /api/clients/<id>"""
+    """Tests pour DELETE /api/clients/<id> (rôle MANAGER/ADMIN requis)"""
 
-    def test_delete_client_retourne_200(self, client, auth_headers, db):
+    def test_delete_client_retourne_200(self, client, auth_headers_manager, db, default_tenant):
         """Test suppression réussie (soft delete)"""
-        test_client = Client(nom="Client à Supprimer", code_client="CLI001")
+        test_client = Client(tenant_id=default_tenant.id, nom="Client à Supprimer", code_client="CLI001")
         db.session.add(test_client)
         db.session.commit()
 
-        response = client.delete(f"/api/clients/{test_client.id}", headers=auth_headers)
+        response = client.delete(f"/api/clients/{test_client.id}", headers=auth_headers_manager)
         assert response.status_code == 200
         assert "désactivé" in response.get_json()["message"]
 
@@ -233,23 +238,23 @@ class TestClientsDelete:
         client_db = Client.query.get(test_client.id)
         assert client_db.is_active is False
 
-    def test_delete_client_404_si_non_existent(self, client, auth_headers):
+    def test_delete_client_404_si_non_existent(self, client, auth_headers_manager):
         """Test 404 pour client inexistant"""
-        response = client.delete("/api/clients/99999", headers=auth_headers)
+        response = client.delete("/api/clients/99999", headers=auth_headers_manager)
         assert response.status_code == 404
 
 
 class TestClientsStatus:
-    """Tests pour PATCH /api/clients/<id>/status"""
+    """Tests pour PATCH /api/clients/<id>/status (rôle MANAGER/ADMIN requis)"""
 
-    def test_status_desactiver_client(self, client, auth_headers, db):
+    def test_status_desactiver_client(self, client, auth_headers_manager, db, default_tenant):
         """Test désactivation d'un client"""
-        test_client = Client(nom="Client Actif", code_client="CLI001", is_active=True)
+        test_client = Client(tenant_id=default_tenant.id, nom="Client Actif", code_client="CLI001", is_active=True)
         db.session.add(test_client)
         db.session.commit()
 
         payload = {"is_active": False}
-        response = client.patch(f"/api/clients/{test_client.id}/status", json=payload, headers=auth_headers)
+        response = client.patch(f"/api/clients/{test_client.id}/status", json=payload, headers=auth_headers_manager)
         assert response.status_code == 200
         assert "désactivé" in response.get_json()["message"]
         assert response.get_json()["is_active"] is False
@@ -258,41 +263,41 @@ class TestClientsStatus:
         client_db = Client.query.get(test_client.id)
         assert client_db.is_active is False
 
-    def test_status_activer_client(self, client, auth_headers, db):
+    def test_status_activer_client(self, client, auth_headers_manager, db, default_tenant):
         """Test activation d'un client"""
-        test_client = Client(nom="Client Inactif", code_client="CLI001", is_active=False)
+        test_client = Client(tenant_id=default_tenant.id, nom="Client Inactif", code_client="CLI001", is_active=False)
         db.session.add(test_client)
         db.session.commit()
 
         payload = {"is_active": True}
-        response = client.patch(f"/api/clients/{test_client.id}/status", json=payload, headers=auth_headers)
+        response = client.patch(f"/api/clients/{test_client.id}/status", json=payload, headers=auth_headers_manager)
         assert response.status_code == 200
         assert "activé" in response.get_json()["message"]
         assert response.get_json()["is_active"] is True
 
-    def test_status_is_active_requis(self, client, auth_headers, db):
+    def test_status_is_active_requis(self, client, auth_headers_manager, db, default_tenant):
         """Test que is_active est requis"""
-        test_client = Client(nom="Test Client", code_client="CLI001")
+        test_client = Client(tenant_id=default_tenant.id, nom="Test Client", code_client="CLI001")
         db.session.add(test_client)
         db.session.commit()
 
-        response = client.patch(f"/api/clients/{test_client.id}/status", json={}, headers=auth_headers)
+        response = client.patch(f"/api/clients/{test_client.id}/status", json={}, headers=auth_headers_manager)
         assert response.status_code == 400
         assert "is_active" in response.get_json()["error"]
 
-    def test_status_is_active_doit_etre_booleen(self, client, auth_headers, db):
+    def test_status_is_active_doit_etre_booleen(self, client, auth_headers_manager, db, default_tenant):
         """Test que is_active doit être un booléen"""
-        test_client = Client(nom="Test Client", code_client="CLI001")
+        test_client = Client(tenant_id=default_tenant.id, nom="Test Client", code_client="CLI001")
         db.session.add(test_client)
         db.session.commit()
 
         payload = {"is_active": "true"}  # String au lieu de bool
-        response = client.patch(f"/api/clients/{test_client.id}/status", json=payload, headers=auth_headers)
+        response = client.patch(f"/api/clients/{test_client.id}/status", json=payload, headers=auth_headers_manager)
         assert response.status_code == 400
         assert "booléen" in response.get_json()["error"]
 
-    def test_status_404_si_non_existent(self, client, auth_headers):
+    def test_status_404_si_non_existent(self, client, auth_headers_manager):
         """Test 404 pour client inexistant"""
         payload = {"is_active": False}
-        response = client.patch("/api/clients/99999/status", json=payload, headers=auth_headers)
+        response = client.patch("/api/clients/99999/status", json=payload, headers=auth_headers_manager)
         assert response.status_code == 404

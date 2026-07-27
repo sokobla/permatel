@@ -22,7 +22,27 @@ def auth_headers_tenant(client, user_permanencier, default_tenant):
     })
     assert resp_tenant.status_code == 200
     tenant_token = resp_tenant.get_json()["access_token"]
-    
+
+    return {"Authorization": f"Bearer {tenant_token}"}
+
+
+@pytest.fixture
+def auth_headers_tenant_admin(client, user_admin, default_tenant):
+    """Token JWT ADMIN + tenant_id (tid) — requis par DELETE /api/demandes/<id>
+    (@role_required(ADMIN)), que auth_headers_tenant (PERMANENCIER) ne peut pas utiliser."""
+    resp_login = client.post("/api/auth/login", json={
+        "username": user_admin.username,
+        "password": "Password123!"
+    })
+    assert resp_login.status_code == 200
+    token = resp_login.get_json()["access_token"]
+
+    resp_tenant = client.post("/api/auth/select-tenant", headers={"Authorization": f"Bearer {token}"}, json={
+        "tenant_id": str(default_tenant.id)
+    })
+    assert resp_tenant.status_code == 200
+    tenant_token = resp_tenant.get_json()["access_token"]
+
     return {"Authorization": f"Bearer {tenant_token}"}
 
 
@@ -37,7 +57,11 @@ def test_data(db, default_tenant, user_permanencier):
     db.session.add(site_obj)
     db.session.flush()
 
-    contact_obj = Contact(nom="Contact", prenom="Demande")
+    contact_obj = Contact(
+        tenant_id=default_tenant.id, nom="Contact", prenom="Demande",
+        adresse="1 Rue Test", ville="Paris", type="Client",
+        telephone="0100000000", email="contact.demande@example.com",
+    )
     contact_obj.clients.append(client_obj)
     db.session.add(contact_obj)
     db.session.commit()
@@ -63,32 +87,32 @@ class TestCreateDemande:
             "type_demande": "anomalie",
             "client_id": test_data["client"].id,
             "site_id": test_data["site"].id,
-            "titre": "Serveur en panne",
-            "description": "Le serveur principal ne répond plus.",
-            "nature_anomalie": "defaut_materiel"
+            "titre": "Interphone du site en panne",
+            "description": "Le boîtier interphone du site ne répond plus.",
+            "nature_anomalie": "probleme_technique"
         }
         resp = client.post("/api/demandes", json=payload, headers=auth_headers_tenant)
         assert resp.status_code == 201
         data = resp.get_json()
         assert data["type_demande"] == "anomalie"
-        assert data["titre"] == "Serveur en panne"
+        assert data["titre"] == "Interphone du site en panne"
         assert data["numero_ticket"].startswith("ANOM_")
-        assert data["nature_anomalie"] == "defaut_materiel"
+        assert data["nature_anomalie"] == "probleme_technique"
 
     def test_create_demande_commande_success(self, client, auth_headers_tenant, test_data):
-        """Teste la création réussie d'une demande de commande."""
+        """Teste la création réussie d'une demande de commande (rondes supplémentaires)."""
         payload = {
             "type_demande": "commande",
             "client_id": test_data["client"].id,
-            "titre": "Achat de 10 licences",
-            "type_commande": "licence",
+            "titre": "Rondes supplémentaires demandées",
+            "type_commande": "rondes",
             "quantite": 10
         }
         resp = client.post("/api/demandes", json=payload, headers=auth_headers_tenant)
         assert resp.status_code == 201
         data = resp.get_json()
         assert data["type_demande"] == "commande"
-        assert data["type_commande"] == "licence"
+        assert data["type_commande"] == "rondes"
         assert data["quantite"] == 10
 
     def test_create_demande_planning_success(self, client, auth_headers_tenant, test_data, agent_securite):
@@ -216,10 +240,10 @@ class TestReadUpdateDeleteDemande:
         data = resp.get_json()
         assert data["statut"] == "en_cours"
 
-    def test_soft_delete_demande(self, client, auth_headers_tenant, sample_demande, db):
-        """Teste la suppression logique (soft delete) d'une demande."""
+    def test_soft_delete_demande(self, client, auth_headers_tenant, auth_headers_tenant_admin, sample_demande, db):
+        """Teste la suppression logique (soft delete) d'une demande (rôle ADMIN requis)."""
         # Suppression
-        resp_delete = client.delete(f"/api/demandes/{sample_demande.id}", headers=auth_headers_tenant)
+        resp_delete = client.delete(f"/api/demandes/{sample_demande.id}", headers=auth_headers_tenant_admin)
         assert resp_delete.status_code == 200
 
         # Vérifier en base

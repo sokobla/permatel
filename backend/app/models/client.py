@@ -16,7 +16,7 @@ class Client(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     nom = Column(String(200), nullable=False)
     logo_url = Column(String(255), nullable=True)
-    code_client = Column(String(50), nullable=False, index=True)
+    code_client = Column(String(50), nullable=False)
     adresse = Column(Text, nullable=True)
     ville = Column(String(100), nullable=True)
     code_postal = Column(String(20), nullable=True)
@@ -29,7 +29,7 @@ class Client(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
     # Multi-tenant column
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey('tenants.id'), nullable=True, index=True)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey('tenants.id'), nullable=False, index=True)
     
     # Relations
     sites = relationship("Site", back_populates="client", cascade="all, delete-orphan")

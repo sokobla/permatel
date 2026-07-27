@@ -63,23 +63,43 @@ def create_app(config_object=None):
     # --- Initialisation automatique de la base de données au démarrage ---
     # - Base vide (1er démarrage) : création du schéma + amorce unique (Root + admin global).
     # - Base existante : application des migrations en attente (si AUTO_MIGRATE).
+    #
+    # Verrou advisory Postgres : create_app() est ré-exécuté par CHAQUE worker
+    # Gunicorn (et par tout process qui importe la factory). Sans verrou, un
+    # démarrage/redémarrage concurrent de plusieurs workers peut déclencher un
+    # `db.create_all()`/`upgrade()` en parallèle sur la même base (DDL concurrent,
+    # lock-wait, ou crash au démarrage). Le verrou sérialise : un seul worker fait
+    # le travail, les autres attendent puis constatent que la base est déjà à jour.
+    # No-op sous SQLite (tests) — pas d'équivalent, et pas de multi-worker en test.
+    _ADVISORY_LOCK_ID = 7825194  # identifiant arbitraire propre à cette section critique
     with app.app_context():
-        inspector = inspect(db.engine)
-        db_is_empty = not inspector.has_table('alembic_version')
+        is_postgres = db.engine.dialect.name == "postgresql"
+        lock_conn = db.engine.connect() if is_postgres else None
+        try:
+            if lock_conn is not None:
+                from sqlalchemy import text
+                lock_conn.execute(text("SELECT pg_advisory_lock(:id)"), {"id": _ADVISORY_LOCK_ID})
 
-        if db_is_empty:
-            app.logger.info("Base vide — création du schéma à partir des modèles...")
-            db.create_all()
-            stamp(revision='heads')  # Marque la base comme à jour avec les migrations
-            app.logger.info("Premier démarrage — amorce unique (tenant Root + admin global)...")
-            seeding.seed_root(db)
-            app.logger.info("Initialisation de la base de données terminée.")
-        else:
-            if app.config.get("AUTO_MIGRATE"):
-                app.logger.info("Base existante — application des migrations en attente...")
-                upgrade(revision='heads')
+            inspector = inspect(db.engine)
+            db_is_empty = not inspector.has_table('alembic_version')
+
+            if db_is_empty:
+                app.logger.info("Base vide — création du schéma à partir des modèles...")
+                db.create_all()
+                stamp(revision='heads')  # Marque la base comme à jour avec les migrations
+                app.logger.info("Premier démarrage — amorce unique (tenant Root + admin global)...")
+                seeding.seed_root(db)
+                app.logger.info("Initialisation de la base de données terminée.")
             else:
-                app.logger.info("Base existante — migrations automatiques désactivées.")
+                if app.config.get("AUTO_MIGRATE"):
+                    app.logger.info("Base existante — application des migrations en attente...")
+                    upgrade(revision='heads')
+                else:
+                    app.logger.info("Base existante — migrations automatiques désactivées.")
+        finally:
+            if lock_conn is not None:
+                lock_conn.execute(text("SELECT pg_advisory_unlock(:id)"), {"id": _ADVISORY_LOCK_ID})
+                lock_conn.close()
     # --- Fin de l'initialisation automatique ---
 
     # Route pour servir les fichiers uploadés (avatars, etc.)

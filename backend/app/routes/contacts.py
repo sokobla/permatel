@@ -12,7 +12,7 @@ from app.utils.decorators import tenant_required
 from app.utils.auth import role_required
 
 contacts_bp = Blueprint('contacts', __name__, url_prefix='/api/contacts')
-CORS(contacts_bp, resources={r"/api/contacts/*": {"origins": "*"}})
+CORS(contacts_bp, supports_credentials=True)
 
 def _save_avatar(file, contact):
     if not file or not file.filename:
@@ -187,6 +187,13 @@ def create_contact():
     if contact_type == 'Agent de sécurité':
         return jsonify({"error": "La création des contacts de type 'Agent de sécurité' doit se faire via le module Agents."}), 403
 
+    # Validation des champs requis (même motif que clients.py/sites.py) —
+    # évite qu'un champ manquant ne remonte en 500 via l'IntegrityError NOT NULL.
+    required_fields = ["nom", "prenom", "adresse", "ville", "telephone", "email"]
+    for field in required_fields:
+        if not data.get(field):
+            return jsonify({"error": f"Le champ '{field}' est requis"}), 400
+
     contact = Contact(
         nom=data.get('nom'),
         prenom=data.get('prenom'),
@@ -210,13 +217,17 @@ def create_contact():
         client_ids = data.get('client_ids', [])
         if not client_ids:
             return jsonify({"error": "Le champ Client est requis pour ce type de contact."}), 422
-        
+
         contact.tenant_id = g.tenant.id
         contact.clients = Client.query.filter(Client.id.in_(client_ids), Client.tenant_id == g.tenant.id).all()
-        
+        if len(contact.clients) != len(set(client_ids)):
+            return jsonify({"error": "Un ou plusieurs clients sont invalides."}), 422
+
         site_ids = data.get('site_ids', [])
         if site_ids:
             contact.sites = Site.query.filter(Site.id.in_(site_ids), Site.tenant_id == g.tenant.id).all()
+            if len(contact.sites) != len(set(site_ids)):
+                return jsonify({"error": "Un ou plusieurs sites sont invalides."}), 422
 
     elif contact_type == 'Tenant':
         contact.tenant_id = g.tenant.id

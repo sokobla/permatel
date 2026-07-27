@@ -77,7 +77,7 @@ def _parse_client_request():
 
 clients_bp = Blueprint("clients", __name__, url_prefix="/api/clients")
 
-CORS(clients_bp, resources={r"/api/clients/*": {"origins": "*"}})
+CORS(clients_bp, supports_credentials=True)
 
 @clients_bp.get("")
 @tenant_required
@@ -90,7 +90,11 @@ def list_clients():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
     search_query = request.args.get('search', '', type=str)
-    status_filter = request.args.get('status', '', type=str)
+    # Défaut "true" (actifs uniquement) — cohérent avec list_sites() et le
+    # contrat documenté de cet endpoint ; le frontend envoie de toute façon
+    # toujours un `status` explicite (ClientsView.vue), ce défaut ne joue que
+    # pour les appelants qui omettent le paramètre.
+    status_filter = request.args.get('status', 'true', type=str)
 
     query = Client.query.filter_by(tenant_id=tenant_id)
 

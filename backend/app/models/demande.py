@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum as SQLEnum, Boolean, UniqueConstraint, ForeignKeyConstraint, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum as SQLEnum, Boolean, UniqueConstraint, ForeignKeyConstraint, Index, JSON
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 # JSONB en PostgreSQL, repli JSON sous SQLite (tests). Comportement runtime
@@ -181,8 +181,9 @@ class Demande(db.Model):
         UniqueConstraint('tenant_id', 'numero_ticket', name='uq_demandes_tenant_numero'),
         ForeignKeyConstraint(['tenant_id', 'client_id'], ['clients.tenant_id', 'clients.id'], 
                            name='fk_demandes_client_tenant'),
-        ForeignKeyConstraint(['tenant_id', 'site_id'], ['sites.tenant_id', 'sites.id'], 
+        ForeignKeyConstraint(['tenant_id', 'site_id'], ['sites.tenant_id', 'sites.id'],
                            name='fk_demandes_site_tenant'),
+        Index('ix_demandes_tenant_statut_created', 'tenant_id', 'statut', 'created_at'),
     )
     
     # Relations ORM

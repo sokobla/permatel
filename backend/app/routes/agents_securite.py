@@ -33,7 +33,7 @@ def _parse_kpi_period():
             return default
 
     return _p(request.args.get("from"), now - timedelta(days=30)), _p(request.args.get("to"), now)
-CORS(agents_securite_bp, resources={r"/api/agents/*": {"origins": "*"}})
+CORS(agents_securite_bp, supports_credentials=True)
 
 def _sync_agent_contact(agent: AgentSecurite, data: dict):
     """

@@ -21,6 +21,9 @@ from flask_jwt_extended import (
     jwt_required,
 )
 from flask_cors import CORS
+from sqlalchemy import func
+from sqlalchemy.exc import SQLAlchemyError
+from werkzeug.security import check_password_hash, generate_password_hash
 import uuid
 from app import db
 from app.models.audit_log import AuditAction, AuditLog
@@ -40,6 +43,14 @@ auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 # supports_credentials=True est crucial pour que le navigateur envoie les cookies
 # ou les headers d'authentification (comme le Bearer token JWT).
 CORS(auth_bp, supports_credentials=True)
+
+# Hash factice utilisé pour égaliser le temps de réponse du login quand
+# l'utilisateur n'existe pas (mitigation de l'énumération de comptes par
+# canal auxiliaire temporel — vérifier un hash factice coûte le même temps
+# qu'une vérification de mot de passe réelle).
+_DUMMY_PASSWORD_HASH = generate_password_hash(
+    "dummy-password-permatel", method="pbkdf2:sha256:600000"
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────── #
@@ -114,7 +125,7 @@ def _log_audit(user_id: int, event: str, details: dict, tenant_id: uuid.UUID | N
             new_values={"event": event, **details},
         )
         db.session.add(entry)
-    except Exception as exc:
+    except (TypeError, SQLAlchemyError) as exc:
         auth_logger.error(f"Échec écriture audit_log : {exc}")
 
 
@@ -209,11 +220,26 @@ def login():
         return resp, 429
 
     # ── Recherche utilisateur (par username OU email — username = email) ───── #
+    # Comparaison exacte insensible à la casse (pas de ilike() sur une entrée
+    # utilisateur non échappée : %/_ y seraient interprétés comme des jokers SQL).
+    username_lower = username.lower()
     user = User.query.filter(
-        db.or_(User.username.ilike(username), User.email.ilike(username))
+        db.or_(
+            func.lower(User.username) == username_lower,
+            func.lower(User.email) == username_lower,
+        )
     ).first()
 
-    if not user or not user.check_password(password):
+    if user:
+        password_valid = user.check_password(password)
+    else:
+        # Vérification à temps constant : exécute quand même un hachage pour
+        # que la réponse ne soit pas mesurablement plus rapide qu'en cas de
+        # mauvais mot de passe sur un compte existant.
+        check_password_hash(_DUMMY_PASSWORD_HASH, password)
+        password_valid = False
+
+    if not user or not password_valid:
         locked_now, _retry = register_failure(current_app.config, username, ip)
         auth_logger.warning(
             f"LOGIN_FAILED | username={username} | ip={ip}"

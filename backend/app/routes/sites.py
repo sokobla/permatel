@@ -13,7 +13,7 @@ from app.utils.decorators import tenant_required
 
 logger = logging.getLogger(__name__)
 sites_bp = Blueprint("sites", __name__, url_prefix="/api/sites")
-CORS(sites_bp, resources={r"/api/sites/*": {"origins": "*"}})
+CORS(sites_bp, supports_credentials=True)
 
 def _save_logo(file, site):
     if not file or not file.filename:
@@ -87,8 +87,7 @@ def list_sites():
     elif status_filter and status_filter.lower() == 'false':
         query = query.filter(Site.is_active == False)
 
-    print("---------- Debug List des sites -----------")
-    print(f" Search query: '{search_query}', Status filter: '{status_filter}'")  # Debug log
+    logger.debug("List des sites | search=%r status=%r", search_query, status_filter)
     if search_query:
         search_term = f"%{search_query}%"
         query = query.filter(

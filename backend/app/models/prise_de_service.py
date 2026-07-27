@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, DateTime, ForeignKey, Index
+from sqlalchemy import Column, Integer, DateTime, ForeignKey, ForeignKeyConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
 
 from app import db
@@ -22,6 +22,14 @@ class PriseDeService(Base):
     __tablename__ = "prises_de_service"
     __table_args__ = (
         Index("ix_pds_tenant_agent_open", "tenant_id", "agent_id", "date_fin"),
+        ForeignKeyConstraint(
+            ["tenant_id", "client_id"], ["clients.tenant_id", "clients.id"],
+            name="fk_prises_de_service_client_tenant",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "site_id"], ["sites.tenant_id", "sites.id"],
+            name="fk_prises_de_service_site_tenant",
+        ),
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)

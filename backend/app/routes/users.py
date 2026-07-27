@@ -1,4 +1,5 @@
 import logging
+import uuid
 from datetime import datetime
 import json
 import os
@@ -88,7 +89,7 @@ def _parse_user_request():
     data = {}
     avatar_file = None
     try:
-        if request.content_type.startswith('multipart/form-data'):
+        if (request.content_type or "").startswith('multipart/form-data'):
             payload_str = request.form.get('data')
             if not payload_str:
                 return None, None, (jsonify({"message": "La partie 'data' du formulaire est manquante."}), 400)
@@ -100,6 +101,21 @@ def _parse_user_request():
         return None, None, (jsonify({"message": "Format JSON invalide dans la partie 'data'."}), 400)
 
     return data, avatar_file, None
+
+
+def _parse_tenant_ids(raw_ids):
+    """Convertit une liste d'UUID (chaînes, telles que reçues en JSON) en objets
+    uuid.UUID. Retourne (uuid_list, error_response). Une valeur malformée est une
+    erreur 400 explicite plutôt qu'un 500 (SQLAlchemy attend un uuid.UUID, pas une
+    str, pour lier un paramètre sur une colonne UUID(as_uuid=True))."""
+    parsed = []
+    for raw_id in raw_ids:
+        try:
+            parsed.append(raw_id if isinstance(raw_id, uuid.UUID) else uuid.UUID(str(raw_id)))
+        except (ValueError, TypeError, AttributeError):
+            return None, (jsonify({"message": f"Identifiant de tenant invalide : '{raw_id}'."}), 400)
+    return parsed, None
+
 
 def _serialize_tenant(tenant):
     return {
@@ -273,8 +289,12 @@ def create_user():
     if tenant_ids:
         from app.models import Tenant
         from app.models.tenant_user import TenantUser, MEMBERSHIP_MEMBER
-        tenants = Tenant.query.filter(Tenant.id.in_(tenant_ids), Tenant.is_active.is_(True)).all()
-        if len(tenants) != len(set(tenant_ids)):
+        parsed_tenant_ids, error = _parse_tenant_ids(tenant_ids)
+        if error:
+            db.session.rollback()
+            return error
+        tenants = Tenant.query.filter(Tenant.id.in_(parsed_tenant_ids), Tenant.is_active.is_(True)).all()
+        if len(tenants) != len(set(parsed_tenant_ids)):
             db.session.rollback()
             return jsonify({"message": "Un ou plusieurs tenants sont introuvables ou inactifs."}), 400
         # Liaisons explicites (membership_role + is_active maîtrisés).
@@ -376,11 +396,15 @@ def update_user(user_id):
         if user.role != UserRole.ADMIN and not tenant_ids:
             return jsonify({"message": "Au moins un tenant est requis pour un utilisateur non-administrateur."}), 400
 
+        parsed_tenant_ids, error = _parse_tenant_ids(tenant_ids)
+        if error:
+            return error
+
         tenants = (
-            Tenant.query.filter(Tenant.id.in_(tenant_ids), Tenant.is_active.is_(True)).all()
-            if tenant_ids else []
+            Tenant.query.filter(Tenant.id.in_(parsed_tenant_ids), Tenant.is_active.is_(True)).all()
+            if parsed_tenant_ids else []
         )
-        if len(tenants) != len(set(tenant_ids)):
+        if len(tenants) != len(set(parsed_tenant_ids)):
             return jsonify({"message": "Un ou plusieurs tenants sont introuvables ou inactifs."}), 400
 
         # Réconciliation des appartenances en préservant membership_role des liaisons conservées.

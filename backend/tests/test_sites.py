@@ -13,21 +13,22 @@ class TestSitesList:
         assert response.status_code == 200
 
     def test_list_sites_retourne_list(self, client, auth_headers):
-        """Test que la réponse contient une liste"""
+        """Test que la réponse contient une liste paginée"""
         response = client.get("/api/sites", headers=auth_headers)
         assert response.status_code == 200
         data = response.get_json()
-        assert isinstance(data, list)
+        assert isinstance(data["sites"], list)
 
-    def test_list_sites_ne_retourne_que_actifs(self, client, auth_headers, db):
+    def test_list_sites_ne_retourne_que_actifs(self, client, auth_headers, db, default_tenant):
         """Test que seuls les sites actifs sont retournés"""
         # Créer un client
-        test_client = Client(nom="Test Client", code_client="CLI001")
+        test_client = Client(tenant_id=default_tenant.id, nom="Test Client", code_client="CLI001")
         db.session.add(test_client)
         db.session.commit()
 
         # Créer un site actif
         active_site = Site(
+            tenant_id=default_tenant.id,
             client_id=test_client.id,
             nom="Site Actif",
             code_site="SIT001",
@@ -35,6 +36,7 @@ class TestSitesList:
         )
         # Créer un site inactif
         inactive_site = Site(
+            tenant_id=default_tenant.id,
             client_id=test_client.id,
             nom="Site Inactif",
             code_site="SIT002",
@@ -46,7 +48,7 @@ class TestSitesList:
 
         response = client.get("/api/sites", headers=auth_headers)
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.get_json()["sites"]
 
         # Vérifier qu'on a qu'un seul site (l'actif)
         assert len(data) == 1
@@ -57,20 +59,20 @@ class TestSitesList:
 class TestSitesGet:
     """Tests pour GET /api/sites/<id>"""
 
-    def test_get_site_retourne_200(self, client, auth_headers, db):
+    def test_get_site_retourne_200(self, client, auth_headers, db, default_tenant):
         """Test récupération d'un site existant"""
-        test_client = Client(nom="Test Client", code_client="CLI001")
+        test_client = Client(tenant_id=default_tenant.id, nom="Test Client", code_client="CLI001")
         db.session.add(test_client)
         db.session.commit()
 
         test_site = Site(
+            tenant_id=default_tenant.id,
             client_id=test_client.id,
             nom="Test Site",
             code_site="SIT001",
             adresse="123 Rue Test",
             ville="Paris",
             telephone="0123456789",
-            responsable_site="Jean Dupont",
             effectif_requis=50
         )
         db.session.add(test_site)
@@ -87,7 +89,6 @@ class TestSitesGet:
         assert data["adresse"] == "123 Rue Test"
         assert data["ville"] == "Paris"
         assert data["telephone"] == "0123456789"
-        assert data["responsable_site"] == "Jean Dupont"
         assert data["effectif_requis"] == 50
         assert data["is_active"] is True
 
@@ -100,9 +101,9 @@ class TestSitesGet:
 class TestSitesCreate:
     """Tests pour POST /api/sites"""
 
-    def test_create_site_valide_retourne_201(self, client, auth_headers, db):
+    def test_create_site_valide_retourne_201(self, client, auth_headers, db, default_tenant):
         """Test création d'un site valide"""
-        test_client = Client(nom="Test Client", code_client="CLI001")
+        test_client = Client(tenant_id=default_tenant.id, nom="Test Client", code_client="CLI001")
         db.session.add(test_client)
         db.session.commit()
 
@@ -112,24 +113,21 @@ class TestSitesCreate:
             "code_site": "SIT001",
             "adresse": "456 Rue Nouvelle",
             "ville": "Marseille",
+            "code_postal": "13001",
             "telephone": "0987654321",
-            "responsable_site": "Marie Martin",
             "effectif_requis": 75
         }
 
         response = client.post("/api/sites", json=payload, headers=auth_headers)
         assert response.status_code == 201
+        assert response.get_json()["message"] == "Site créé avec succès"
 
-        data = response.get_json()
-        assert data["nom"] == "Nouveau Site"
-        assert data["code_site"] == "SIT001"
-        assert data["client_id"] == test_client.id
-        assert data["is_active"] is True
-
-        # Vérifier en BD
+        # Vérifier en BD (la réponse de création ne renvoie que id/message)
         site_db = Site.query.filter_by(code_site="SIT001").first()
         assert site_db is not None
         assert site_db.nom == "Nouveau Site"
+        assert site_db.client_id == test_client.id
+        assert site_db.is_active is True
 
     def test_create_site_client_id_requis(self, client, auth_headers):
         """Test que client_id est requis"""
@@ -138,9 +136,9 @@ class TestSitesCreate:
         assert response.status_code == 400
         assert "client_id" in response.get_json()["error"]
 
-    def test_create_site_nom_requis(self, client, auth_headers, db):
+    def test_create_site_nom_requis(self, client, auth_headers, db, default_tenant):
         """Test que nom est requis"""
-        test_client = Client(nom="Test Client", code_client="CLI001")
+        test_client = Client(tenant_id=default_tenant.id, nom="Test Client", code_client="CLI001")
         db.session.add(test_client)
         db.session.commit()
 
@@ -149,9 +147,9 @@ class TestSitesCreate:
         assert response.status_code == 400
         assert "nom" in response.get_json()["error"]
 
-    def test_create_site_code_site_requis(self, client, auth_headers, db):
+    def test_create_site_code_site_requis(self, client, auth_headers, db, default_tenant):
         """Test que code_site est requis"""
-        test_client = Client(nom="Test Client", code_client="CLI001")
+        test_client = Client(tenant_id=default_tenant.id, nom="Test Client", code_client="CLI001")
         db.session.add(test_client)
         db.session.commit()
 
@@ -165,21 +163,25 @@ class TestSitesCreate:
         payload = {
             "client_id": 99999,
             "nom": "Test Site",
-            "code_site": "SIT001"
+            "code_site": "SIT001",
+            "adresse": "1 Rue Test",
+            "ville": "Paris",
+            "code_postal": "75001",
         }
         response = client.post("/api/sites", json=payload, headers=auth_headers)
         assert response.status_code == 404
         assert "client" in response.get_json()["error"]
 
-    def test_create_site_code_site_unique(self, client, auth_headers, db):
+    def test_create_site_code_site_unique(self, client, auth_headers, db, default_tenant):
         """Test unicité du code_site"""
         # Créer un client
-        test_client = Client(nom="Test Client", code_client="CLI001")
+        test_client = Client(tenant_id=default_tenant.id, nom="Test Client", code_client="CLI001")
         db.session.add(test_client)
         db.session.commit()
 
         # Créer un premier site
         existing_site = Site(
+            tenant_id=default_tenant.id,
             client_id=test_client.id,
             nom="Site Existant",
             code_site="SIT001"
@@ -191,46 +193,51 @@ class TestSitesCreate:
         payload = {
             "client_id": test_client.id,
             "nom": "Nouveau Site",
-            "code_site": "SIT001"
+            "code_site": "SIT001",
+            "adresse": "1 Rue Test",
+            "ville": "Paris",
+            "code_postal": "75001",
         }
         response = client.post("/api/sites", json=payload, headers=auth_headers)
         assert response.status_code == 409
         assert "existe déjà" in response.get_json()["error"]
 
-    def test_create_site_champs_optionnels(self, client, auth_headers, db):
-        """Test création avec seulement les champs requis"""
-        test_client = Client(nom="Test Client", code_client="CLI001")
+    def test_create_site_champs_optionnels(self, client, auth_headers, db, default_tenant):
+        """Test création avec seulement les champs requis (adresse/ville/code_postal
+        sont requis par la route ; telephone/effectif_requis restent optionnels)"""
+        test_client = Client(tenant_id=default_tenant.id, nom="Test Client", code_client="CLI001")
         db.session.add(test_client)
         db.session.commit()
 
         payload = {
             "client_id": test_client.id,
             "nom": "Site Minimal",
-            "code_site": "SIT002"
+            "code_site": "SIT002",
+            "adresse": "1 Rue Test",
+            "ville": "Paris",
+            "code_postal": "75001",
         }
         response = client.post("/api/sites", json=payload, headers=auth_headers)
         assert response.status_code == 201
 
-        data = response.get_json()
-        assert data["nom"] == "Site Minimal"
-        assert data["code_site"] == "SIT002"
-        assert data["adresse"] is None
-        assert data["ville"] is None
-        assert data["telephone"] is None
-        assert data["responsable_site"] is None
-        assert data["effectif_requis"] is None
+        site_db = Site.query.filter_by(code_site="SIT002").first()
+        assert site_db is not None
+        assert site_db.nom == "Site Minimal"
+        assert site_db.telephone is None
+        assert site_db.effectif_requis is None
 
 
 class TestSitesUpdate:
     """Tests pour PUT /api/sites/<id>"""
 
-    def test_update_site_retourne_200(self, client, auth_headers, db):
+    def test_update_site_retourne_200(self, client, auth_headers, db, default_tenant):
         """Test mise à jour réussie"""
-        test_client = Client(nom="Test Client", code_client="CLI001")
+        test_client = Client(tenant_id=default_tenant.id, nom="Test Client", code_client="CLI001")
         db.session.add(test_client)
         db.session.commit()
 
         test_site = Site(
+            tenant_id=default_tenant.id,
             client_id=test_client.id,
             nom="Site Original",
             code_site="SIT001",
@@ -247,21 +254,23 @@ class TestSitesUpdate:
 
         response = client.put(f"/api/sites/{test_site.id}", json=payload, headers=auth_headers)
         assert response.status_code == 200
+        assert response.get_json()["message"] == "Site mis à jour avec succès"
 
-        data = response.get_json()
-        assert data["nom"] == "Site Modifié"
-        assert data["adresse"] == "Nouvelle Adresse"
-        assert data["ville"] == "Lyon"
-        assert data["code_site"] == "SIT001"  # Non modifié
+        # La réponse de mise à jour ne renvoie que le message : vérifier en BD
+        db.session.refresh(test_site)
+        assert test_site.nom == "Site Modifié"
+        assert test_site.adresse == "Nouvelle Adresse"
+        assert test_site.ville == "Lyon"
+        assert test_site.code_site == "SIT001"  # Non modifié
 
-    def test_update_site_code_site_unique(self, client, auth_headers, db):
+    def test_update_site_code_site_unique(self, client, auth_headers, db, default_tenant):
         """Test unicité du code_site lors de la mise à jour"""
-        test_client = Client(nom="Test Client", code_client="CLI001")
+        test_client = Client(tenant_id=default_tenant.id, nom="Test Client", code_client="CLI001")
         db.session.add(test_client)
         db.session.commit()
 
-        site1 = Site(client_id=test_client.id, nom="Site 1", code_site="SIT001")
-        site2 = Site(client_id=test_client.id, nom="Site 2", code_site="SIT002")
+        site1 = Site(tenant_id=default_tenant.id, client_id=test_client.id, nom="Site 1", code_site="SIT001")
+        site2 = Site(tenant_id=default_tenant.id, client_id=test_client.id, nom="Site 2", code_site="SIT002")
         db.session.add_all([site1, site2])
         db.session.commit()
 
@@ -271,13 +280,14 @@ class TestSitesUpdate:
         assert response.status_code == 409
         assert "existe déjà" in response.get_json()["error"]
 
-    def test_update_site_client_inexistent(self, client, auth_headers, db):
+    def test_update_site_client_inexistent(self, client, auth_headers, db, default_tenant):
         """Test 404 pour client inexistant lors de la mise à jour"""
-        test_client = Client(nom="Test Client", code_client="CLI001")
+        test_client = Client(tenant_id=default_tenant.id, nom="Test Client", code_client="CLI001")
         db.session.add(test_client)
         db.session.commit()
 
         test_site = Site(
+            tenant_id=default_tenant.id,
             client_id=test_client.id,
             nom="Test Site",
             code_site="SIT001"
@@ -296,13 +306,14 @@ class TestSitesUpdate:
         response = client.put("/api/sites/99999", json=payload, headers=auth_headers)
         assert response.status_code == 404
 
-    def test_update_site_champs_partiels(self, client, auth_headers, db):
+    def test_update_site_champs_partiels(self, client, auth_headers, db, default_tenant):
         """Test mise à jour partielle (seuls certains champs)"""
-        test_client = Client(nom="Test Client", code_client="CLI001")
+        test_client = Client(tenant_id=default_tenant.id, nom="Test Client", code_client="CLI001")
         db.session.add(test_client)
         db.session.commit()
 
         test_site = Site(
+            tenant_id=default_tenant.id,
             client_id=test_client.id,
             nom="Site Original",
             code_site="SIT001",
@@ -317,22 +328,23 @@ class TestSitesUpdate:
         response = client.put(f"/api/sites/{test_site.id}", json=payload, headers=auth_headers)
         assert response.status_code == 200
 
-        data = response.get_json()
-        assert data["telephone"] == "0123456789"
-        assert data["nom"] == "Site Original"  # Non modifié
-        assert data["adresse"] == "Adresse Originale"  # Non modifié
+        db.session.refresh(test_site)
+        assert test_site.telephone == "0123456789"
+        assert test_site.nom == "Site Original"  # Non modifié
+        assert test_site.adresse == "Adresse Originale"  # Non modifié
 
 
 class TestSitesDelete:
     """Tests pour DELETE /api/sites/<id>"""
 
-    def test_delete_site_retourne_200(self, client, auth_headers, db):
+    def test_delete_site_retourne_200(self, client, auth_headers, db, default_tenant):
         """Test suppression (soft delete) réussie"""
-        test_client = Client(nom="Test Client", code_client="CLI001")
+        test_client = Client(tenant_id=default_tenant.id, nom="Test Client", code_client="CLI001")
         db.session.add(test_client)
         db.session.commit()
 
         test_site = Site(
+            tenant_id=default_tenant.id,
             client_id=test_client.id,
             nom="Test Site",
             code_site="SIT001",
@@ -361,13 +373,14 @@ class TestSitesDelete:
 class TestSitesToggle:
     """Tests pour PATCH /api/sites/<id>/toggle"""
 
-    def test_toggle_site_activate_retourne_200(self, client, auth_headers, db):
+    def test_toggle_site_activate_retourne_200(self, client, auth_headers, db, default_tenant):
         """Test activation d'un site désactivé"""
-        test_client = Client(nom="Test Client", code_client="CLI001")
+        test_client = Client(tenant_id=default_tenant.id, nom="Test Client", code_client="CLI001")
         db.session.add(test_client)
         db.session.commit()
 
         test_site = Site(
+            tenant_id=default_tenant.id,
             client_id=test_client.id,
             nom="Test Site",
             code_site="SIT001",
@@ -383,13 +396,14 @@ class TestSitesToggle:
         assert data["is_active"] is True
         assert "activé" in data["message"]
 
-    def test_toggle_site_deactivate_retourne_200(self, client, auth_headers, db):
+    def test_toggle_site_deactivate_retourne_200(self, client, auth_headers, db, default_tenant):
         """Test désactivation d'un site activé"""
-        test_client = Client(nom="Test Client", code_client="CLI001")
+        test_client = Client(tenant_id=default_tenant.id, nom="Test Client", code_client="CLI001")
         db.session.add(test_client)
         db.session.commit()
 
         test_site = Site(
+            tenant_id=default_tenant.id,
             client_id=test_client.id,
             nom="Test Site",
             code_site="SIT001",
@@ -414,19 +428,21 @@ class TestSitesToggle:
 class TestSitesListByClient:
     """Tests pour GET /api/sites/client/<client_id>"""
 
-    def test_list_sites_by_client_retourne_200(self, client, auth_headers, db):
+    def test_list_sites_by_client_retourne_200(self, client, auth_headers, db, default_tenant):
         """Test liste des sites d'un client"""
-        test_client = Client(nom="Test Client", code_client="CLI001")
+        test_client = Client(tenant_id=default_tenant.id, nom="Test Client", code_client="CLI001")
         db.session.add(test_client)
         db.session.commit()
 
         site1 = Site(
+            tenant_id=default_tenant.id,
             client_id=test_client.id,
             nom="Site 1",
             code_site="SIT001",
             is_active=True
         )
         site2 = Site(
+            tenant_id=default_tenant.id,
             client_id=test_client.id,
             nom="Site 2",
             code_site="SIT002",
@@ -443,19 +459,21 @@ class TestSitesListByClient:
         assert any(s["code_site"] == "SIT001" for s in data)
         assert any(s["code_site"] == "SIT002" for s in data)
 
-    def test_list_sites_by_client_ne_retourne_que_actifs(self, client, auth_headers, db):
+    def test_list_sites_by_client_ne_retourne_que_actifs(self, client, auth_headers, db, default_tenant):
         """Test que seuls les sites actifs d'un client sont retournés"""
-        test_client = Client(nom="Test Client", code_client="CLI001")
+        test_client = Client(tenant_id=default_tenant.id, nom="Test Client", code_client="CLI001")
         db.session.add(test_client)
         db.session.commit()
 
         active_site = Site(
+            tenant_id=default_tenant.id,
             client_id=test_client.id,
             nom="Site Actif",
             code_site="SIT001",
             is_active=True
         )
         inactive_site = Site(
+            tenant_id=default_tenant.id,
             client_id=test_client.id,
             nom="Site Inactif",
             code_site="SIT002",

@@ -14,7 +14,7 @@ class AgentSecurite(Base):
     )
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    matricule = Column(String(50), nullable=False, index=True)
+    matricule = Column(String(50), nullable=False)
     nom = Column(String(100), nullable=False)
     adresse = Column(String(200), nullable=True)
     ville = Column(String(100), nullable=True)

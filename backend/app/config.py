@@ -48,6 +48,10 @@ class BaseConfig:
     LOGIN_MAX_ATTEMPTS = int(os.environ.get("LOGIN_MAX_ATTEMPTS", 5))
     LOGIN_WINDOW_MINUTES = int(os.environ.get("LOGIN_WINDOW_MINUTES", 15))
     LOGIN_LOCKOUT_MINUTES = int(os.environ.get("LOGIN_LOCKOUT_MINUTES", 15))
+    # Backend partagé du compteur anti-brute-force (obligatoire en prod
+    # multi-worker Gunicorn — sans Redis le seuil de verrouillage est dilué
+    # par le nombre de workers). Repli sur un compteur en mémoire si absent.
+    REDIS_URL = os.environ.get("REDIS_URL")
     
     # Base de données PostgreSQL
     DB_USER = os.environ.get('DB_USER', 'postgres')
@@ -63,6 +67,21 @@ class BaseConfig:
         'DATABASE_URL',
         f'postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
     )
+    # Tuning du pool de connexions (chaque worker Gunicorn a son propre pool) :
+    # - pool_pre_ping : évite les "server closed the connection unexpectedly"
+    #   sur une connexion coupée par un timeout firewall/NAT/Postgres.
+    # - pool_recycle : recycle les connexions avant qu'elles ne soient fermées
+    #   silencieusement côté serveur (doit rester < timeout réseau/Postgres).
+    # - pool_size/max_overflow : borne le nombre de connexions par worker pour
+    #   ne pas épuiser `max_connections` côté Postgres à mesure que le nombre
+    #   de workers/tenants augmente.
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,
+        "pool_recycle": int(os.environ.get("DB_POOL_RECYCLE_SECONDS", 1800)),
+        "pool_size": int(os.environ.get("DB_POOL_SIZE", 5)),
+        "max_overflow": int(os.environ.get("DB_POOL_MAX_OVERFLOW", 10)),
+        "pool_timeout": int(os.environ.get("DB_POOL_TIMEOUT_SECONDS", 30)),
+    }
     
     # CORS
     CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'http://localhost:8080').split(',')
@@ -98,6 +117,9 @@ class TestingConfig(BaseConfig):
     PORT = int(os.getenv("PORT", 5000))
     # For testing: use in-memory SQLite database for isolation and portability
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    # SQLite (SingletonThreadPool sur :memory:) n'accepte pas pool_size/
+    # max_overflow/pool_timeout (options QueuePool, spécifiques à Postgres).
+    SQLALCHEMY_ENGINE_OPTIONS = {}
     SQLALCHEMY_ECHO = False
 
 

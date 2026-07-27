@@ -1,4 +1,5 @@
 from datetime import datetime
+import logging
 import uuid
 from flask_cors import CORS
 from flask import Blueprint, jsonify, request, g
@@ -21,8 +22,9 @@ from app.utils.decorators import tenant_required
 from app.services.sla import apply_sla, on_status_change, sla_state
 
 
+logger = logging.getLogger(__name__)
 demandes_bp = Blueprint("demandes", __name__, url_prefix="/api/demandes")
-CORS(demandes_bp, resources={r"/api/demandes/*": {"origins": "*"}})
+CORS(demandes_bp, supports_credentials=True)
 
 def _parse_datetime(value):
     """Convertit une string date/datetime en objet datetime Python.
@@ -460,10 +462,12 @@ def create_demande():
     
     except IntegrityError as e:
         db.session.rollback()
-        return jsonify({"message": "Contrainte d'intégrité violée", "error": str(e)}), 409
+        logger.warning("Contrainte d'intégrité violée à la création d'une demande: %s", e)
+        return jsonify({"message": "Contrainte d'intégrité violée"}), 409
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": "Erreur lors de la création", "error": str(e)}), 500
+        logger.exception("Erreur lors de la création d'une demande")
+        return jsonify({"message": "Erreur lors de la création"}), 500
 
 
 @demandes_bp.put("/<int:demande_id>")
@@ -589,7 +593,8 @@ def update_demande(demande_id):
     
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": "Erreur lors de la mise à jour", "error": str(e)}), 500
+        logger.exception("Erreur lors de la mise à jour d'une demande")
+        return jsonify({"message": "Erreur lors de la mise à jour"}), 500
 
 
 @demandes_bp.patch("/<int:demande_id>/status")
@@ -724,4 +729,5 @@ def delete_demande(demande_id):
         return jsonify({"message": "Demande supprimée"}), 200
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": "Erreur lors de la suppression.", "detail": str(e)}), 500
+        logger.exception("Erreur lors de la suppression d'une demande")
+        return jsonify({"error": "Erreur lors de la suppression."}), 500

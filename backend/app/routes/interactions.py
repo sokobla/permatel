@@ -9,7 +9,7 @@ from app.models.demande import Demande
 from app.utils.decorators import tenant_required
 
 interactions_bp = Blueprint("interactions", __name__, url_prefix="/api/interactions")
-CORS(interactions_bp, resources={r"/api/interactions/*": {"origins": "*"}})
+CORS(interactions_bp, supports_credentials=True)
 
 
 def _get_tenant_id(claims):

@@ -6,7 +6,7 @@ Cible (délais de prise en charge + résolution) résolue par spécificité déc
 Les lignes « priorité seule » (type/client NULL) sont les valeurs par défaut amorcées
 à la création d'un tenant ; elles restent paramétrables.
 """
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, ForeignKeyConstraint, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 
 from app import db
@@ -17,6 +17,10 @@ class SlaPolicy(db.Model):
     __table_args__ = (
         UniqueConstraint("tenant_id", "priorite", "type_demande", "client_id",
                          name="uq_sla_policy_scope"),
+        ForeignKeyConstraint(
+            ["tenant_id", "client_id"], ["clients.tenant_id", "clients.id"],
+            name="fk_sla_policies_client_tenant",
+        ),
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)

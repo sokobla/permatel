@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, ForeignKeyConstraint
 from sqlalchemy.dialects.postgresql import UUID
 
 from app import db
@@ -19,6 +19,12 @@ class Email(Base):
     migration structurante.
     """
     __tablename__ = "emails"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "demande_id"], ["demandes.tenant_id", "demandes.id"],
+            name="fk_emails_demande_tenant",
+        ),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(
