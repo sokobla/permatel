@@ -62,12 +62,11 @@ class ESLAdapter(PBXAdapter):
                 self.last_error = str(exc)
                 logger.exception("[%s] Erreur inattendue dans l'adapter ESL", self.connector_config["name"])
             finally:
-                if self._esl is not None:
-                    try:
-                        self._esl.stop()
-                    except Exception:
-                        pass
-                    self._esl = None
+                # SEULE et unique place qui ferme la connexion ESL (voir
+                # _hard_disconnect) — stop()/force_reconnect() ne font que
+                # réveiller ce wait() via l'event, jamais toucher la socket
+                # elles-mêmes, pour éviter un double-stop concurrent.
+                self._hard_disconnect()
 
             if self._stopping:
                 break
@@ -76,25 +75,42 @@ class ESLAdapter(PBXAdapter):
 
     def stop(self):
         super().stop()
-        self._disconnect_event.set()  # débloque la boucle run()
-        if self._esl is not None:
-            try:
-                self._esl.stop()
-            except Exception:
-                pass
+        self._disconnect_event.set()  # débloque la boucle run() -> _hard_disconnect() + sortie
 
     def force_reconnect(self):
         """Bouton "Sync" (signal Redis) — casse la connexion ESL en cours,
         `run()` reboucle et reconnecte après `ESL_RECONNECT_BACKOFF_INITIAL`
         (backoff déjà réinitialisé par la connexion en cours si elle avait
-        réussi), sans attendre le prochain sondage périodique de config."""
+        réussi), sans attendre le prochain sondage périodique de config.
+
+        Ne touche JAMAIS `self._esl` directement : appelé depuis une autre
+        greenlet que `run()` (réconciliation périodique ou listener Redis),
+        un appel concurrent à ESLProtocol.stop() (qui envoie 'exit' et
+        attend une réponse SANS timeout) créerait une course avec le
+        `finally` de run() — les deux peuvent alors rester bloqués
+        indéfiniment sur la même réponse jamais reçue deux fois. Seul
+        run()/_hard_disconnect() ferme la socket, dans sa propre greenlet.
+        """
         logger.info("[%s] Reconnexion forcée (Sync).", self.connector_config["name"])
         self._disconnect_event.set()
-        if self._esl is not None:
-            try:
-                self._esl.stop()
-            except Exception:
-                pass
+
+    def _hard_disconnect(self):
+        """Ferme la socket ESL directement plutôt que via
+        ESLProtocol.stop() (qui envoie 'exit' et bloque sans timeout sur la
+        réponse — dangereux si FreeSWITCH ne répond pas, ex. connexion déjà
+        morte côté réseau). On veut juste rompre la connexion pour
+        reconnecter, pas négocier un arrêt propre. Appelée uniquement
+        depuis run(), jamais depuis un autre greenlet."""
+        esl = self._esl
+        self._esl = None
+        if esl is None:
+            return
+        try:
+            esl._run = False
+            if esl.sock is not None:
+                esl.sock.close()
+        except Exception:
+            pass
 
     def _connect_and_subscribe(self):
         cfg = self.connector_config
