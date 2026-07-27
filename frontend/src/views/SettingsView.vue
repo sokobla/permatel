@@ -87,7 +87,13 @@ watch(availableTabs, (tabs) => {
 });
 
 onMounted(() => {
-  if (!authStore.features) authStore.fetchFeatures();
+  // Toujours recharger (pas seulement si absent) : `features` est mis en
+  // cache dans le store (persisté même) au login/switch de tenant, sans
+  // invalidation quand un admin global change les canaux d'un tenant
+  // pendant qu'un admin de ce tenant est déjà connecté — sinon l'onglet
+  // Téléphonie (ou tout autre onglet piloté par un canal) reste caché
+  // indéfiniment malgré un canal activé côté serveur.
+  authStore.fetchFeatures();
 });
 </script>
 

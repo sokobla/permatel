@@ -220,8 +220,13 @@ watch(visibleTabs, (tabs) => {
 })
 
 onMounted(() => {
-  // S'assure que les disponibilités sont à jour pour le tenant actif.
-  if (!authStore.features) authStore.fetchFeatures()
+  // Toujours recharger (pas seulement si absent) : `features` est mis en
+  // cache dans le store (persisté même) au login/switch de tenant, sans
+  // invalidation quand un admin global change les canaux d'un tenant
+  // pendant qu'un utilisateur de ce tenant est déjà connecté — sinon les
+  // onglets MAIL/CHAT restent cachés indéfiniment malgré un canal activé
+  // côté serveur (même bug que SettingsView.vue).
+  authStore.fetchFeatures()
 })
 
 const communicationHistory = ref([])
