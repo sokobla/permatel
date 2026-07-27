@@ -578,11 +578,11 @@ Les fixtures de test doivent inclure au minimum :
 
 La stack de production est définie dans [`docker-compose.yml`](docker-compose.yml). Elle est **durcie** :
 
-- **Reverse-proxy Traefik en edge** (seul service exposé, ports **80/443**) : **TLS automatique** Let's Encrypt (redirection HTTP→HTTPS, HSTS). TLS 1.2/1.3 par défaut Traefik ; durcissement ciphers/minVersion **optionnel** via [`traefik/dynamic.yml`](traefik/dynamic.yml) (à ré-activer une fois le mount vérifié — cf. § Dépannage).
-- **Anti-DoS** : limite de débit globale (100 req/s, burst 50), **login limité à 5/min** au niveau edge (complète l'anti-brute-force applicatif), plafond de **requêtes concurrentes**, **timeouts** (mitige slowloris), taille de corps bornée (20 Mo).
-- **Anti-fuite de données** : en-têtes de sécurité (HSTS, `frameDeny`, `nosniff`, Referrer/Permissions-Policy), suppression des en-têtes `Server`/`X-Powered-By`, `exposedByDefault=false` (Traefik n'expose que les services labellisés), **dashboard Traefik désactivé**, `docker.sock` monté **en lecture seule**.
-- **Frontend Nginx, backend et base sur réseau interne** (jamais publiés). Nginx proxifie `/api` et `/uploads` (**same-origin**). Backend **Gunicorn**, images **multi-stage**, conteneurs **non-root**, `no-new-privileges`, **limites** mémoire/CPU/PIDs, **logs** rotés, **healthchecks**, frontend **read-only**.
-- **Secrets obligatoires** : le démarrage échoue si `POSTGRES_PASSWORD`, `JWT_SECRET_KEY`, `SETTINGS_ENCRYPTION_KEY` ou `ACME_EMAIL` sont absents.
+- **Reverse-proxy Traefik PARTAGÉ** (seul service exposé, ports **80/443**) : **TLS automatique** Let's Encrypt (redirection HTTP→HTTPS, HSTS). Ce Traefik n'appartient PAS à ce projet — c'est un stack indépendant, mutualisé avec les autres applications du même serveur, défini dans [`traefik/docker-compose.yml`](traefik/docker-compose.yml) (voir [`traefik/README.md`](traefik/README.md)). PERMATEL s'y raccorde via le réseau externe `traefik_public` + ses labels `traefik.*`. TLS 1.2/1.3 par défaut Traefik ; durcissement ciphers/minVersion via [`traefik/dynamic.yml`](traefik/dynamic.yml), appliqué à toutes les applications du serveur.
+- **Anti-DoS** : limite de débit globale (100 req/s, burst 50), **login limité à 5/min** au niveau edge (complète l'anti-brute-force applicatif Redis), plafond de **requêtes concurrentes**, **timeouts** (mitige slowloris), taille de corps bornée (20 Mo).
+- **Anti-fuite de données** : en-têtes de sécurité (HSTS, `frameDeny`, `nosniff`, Referrer/Permissions-Policy, **Content-Security-Policy**), suppression des en-têtes `Server`/`X-Powered-By`, `exposedByDefault=false` (Traefik n'expose que les services labellisés), **dashboard Traefik désactivé**, `docker.sock` monté **en lecture seule** (par le seul stack `traefik/`).
+- **Frontend Nginx, backend, base et Redis sur réseau interne** (jamais publiés). Nginx proxifie `/api` et `/uploads` (**same-origin**). Backend **Gunicorn**, images **multi-stage**, conteneurs **non-root**, `no-new-privileges`, **limites** mémoire/CPU/PIDs, **logs** rotés, **healthchecks**, frontend **read-only**.
+- **Secrets obligatoires** : le démarrage échoue si `POSTGRES_PASSWORD`, `JWT_SECRET_KEY` ou `SETTINGS_ENCRYPTION_KEY` sont absents (`ACME_EMAIL` est requis séparément par le stack `traefik/`, pas par celui-ci).
 
 ### 0. Pré-vol (à vérifier AVANT de pousser/déployer)
 
@@ -608,6 +608,21 @@ grep -qP '\x00' backend/requirements.txt && echo "⚠ UTF-16 à corriger" || ech
 
 > Astuce build : `> /dockerdeploy` (skill) automatise ce pré-vol + le dépannage.
 
+### 0bis. Démarrer le Traefik partagé (une seule fois par serveur)
+
+PERMATEL ne démarre plus son propre Traefik : le reverse-proxy TLS est un stack
+**indépendant**, mutualisé avec les autres applications du serveur — voir
+[`traefik/README.md`](traefik/README.md). À faire une seule fois par serveur,
+avant le premier déploiement de PERMATEL (ou de toute autre appli) :
+
+```bash
+docker network create traefik_public
+cd traefik/ && cp .env.example .env   # renseigner ACME_EMAIL
+docker compose up -d
+docker compose ps                     # doit être "healthy"
+cd ..
+```
+
 ### 1. Préparer le `.env`
 
 Copier le template puis générer des secrets forts :
@@ -621,28 +636,23 @@ python -c "import secrets; print('SETTINGS_ENCRYPTION_KEY=' + secrets.token_hex(
 ```
 
 Renseigner au minimum : `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `JWT_SECRET_KEY`,
-`SETTINGS_ENCRYPTION_KEY`, **`DOMAIN`** (FQDN public), **`ACME_EMAIL`** (Let's Encrypt),
-`CORS_ORIGINS` et `FRONTEND_BASE_URL` (= `https://<DOMAIN>`). ⚠️ `SETTINGS_ENCRYPTION_KEY`
-doit rester **stable** : la changer rend illisibles les données chiffrées (SMTP/IMAP,
-contenu des emails, pièces jointes).
+`SETTINGS_ENCRYPTION_KEY`, **`DOMAIN`** (FQDN public), `CORS_ORIGINS` et `FRONTEND_BASE_URL`
+(= `https://<DOMAIN>`). ⚠️ `SETTINGS_ENCRYPTION_KEY` doit rester **stable** : la changer rend
+illisibles les données chiffrées (SMTP/IMAP, contenu des emails, pièces jointes).
 
 > **Prérequis TLS** : un enregistrement DNS **A/AAAA** de `DOMAIN` doit pointer vers l'hôte,
-> et les ports **80 et 443** doivent être accessibles (challenge ACME + HTTPS).
+> et les ports **80 et 443** doivent être accessibles (challenge ACME + HTTPS) — gérés par le
+> Traefik partagé démarré à l'étape 0bis, pas par ce projet.
 
-#### Activer / désactiver le reverse-proxy TLS
+#### Déployer sans le Traefik partagé (TLS géré autrement)
 
-Le reverse-proxy Traefik est piloté par un **profil Compose** (`COMPOSE_PROFILES` dans `.env`) :
-
-| Mode | `.env` | Comportement |
-|------|--------|--------------|
-| **TLS géré par Traefik** (défaut) | `COMPOSE_PROFILES=proxy` | Traefik démarre, expose **80/443**, certificat Let's Encrypt automatique. `DOMAIN` + `ACME_EMAIL` requis. |
-| **TLS géré autrement** | `COMPOSE_PROFILES=` (vide) | Traefik **ne démarre pas**. Le frontend est publié sur `FRONTEND_BIND:FRONTEND_PORT` (défaut `127.0.0.1:8080`) — branchez-y votre proxy/LB/terminaison TLS. Mettre `FRONTEND_BIND=0.0.0.0` si le LB est sur un autre hôte. |
+Si vous ne voulez pas utiliser le Traefik partagé (LB externe, TLS géré ailleurs), retirez
+`traefik_public` de la section `networks:` du service `frontend` dans `docker-compose.yml`
+(et de la déclaration `networks:` en bas de fichier), puis :
 
 ```bash
-# Mode sans Traefik (TLS externe) :
-#   COMPOSE_PROFILES=        dans .env
-docker compose up -d --build           # db + backend + frontend, sans Traefik
-# → le frontend écoute sur http://127.0.0.1:8080 (à placer derrière votre proxy)
+docker compose up -d --build           # db + redis + backend + frontend, sans Traefik
+# → le frontend écoute sur http://127.0.0.1:8080 (à placer derrière votre propre proxy)
 ```
 
 ### 2. Démarrer
@@ -656,7 +666,8 @@ docker compose logs -f backend
 Au premier démarrage, l'entrypoint backend **attend la base**, **applique les migrations**
 (`flask db upgrade heads`) puis **amorce** le tenant **Root** + l'**admin global**
 `adm_root@permatel.local` (mot de passe `admin123!`). L'application est ensuite disponible
-sur **`https://<DOMAIN>`** (certificat Let's Encrypt émis au premier accès ; HTTP redirigé vers HTTPS).
+sur **`https://<DOMAIN>`** (certificat Let's Encrypt émis au premier accès par le Traefik
+partagé ; HTTP redirigé vers HTTPS).
 
 ### 3. Première connexion & admin global
 
@@ -719,20 +730,21 @@ docker compose exec -T db pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > backup_$(
 | Même erreur mais fichier **absent sur le serveur** | dossier = **dépôt Git imbriqué** (gitlink) non récupéré | dé-imbriquer : `git rm --cached <dir> && rm -rf <dir>/.git && git add <dir>` puis push/pull |
 | `Invalid requirement: 'a\x00l\x00e…'` (pip) | `requirements.txt` en **UTF-16** | réécrire en UTF-8 (heredoc bash) ; `.gitattributes` impose `requirements.txt text eol=lf` |
 | Traefik `client version 1.24 is too old. Minimum supported API version is 1.40` | provider Docker de Traefik (n'ignore pas `DOCKER_API_VERSION`) | `DOCKER_MIN_API_VERSION=1.24` sur le **démon** (cf. § Pré-vol) |
-| Traefik `Could not find network "permatel_internal"` | Compose **préfixe** le réseau | réseau à **nom fixe** (`networks: permatel_internal: { name: permatel_internal }`) — déjà en place |
-| Traefik `unknown TLS options: default@file` | `traefik/dynamic.yml` non monté/chargé | vérifier `docker compose exec traefik cat /etc/traefik/dynamic.yml` ; sinon laisser le TLS par défaut (labels `tls.options` retirés) |
+| Traefik `network traefik_public not found` (au démarrage de PERMATEL) | le stack partagé `traefik/` n'a pas encore été démarré (§ 0bis) | `docker network create traefik_public` puis `cd traefik/ && docker compose up -d` avant de relancer PERMATEL |
+| Traefik ne route pas vers le frontend PERMATEL | le conteneur `frontend` n'est rattaché qu'à `permatel_internal`, pas à `traefik_public` | vérifier `docker inspect permatel_frontend` → doit lister les deux réseaux ; sinon `docker compose up -d` après avoir vérifié la section `networks:` du service `frontend` |
+| Traefik `unknown TLS options: default@file` | `traefik/dynamic.yml` non monté/chargé **dans le stack `traefik/`** | vérifier `cd traefik/ && docker compose exec traefik cat /etc/traefik/dynamic.yml` ; sinon laisser le TLS par défaut (labels `tls.options` retirés) |
 | Navigateur `SSL_ERROR_UNRECOGNIZED_NAME_ALERT` | `sniStrict:true` **+** cert ACME non émis | `sniStrict:false` (déjà) + corriger l'émission (provider Docker, port 80, DNS) |
 | ACME `timeout` / `too many certificates` | port 80 fermé / DNS / rate-limit LE | ouvrir 80‑443, vérifier `dig +short <DOMAIN>` ; itérer en **staging** puis revenir prod |
 
 > Référence détaillée : skill **`/dockerdeploy`** (matrice complète + pré-vol).
 
 ### Bonnes pratiques sécurité (production)
-- **TLS** géré par Traefik (Let's Encrypt). Ouvrir uniquement **80/443** sur le pare-feu de l'hôte ; tous les autres services sont internes.
+- **TLS** géré par le Traefik **partagé** (Let's Encrypt, stack `traefik/`). Ouvrir uniquement **80/443** sur le pare-feu de l'hôte ; tous les autres services (y compris ceux de PERMATEL) sont internes.
 - **DoS** : ajuster les seuils des middlewares (`permatel-ratelimit`, `permatel-authlimit`, `permatel-inflight`) selon la charge réelle ; envisager un WAF/CDN (Cloudflare…) en amont pour le volumétrique (L3/L4).
-- **`docker.sock`** : monté en lecture seule ; pour un durcissement supplémentaire, interposer un **docker-socket-proxy** (expose uniquement l'API conteneurs en lecture).
+- **`docker.sock`** : monté en lecture seule, **par le seul stack `traefik/`** — ne jamais le monter dans un service applicatif ; pour un durcissement supplémentaire, interposer un **docker-socket-proxy** (expose uniquement l'API conteneurs en lecture).
 - Restreindre `CORS_ORIGINS` à l'URL HTTPS publique réelle.
 - Sauvegarder **`SETTINGS_ENCRYPTION_KEY`** dans un gestionnaire de secrets (perte = données chiffrées irrécupérables).
-- Sauvegardes régulières de `postgres_data` et `backend_uploads` (le volume `traefik_letsencrypt` contient les certificats).
+- Sauvegardes régulières de `postgres_data` et `backend_uploads` (ce projet) **et**, séparément, du volume `traefik_letsencrypt` (stack `traefik/`, contient les certificats de **toutes** les applications du serveur).
 - Évolution envisagée : **Row-Level Security PostgreSQL** en complément de l'isolation applicative par `tenant_id`.
 
 ---

@@ -1,14 +1,17 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# PERMATEL — Traefik : configuration dynamique (provider fichier)
-# Durcissement TLS appliqué aux routeurs via `tls.options=default@file`.
+# Traefik partagé (serveur) — configuration dynamique (provider fichier)
+# Durcissement TLS appliqué à TOUS les routeurs, de TOUTES les applications,
+# via `tls.options=default@file`. Un seul dynamic.yml pour tout le serveur.
 # ─────────────────────────────────────────────────────────────────────────────
 tls:
   options:
     default:
       minVersion: VersionTLS12
-      # sniStrict laissé à false : pour un domaine unique, l'activer renvoie
-      # SSL_ERROR_UNRECOGNIZED_NAME_ALERT tant que le certificat ACME n'est pas
-      # émis, ce qui masque la vraie cause. Réactiver seulement en multi-domaines maîtrisés.
+      # sniStrict laissé à false tant qu'un domaine du serveur n'a pas encore
+      # son certificat ACME émis : l'activer trop tôt renvoie
+      # SSL_ERROR_UNRECOGNIZED_NAME_ALERT au lieu du vrai problème. À repasser
+      # à true une fois que TOUS les domaines (toutes applis confondues) ont
+      # un certificat valide.
       sniStrict: false
       cipherSuites:
         - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256

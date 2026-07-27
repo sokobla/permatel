@@ -3,12 +3,19 @@
 #
 # Sécurité / robustesse :
 #   - secrets obligatoires (échec au démarrage si absents),
-#   - DB et backend NON exposés sur l'hôte (réseau interne) ; seul le frontend
-#     publie un port et proxifie /api et /uploads vers le backend,
+#   - DB/Redis/backend NON exposés sur l'hôte (réseau interne) ; seul le
+#     frontend proxifie /api et /uploads vers le backend,
 #   - utilisateurs non-root, no-new-privileges, limites mémoire/CPU/PIDs,
 #     rotation des logs, healthchecks et redémarrage automatique.
 #
-# Pré-requis : un fichier .env à la racine (voir .env.example).
+# TLS / reverse-proxy : géré par un Traefik PARTAGÉ, externe à ce fichier (voir
+# ../traefik/README.md) — mutualisé avec les autres applications du même
+# serveur. Ce compose ne démarre plus son propre Traefik ; le frontend
+# rejoint simplement le réseau externe `traefik_public` et porte ses labels.
+#
+# Pré-requis :
+#   1. Le stack Traefik partagé est démarré (../traefik/).
+#   2. Un fichier .env à la racine de CE projet (voir .env.example).
 #   docker compose up -d --build
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -110,7 +117,7 @@ services:
     pids_limit: 400
     logging: *default-logging
 
-  # ── Frontend Nginx (interne — exposé via Traefik) ───────────────────────────
+  # ── Frontend Nginx (exposé via le Traefik partagé du serveur) ───────────────
   frontend:
     build:
       context: ./frontend
@@ -120,13 +127,16 @@ services:
         VITE_APP_NAME:    ${VITE_APP_NAME:-PERMATEL}
         VITE_APP_VERSION: ${APP_VERSION:-1.4.0}
     container_name: permatel_frontend
-    # Port publié pour le mode SANS Traefik (TLS géré autrement).
-    # Par défaut bind sur 127.0.0.1 (non exposé sur Internet) ; mettre
-    # FRONTEND_BIND=0.0.0.0 si votre proxy/LB tourne sur un autre hôte.
+    # Port publié UNIQUEMENT pour le mode SANS Traefik partagé (TLS géré
+    # autrement, ex. LB externe). Par défaut bind sur 127.0.0.1 (non exposé
+    # sur Internet) ; si vous utilisez le Traefik partagé (../traefik/, cas
+    # normal), ce port n'a pas besoin d'être ouvert sur l'extérieur — seul le
+    # réseau `traefik_public` ci-dessous fait transiter le trafic.
     ports:
       - "${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_PORT:-8080}:8080"
     networks:
       - permatel_internal
+      - traefik_public
     depends_on:
       backend:
         condition: service_started
@@ -191,75 +201,17 @@ services:
       - "traefik.http.middlewares.permatel-authlimit.ratelimit.burst=10"
       - "traefik.http.middlewares.permatel-authlimit.ratelimit.period=1m"
 
-  # ── Reverse-proxy Traefik (TLS, anti-DoS, anti-fuite) ────────────────────────
-  # ACTIVABLE/DÉSACTIVABLE via le profil "proxy" :
-  #   • activé   → COMPOSE_PROFILES=proxy (défaut .env) : Traefik gère le TLS (80/443).
-  #   • désactivé→ COMPOSE_PROFILES vide : Traefik ne démarre pas ; le frontend est
-  #                joignable sur FRONTEND_BIND:FRONTEND_PORT (gérez le TLS autrement).
-  traefik:
-    image: traefik:v3.2
-    container_name: permatel_traefik
-    profiles: ["proxy"]
-    command:
-      - "--global.checknewversion=false"
-      - "--global.sendanonymoususage=false"
-      - "--api.dashboard=false"
-      - "--api.insecure=false"
-      - "--ping=true"
-      - "--log.level=INFO"
-      - "--accesslog=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--providers.docker.network=permatel_internal"
-      - "--providers.file.filename=/etc/traefik/dynamic.yml"
-      - "--providers.file.watch=true"
-      # Entrypoint HTTP → redirection permanente vers HTTPS
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-      - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
-      - "--entrypoints.web.transport.respondingtimeouts.readtimeout=15s"
-      # Entrypoint HTTPS + timeouts (mitige slowloris)
-      - "--entrypoints.websecure.address=:443"
-      - "--entrypoints.websecure.transport.respondingtimeouts.readtimeout=15s"
-      - "--entrypoints.websecure.transport.respondingtimeouts.writetimeout=30s"
-      - "--entrypoints.websecure.transport.respondingtimeouts.idletimeout=60s"
-      # ACME / Let's Encrypt (challenge HTTP)
-      - "--certificatesresolvers.le.acme.email=${ACME_EMAIL:-admin@example.com}"
-      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
-      - "--certificatesresolvers.le.acme.httpchallenge=true"
-      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
-      - traefik_letsencrypt:/letsencrypt
-    networks:
-      - permatel_internal
-    depends_on:
-      frontend:
-        condition: service_started
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    mem_limit: 256m
-    cpus: 0.5
-    pids_limit: 200
-    logging: *default-logging
-    healthcheck:
-      test: ["CMD", "traefik", "healthcheck", "--ping"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-
 volumes:
   postgres_data:
   backend_uploads:
-  traefik_letsencrypt:
 
 networks:
   permatel_internal:
     name: permatel_internal      # nom fixe (évite le préfixe projet → labels Traefik OK)
     driver: bridge
+  # Réseau du Traefik PARTAGÉ du serveur (../traefik/) — créé/possédé par ce
+  # stack-là, jamais par PERMATEL. `external: true` : docker compose échoue
+  # au démarrage si `docker network create traefik_public` (ou le stack
+  # traefik/) n'a pas encore été lancé — c'est voulu (fail-fast).
+  traefik_public:
+    external: true

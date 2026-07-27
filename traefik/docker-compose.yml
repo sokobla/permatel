@@ -1,0 +1,88 @@
+# ═════════════════════════════════════════════════════════════════════════════
+# Traefik — reverse-proxy PARTAGÉ du serveur de déploiement
+#
+# Ce stack est INDÉPENDANT de PERMATEL : il tourne en permanence sur le serveur
+# et sert de point d'entrée unique (80/443, TLS Let's Encrypt) pour PERMATEL
+# ET pour toute autre application déployée sur la même machine. Il ne fait
+# PARTIE d'aucun docker-compose.yml applicatif — chaque appli se contente de
+# rejoindre le réseau `traefik_public` et de porter ses propres labels
+# `traefik.*` sur son conteneur exposé (voir README.md de ce dossier).
+#
+# Démarrage (une seule fois par serveur) :
+#   docker network create traefik_public   # si pas déjà fait
+#   cd traefik/ && cp .env.example .env    # puis renseigner ACME_EMAIL
+#   docker compose up -d
+# ═════════════════════════════════════════════════════════════════════════════
+
+services:
+  traefik:
+    image: traefik:v3.2
+    container_name: traefik
+    command:
+      - "--global.checknewversion=false"
+      - "--global.sendanonymoususage=false"
+      - "--api.dashboard=false"
+      - "--api.insecure=false"
+      - "--ping=true"
+      - "--log.level=INFO"
+      - "--accesslog=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      # Réseau utilisé pour joindre les conteneurs applicatifs quand ceux-ci
+      # sont rattachés à plusieurs réseaux (ex. le frontend d'une appli est à
+      # la fois sur `traefik_public` et son réseau interne privé) — lève
+      # l'ambiguïté sur laquelle des IP utiliser.
+      - "--providers.docker.network=traefik_public"
+      - "--providers.file.filename=/etc/traefik/dynamic.yml"
+      - "--providers.file.watch=true"
+      # Entrypoint HTTP → redirection permanente vers HTTPS
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
+      - "--entrypoints.web.transport.respondingtimeouts.readtimeout=15s"
+      # Entrypoint HTTPS + timeouts (mitige slowloris)
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.websecure.transport.respondingtimeouts.readtimeout=15s"
+      - "--entrypoints.websecure.transport.respondingtimeouts.writetimeout=30s"
+      - "--entrypoints.websecure.transport.respondingtimeouts.idletimeout=60s"
+      # ACME / Let's Encrypt (challenge HTTP) — un seul compte, un seul
+      # acme.json partagé par TOUS les domaines de TOUTES les applis.
+      - "--certificatesresolvers.le.acme.email=${ACME_EMAIL:?ACME_EMAIL requis dans traefik/.env}"
+      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.le.acme.httpchallenge=true"
+      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - traefik_letsencrypt:/letsencrypt
+    networks:
+      - traefik_public
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 200
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  traefik_letsencrypt:
+    name: traefik_letsencrypt   # nom fixe : survit à un `docker compose down` par erreur
+
+networks:
+  traefik_public:
+    name: traefik_public        # nom fixe, external ailleurs — jamais recréé par cette stack
+    driver: bridge
