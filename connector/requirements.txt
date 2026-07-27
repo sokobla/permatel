@@ -6,6 +6,7 @@ greenlet==3.5.4
 greenswitch==0.0.19
 idna==3.18
 pycparser==3.0
+redis==5.2.1
 requests==2.34.2
 six==1.17.0
 urllib3==2.7.0

@@ -139,10 +139,10 @@ const routes = [
     meta: { requiresAuth: true, roles: ADMIN },
   },
   {
+    // Ex-page globale admin (Phase 12) — les connecteurs PBX sont désormais
+    // tenant-scopés, gérés depuis Paramètres > Téléphonie.
     path: "/pbx-connectors",
-    name: "PbxConnectors",
-    component: () => import("../views/PbxConnectorsView.vue"),
-    meta: { requiresAuth: true, roles: ADMIN },
+    redirect: { path: "/parameters", query: { tab: "telephony" } },
   },
   {
     // Configuration du tenant : déléguée à l'admin de tenant (et super-admin)

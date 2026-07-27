@@ -11,13 +11,13 @@ Règles :
   - Onglet CHAT      : visible ssi canal chat (disponibilité simple).
   - Intégrations     : disponible ssi canal chat OU téléphonie.
     - Slack          : ssi canal chat.
-    - Téléphonie     : ssi canal téléphonie ET au moins un rattachement PBX
-                        configuré pour ce tenant (pbx_domains_tenants) —
-                        avant Phase 11, ce flag n'avait aucune config
-                        derrière ; il reflète maintenant un état réel.
+    - Téléphonie     : ssi canal téléphonie ET au moins un PbxConnector actif
+                        configuré pour ce tenant — avant Phase 11, ce flag
+                        n'avait aucune config derrière ; il reflète
+                        maintenant un état réel.
 """
 from app.models.setting import SmtpSetting
-from app.models.pbx import PbxDomainTenant
+from app.models.pbx import PbxConnector
 
 
 def tenant_features(tenant) -> dict:
@@ -33,7 +33,7 @@ def tenant_features(tenant) -> dict:
     mail_ready = ch["email"] and smtp_configured and imap_configured
 
     telephony_configured = bool(
-        PbxDomainTenant.query.filter_by(tenant_id=tenant.id).first()
+        PbxConnector.query.filter_by(tenant_id=tenant.id, is_active=True).first()
     )
 
     return {

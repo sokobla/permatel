@@ -20,18 +20,21 @@ F3) → 10 (planning agents F5). **Aucune implémentation lancée à ce stade.**
 Collecte/standardisation/historisation des événements de téléphonie agents
 (FusionPBX phase 1, Asterisk phase 2), activable par tenant via
 `channel_telephonie` (existait déjà comme flag cosmétique — active désormais
-un vrai état de config via `pbx_domains_tenants`). La table `telephony_events`
-existait déjà mais dormante (posée, non alimentée) : **étendue par migration
-(non recréée)**. Décisions actées : `event_type`/`call_status` en `String`
-(pas enum Postgres, cohérent avec `use_varchar_for_enums`), **supervision en
-WebSocket** (namespace `/telephony`, Flask-SocketIO + worker Gunicorn
-`eventlet` + Redis comme message queue multi-worker). Phasage : **11
-(fondations backend) ✅**, **11bis (infra WebSocket) ✅** validée en test de
-charge Docker réel, **12 (connecteur FusionPBX/ESL) ✅** — process Docker
-séparé `connector/` (bibliothèque `greenswitch`, gevent), UI admin globale
-`/pbx-connectors` (CRUD connecteurs + rattachements domaine/tenant/queues) et
-réglages tenant `Paramètres > Téléphonie` ; **reste à valider contre un
-FusionPBX réel** (accès de test disponible — voir §8.3 du plan). → 13
+un vrai état de config via `pbx_connectors`, tenant-scopé). La table
+`telephony_events` existait déjà mais dormante (posée, non alimentée) :
+**étendue par migration (non recréée)**. Décisions actées : `event_type`/
+`call_status` en `String` (pas enum Postgres, cohérent avec
+`use_varchar_for_enums`), **supervision en WebSocket** (namespace
+`/telephony`, Flask-SocketIO + worker Gunicorn `eventlet` + Redis comme
+message queue multi-worker). Phasage : **11 (fondations backend) ✅**,
+**11bis (infra WebSocket) ✅** validée en test de charge Docker réel, **12
+(connecteur FusionPBX/ESL) ✅** — process Docker séparé `connector/`
+(bibliothèque `greenswitch`, gevent) ; `pbx_connectors` **tenant-scopé**
+(revu en cours d'implémentation — chaque tenant possède son propre
+connecteur, comme SMTP/IMAP, géré par son admin dans `Paramètres >
+Téléphonie` : statut live de l'adapter + bouton Sync quasi temps réel via
+Redis pub/sub) ; **reste à valider contre un FusionPBX réel** (accès de
+test disponible — voir §8.3 du plan). → 13
 (supervision frontend) → 14 (connecteur Asterisk/AMI), ces 2 dernières
 phases non démarrées.
 

@@ -15,6 +15,7 @@ class PBXAdapter:
         self.connector_config = connector_config
         self.ingest_client = ingest_client
         self._stopping = False
+        self.last_error = None
 
     def run(self):
         """Boucle bloquante (tourne dans sa propre greenlet). Ne retourne
@@ -23,3 +24,15 @@ class PBXAdapter:
 
     def stop(self):
         self._stopping = True
+
+    def force_reconnect(self):
+        """Bouton "Sync" (Paramètres > Téléphonie) — force une reconnexion
+        immédiate sans attendre le prochain sondage périodique de config.
+        Implémentation par défaut : no-op (adapter ne gérant pas de notion
+        de connexion persistante)."""
+        pass
+
+    @property
+    def is_connected(self) -> bool:
+        """État live rapporté au heartbeat (POST /connectors/status)."""
+        return False

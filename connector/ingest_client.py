@@ -54,3 +54,14 @@ class IngestClient:
         resp = self.session.get(url, timeout=config.INGEST_HTTP_TIMEOUT)
         resp.raise_for_status()
         return resp.json().get("connectors", [])
+
+    def send_status(self, statuses: dict) -> bool:
+        """POST /telephony/connectors/status — heartbeat périodique.
+        `statuses` : {connector_id: {"connected": bool, "error": str|None}}."""
+        url = f"{config.PERMATEL_API_URL}/telephony/connectors/status"
+        try:
+            resp = self.session.post(url, json={"connectors": statuses}, timeout=config.INGEST_HTTP_TIMEOUT)
+            return resp.ok
+        except requests.RequestException as exc:
+            logger.warning("Échec d'envoi du heartbeat de statut : %s", exc)
+            return False

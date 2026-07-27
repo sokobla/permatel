@@ -5,6 +5,13 @@ import os
 PERMATEL_API_URL = os.environ.get("PERMATEL_API_URL", "http://backend:5000/api").rstrip("/")
 TELEPHONY_CONNECTOR_TOKEN = os.environ.get("TELEPHONY_CONNECTOR_TOKEN")
 
+# Signal "Sync" quasi temps réel (bouton Paramètres > Téléphonie) — Redis
+# pub/sub. Optionnel : si absent/injoignable, le connecteur fonctionne quand
+# même (filet de secours : sync_requested_at repris au prochain sondage
+# périodique de GET /connectors/config, cf. CONFIG_REFRESH_SECONDS).
+REDIS_URL = os.environ.get("REDIS_URL")
+REDIS_SYNC_CHANNEL = "telephony:sync"
+
 # Fréquence de rechargement de la config (pbx_connectors/pbx_domains_tenants)
 # depuis PERMATEL — un changement dans l'UI admin (Phase 11) est pris en
 # compte au plus tard après ce délai, sans redémarrage du connecteur.

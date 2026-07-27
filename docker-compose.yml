@@ -135,11 +135,17 @@ services:
       PERMATEL_API_URL: "http://backend:5000/api"
       TELEPHONY_CONNECTOR_TOKEN: ${TELEPHONY_CONNECTOR_TOKEN:?TELEPHONY_CONNECTOR_TOKEN requis dans .env pour le profil telephony}
       CONFIG_REFRESH_SECONDS: ${TELEPHONY_CONFIG_REFRESH_SECONDS:-60}
+      # Signal "Sync" quasi temps réel (bouton Paramètres > Téléphonie) —
+      # optionnel : sans Redis joignable, le connecteur applique quand même
+      # sync_requested_at au prochain sondage périodique (filet de secours).
+      REDIS_URL: redis://redis:6379/0
     networks:
       - permatel_internal
     depends_on:
       backend:
         condition: service_started
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     stop_grace_period: 15s
     security_opt:

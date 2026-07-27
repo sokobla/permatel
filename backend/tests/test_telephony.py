@@ -1,29 +1,31 @@
 import pytest
 from datetime import datetime, timedelta
 
-from app.models import PbxConnector, PbxDomainTenant, TelephonyEvent
+from app.models import PbxConnector, PbxConnectorDomain, TelephonyEvent
 from app.models.tenant import Tenant
 
 
 @pytest.fixture
-def pbx_connector(db):
-    c = PbxConnector(name="FusionPBX Prod", type="ESL", host="pbx.local", port=8021, is_active=True)
+def pbx_connector(db, default_tenant):
+    c = PbxConnector(
+        tenant_id=default_tenant.id, name="FusionPBX Prod", type="ESL",
+        host="pbx.local", port=8021, is_active=True,
+    )
     db.session.add(c)
     db.session.commit()
     return c
 
 
 @pytest.fixture
-def pbx_binding(db, pbx_connector, default_tenant):
-    b = PbxDomainTenant(
+def pbx_domain(db, pbx_connector):
+    d = PbxConnectorDomain(
         pbx_connector_id=pbx_connector.id,
         pbx_domain="tenant-core.permatel.local",
-        tenant_id=default_tenant.id,
         queue_ids=["queue-support"],
     )
-    db.session.add(b)
+    db.session.add(d)
     db.session.commit()
-    return b
+    return d
 
 
 CONNECTOR_TOKEN_HEADERS = {"X-Connector-Token": "test-connector-token"}
@@ -32,16 +34,16 @@ CONNECTOR_TOKEN_HEADERS = {"X-Connector-Token": "test-connector-token"}
 class TestIngestEvent:
     """POST /api/telephony/events/ingest — auth par jeton technique, pas de JWT."""
 
-    def test_ingest_sans_token_retourne_401(self, client, pbx_binding):
+    def test_ingest_sans_token_retourne_401(self, client, pbx_domain):
         resp = client.post("/api/telephony/events/ingest", json={
-            "pbx_domain": pbx_binding.pbx_domain, "event_type": "CHANNEL_CREATE",
+            "pbx_domain": pbx_domain.pbx_domain, "event_type": "CHANNEL_CREATE",
         })
         assert resp.status_code == 401
 
-    def test_ingest_mauvais_token_retourne_401(self, client, pbx_binding):
+    def test_ingest_mauvais_token_retourne_401(self, client, pbx_domain):
         resp = client.post(
             "/api/telephony/events/ingest",
-            json={"pbx_domain": pbx_binding.pbx_domain, "event_type": "CHANNEL_CREATE"},
+            json={"pbx_domain": pbx_domain.pbx_domain, "event_type": "CHANNEL_CREATE"},
             headers={"X-Connector-Token": "wrong-token"},
         )
         assert resp.status_code == 401
@@ -62,10 +64,10 @@ class TestIngestEvent:
         )
         assert resp.status_code == 400
 
-    def test_ingest_evenement_valide_persiste_et_resout_tenant(self, client, db, pbx_binding, default_tenant):
+    def test_ingest_evenement_valide_persiste_et_resout_tenant(self, client, db, pbx_domain, default_tenant):
         payload = {
             "event_type": "CHANNEL_CREATE",
-            "pbx_domain": pbx_binding.pbx_domain,
+            "pbx_domain": pbx_domain.pbx_domain,
             "call": {
                 "id": "call-uuid-1",
                 "direction": "inbound",
@@ -82,7 +84,7 @@ class TestIngestEvent:
         event = TelephonyEvent.query.filter_by(call_uuid="call-uuid-1").first()
         assert event is not None
         assert event.tenant_id == default_tenant.id
-        assert event.pbx_connector_id == pbx_binding.pbx_connector_id
+        assert event.pbx_connector_id == pbx_domain.pbx_connector_id
         assert event.event_type == "CHANNEL_CREATE"
         assert event.call_status == "ringing"
         assert event.agent_login == "agent01"
@@ -93,11 +95,11 @@ class TestIngestEvent:
 class TestBootstrapConfig:
     """GET /api/telephony/connectors/config — bootstrap consommé par le Core Connector."""
 
-    def test_sans_token_retourne_401(self, client, pbx_binding):
+    def test_sans_token_retourne_401(self, client, pbx_domain):
         resp = client.get("/api/telephony/connectors/config")
         assert resp.status_code == 401
 
-    def test_mauvais_token_retourne_401(self, client, pbx_binding):
+    def test_mauvais_token_retourne_401(self, client, pbx_domain):
         resp = client.get(
             "/api/telephony/connectors/config",
             headers={"X-Connector-Token": "wrong-token"},
@@ -105,7 +107,7 @@ class TestBootstrapConfig:
         assert resp.status_code == 401
 
     def test_retourne_connecteurs_actifs_avec_secrets_et_domaines(
-        self, client, db, pbx_connector, pbx_binding, default_tenant
+        self, client, db, pbx_connector, pbx_domain, default_tenant
     ):
         pbx_connector.username = "esl_user"
         pbx_connector.password = "esl_secret"
@@ -118,10 +120,10 @@ class TestBootstrapConfig:
 
         c = body["connectors"][0]
         assert c["id"] == pbx_connector.id
+        assert c["tenant_id"] == str(default_tenant.id)
         assert c["password"] == "esl_secret"
         assert len(c["domains"]) == 1
-        assert c["domains"][0]["pbx_domain"] == pbx_binding.pbx_domain
-        assert c["domains"][0]["tenant_id"] == str(default_tenant.id)
+        assert c["domains"][0]["pbx_domain"] == pbx_domain.pbx_domain
         assert c["domains"][0]["queue_ids"] == ["queue-support"]
 
     def test_exclut_les_connecteurs_inactifs(self, client, db, pbx_connector):
@@ -133,22 +135,53 @@ class TestBootstrapConfig:
         assert resp.get_json()["connectors"] == []
 
 
+class TestStatusHeartbeat:
+    """POST /api/telephony/connectors/status — heartbeat du Core Connector."""
+
+    def test_sans_token_retourne_401(self, client, pbx_connector):
+        resp = client.post("/api/telephony/connectors/status", json={})
+        assert resp.status_code == 401
+
+    def test_met_a_jour_le_statut_du_connecteur(self, client, db, pbx_connector):
+        resp = client.post(
+            "/api/telephony/connectors/status",
+            json={"connectors": {str(pbx_connector.id): {"connected": True, "error": None}}},
+            headers=CONNECTOR_TOKEN_HEADERS,
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["updated"] == 1
+
+        db.session.refresh(pbx_connector)
+        assert pbx_connector.is_connected is True
+        assert pbx_connector.last_seen_at is not None
+        assert pbx_connector.last_error is None
+
+    def test_ignore_les_connecteurs_inconnus(self, client, db):
+        resp = client.post(
+            "/api/telephony/connectors/status",
+            json={"connectors": {"999999": {"connected": False, "error": "boom"}}},
+            headers=CONNECTOR_TOKEN_HEADERS,
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["updated"] == 0
+
+
 class TestActiveCalls:
-    def test_active_calls_exclut_les_appels_termines(self, client, db, auth_headers, pbx_binding, default_tenant):
+    def test_active_calls_exclut_les_appels_termines(self, client, db, auth_headers, pbx_domain, default_tenant):
         # Appel en cours (dernier évènement = ringing)
         db.session.add(TelephonyEvent(
-            tenant_id=default_tenant.id, pbx_connector_id=pbx_binding.pbx_connector_id,
+            tenant_id=default_tenant.id, pbx_connector_id=pbx_domain.pbx_connector_id,
             event_type="CHANNEL_CREATE", call_status="ringing", call_uuid="call-active",
             created_at=datetime.utcnow(),
         ))
         # Appel terminé (dernier évènement = ended)
         db.session.add(TelephonyEvent(
-            tenant_id=default_tenant.id, pbx_connector_id=pbx_binding.pbx_connector_id,
+            tenant_id=default_tenant.id, pbx_connector_id=pbx_domain.pbx_connector_id,
             event_type="CHANNEL_CREATE", call_status="ringing", call_uuid="call-done",
             created_at=datetime.utcnow() - timedelta(seconds=30),
         ))
         db.session.add(TelephonyEvent(
-            tenant_id=default_tenant.id, pbx_connector_id=pbx_binding.pbx_connector_id,
+            tenant_id=default_tenant.id, pbx_connector_id=pbx_domain.pbx_connector_id,
             event_type="CHANNEL_HANGUP_COMPLETE", call_status="ended", call_uuid="call-done",
             created_at=datetime.utcnow(),
         ))
@@ -162,7 +195,7 @@ class TestActiveCalls:
 
 
 class TestKpis:
-    def test_kpis_summary_calcule_taux_decroche(self, client, db, auth_headers, pbx_binding, default_tenant):
+    def test_kpis_summary_calcule_taux_decroche(self, client, db, auth_headers, pbx_domain, default_tenant):
         base = datetime.utcnow() - timedelta(minutes=5)
         # Appel répondu
         db.session.add(TelephonyEvent(
@@ -206,19 +239,32 @@ class TestKpis:
         assert resp2.get_json()["agents"] == []
 
 
-class TestConnectorsAdmin:
-    """CRUD /api/telephony/connectors — ressource globale, ADMIN uniquement."""
+class TestConnectorsCrud:
+    """CRUD /api/telephony/connectors — tenant-scopé, tenant_admin_required."""
 
-    def test_liste_refusee_sans_role_admin(self, client, auth_headers):
-        resp = client.get("/api/telephony/connectors", headers=auth_headers)
+    def test_liste_refusee_sans_contexte_tenant_admin(self, client, auth_headers):
+        resp = client.post(
+            "/api/telephony/connectors",
+            json={"name": "x", "type": "ESL", "host": "h", "port": 8021},
+            headers=auth_headers,
+        )
         assert resp.status_code == 403
 
-    def test_create_update_delete_connector(self, client, auth_headers_admin, db):
+    def test_liste_scopee_au_tenant_actif(self, client, db, auth_headers, pbx_connector):
+        resp = client.get("/api/telephony/connectors", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data) == 1
+        assert data[0]["id"] == pbx_connector.id
+        assert data[0]["tenant_id"] == str(pbx_connector.tenant_id)
+
+    def test_create_update_delete_connector(self, client, auth_headers_admin, db, default_tenant):
         payload = {"name": "Asterisk Test", "type": "AMI", "host": "ast.local", "port": 5038, "password": "secret"}
         resp = client.post("/api/telephony/connectors", json=payload, headers=auth_headers_admin)
         assert resp.status_code == 201
         data = resp.get_json()
         assert data["name"] == "Asterisk Test"
+        assert data["tenant_id"] == str(default_tenant.id)
         assert data["has_password"] is True
         assert "password" not in data
         connector_id = data["id"]
@@ -244,67 +290,74 @@ class TestConnectorsAdmin:
         assert resp3.status_code == 200
         assert PbxConnector.query.get(connector_id) is None
 
-    def test_create_domain_binding(self, client, auth_headers_admin, pbx_connector, default_tenant):
-        payload = {"pbx_domain": "new.permatel.local", "tenant_id": str(default_tenant.id), "queue_ids": ["q1"]}
+    def test_isolation_cross_tenant(self, client, db, auth_headers_admin, default_tenant):
+        """Un connecteur d'un AUTRE tenant est invisible (404), même pour
+        l'admin global — son contexte actif est default_tenant."""
+        other_tenant = Tenant(code="OTHER", nom="Autre Tenant", slug="other")
+        db.session.add(other_tenant)
+        db.session.commit()
+        other_connector = PbxConnector(tenant_id=other_tenant.id, name="Autre", type="ESL", host="h", port=8021)
+        db.session.add(other_connector)
+        db.session.commit()
+
+        resp = client.put(
+            f"/api/telephony/connectors/{other_connector.id}", json={"host": "x"}, headers=auth_headers_admin
+        )
+        assert resp.status_code == 404
+
+    def test_create_domain_and_update_queues(self, client, auth_headers_admin, pbx_connector):
+        payload = {"pbx_domain": "new.permatel.local", "queue_ids": ["q1"]}
         resp = client.post(f"/api/telephony/connectors/{pbx_connector.id}/domains", json=payload, headers=auth_headers_admin)
         assert resp.status_code == 201
+        domain_id = resp.get_json()["id"]
         assert resp.get_json()["pbx_domain"] == "new.permatel.local"
 
-    def test_create_domain_binding_duplique_retourne_409(self, client, auth_headers_admin, pbx_binding):
-        payload = {"pbx_domain": pbx_binding.pbx_domain, "tenant_id": str(pbx_binding.tenant_id)}
+        resp2 = client.put(
+            f"/api/telephony/connectors/{pbx_connector.id}/domains/{domain_id}",
+            json={"queue_ids": ["a", "b"]},
+            headers=auth_headers_admin,
+        )
+        assert resp2.status_code == 200
+        assert resp2.get_json()["queue_ids"] == ["a", "b"]
+
+    def test_create_domain_duplique_retourne_409(self, client, auth_headers_admin, pbx_domain):
+        payload = {"pbx_domain": pbx_domain.pbx_domain}
         resp = client.post(
-            f"/api/telephony/connectors/{pbx_binding.pbx_connector_id}/domains",
+            f"/api/telephony/connectors/{pbx_domain.pbx_connector_id}/domains",
             json=payload, headers=auth_headers_admin,
         )
         assert resp.status_code == 409
 
-
-class TestTenantSettings:
-    """GET /api/telephony/settings + PUT .../queues — tenant_admin_required."""
-
-    def test_get_settings_retourne_les_rattachements_du_tenant(self, client, auth_headers, pbx_binding):
-        resp = client.get("/api/telephony/settings", headers=auth_headers)
-        assert resp.status_code == 200
-        data = resp.get_json()
-        assert len(data) == 1
-        assert data[0]["pbx_domain"] == pbx_binding.pbx_domain
-        assert data[0]["connector_type"] == "ESL"
-
-    def test_update_queues_refuse_sans_droit_admin_tenant(self, client, auth_headers, pbx_binding):
-        resp = client.put(
-            f"/api/telephony/settings/{pbx_binding.id}/queues",
-            json={"queue_ids": ["a", "b"]},
-            headers=auth_headers,
+    def test_delete_domain(self, client, auth_headers_admin, pbx_connector, pbx_domain):
+        resp = client.delete(
+            f"/api/telephony/connectors/{pbx_connector.id}/domains/{pbx_domain.id}",
+            headers=auth_headers_admin,
         )
+        assert resp.status_code == 200
+        assert PbxConnectorDomain.query.get(pbx_domain.id) is None
+
+
+class TestSyncConnector:
+    """POST /api/telephony/connectors/<id>/sync — force une reconnexion."""
+
+    def test_refuse_sans_droit_admin_tenant(self, client, auth_headers, pbx_connector):
+        resp = client.post(f"/api/telephony/connectors/{pbx_connector.id}/sync", headers=auth_headers)
         assert resp.status_code == 403
 
-    def test_update_queues_par_admin_global(self, client, auth_headers_admin, pbx_binding, db):
-        resp = client.put(
-            f"/api/telephony/settings/{pbx_binding.id}/queues",
-            json={"queue_ids": ["a", "b"]},
-            headers=auth_headers_admin,
-        )
+    def test_bump_sync_requested_at(self, client, db, auth_headers_admin, pbx_connector):
+        assert pbx_connector.sync_requested_at is None
+        resp = client.post(f"/api/telephony/connectors/{pbx_connector.id}/sync", headers=auth_headers_admin)
         assert resp.status_code == 200
-        assert resp.get_json()["queue_ids"] == ["a", "b"]
+        db.session.refresh(pbx_connector)
+        assert pbx_connector.sync_requested_at is not None
 
-    def test_isolation_cross_tenant_sur_queues(self, client, db, auth_headers_admin, pbx_connector, default_tenant):
-        """Un rattachement d'un AUTRE tenant n'est pas modifiable via l'admin
-        global connecté sur default_tenant (tenant actif != tenant du binding)."""
-        other_tenant = Tenant(code="OTHER", nom="Autre Tenant", slug="other")
+    def test_isolation_cross_tenant_sur_sync(self, client, db, auth_headers_admin, default_tenant):
+        other_tenant = Tenant(code="OTHER2", nom="Autre Tenant 2", slug="other2")
         db.session.add(other_tenant)
         db.session.commit()
-
-        other_binding = PbxDomainTenant(
-            pbx_connector_id=pbx_connector.id,
-            pbx_domain="other.permatel.local",
-            tenant_id=other_tenant.id,
-        )
-        db.session.add(other_binding)
+        other_connector = PbxConnector(tenant_id=other_tenant.id, name="Autre", type="ESL", host="h", port=8021)
+        db.session.add(other_connector)
         db.session.commit()
 
-        resp = client.put(
-            f"/api/telephony/settings/{other_binding.id}/queues",
-            json={"queue_ids": ["x"]},
-            headers=auth_headers_admin,
-        )
+        resp = client.post(f"/api/telephony/connectors/{other_connector.id}/sync", headers=auth_headers_admin)
         assert resp.status_code == 404

@@ -1,6 +1,6 @@
 # PERMATEL — Module Téléphonie : Plan d'intégration
 
-**Statut** : Phases 11 et 11bis implémentées et validées (188/188 tests backend, test de charge Docker réel — §7). **Phase 12 implémentée** (Core Connector ESL + UI d'administration) — voir §8, validation contre un FusionPBX réel restant à faire. Phases 13-14 non démarrées.
+**Statut** : Phases 11 et 11bis implémentées et validées (197/197 tests backend, test de charge Docker réel — §7). **Phase 12 implémentée** (Core Connector ESL, connecteur **tenant-scopé** revu en cours de route — §8.4, Sync temps réel via Redis) — validation contre un FusionPBX réel restant à faire (§8.3). Phases 13-14 non démarrées.
 **Date** : 27 juillet 2026
 **Source** : `docs/cdc/CDC-Module-Telephonie.md` (v1.0, 27 juillet 2026)
 **Suivi des tâches** : `docs/suivi_taches_permatel.xlsx` (Phases 11 à 14)
@@ -81,8 +81,8 @@ simple à faire correspondre à un événement PBX qu'une session active.
 | Table | Rôle |
 |---|---|
 | `telephony_events` (existante, étendue) | + `pbx_connector_id` (FK), `call_direction`, `callee`, `agent_login`, `queue_id`, `recording_url`, `raw_payload` (JSONB) ; `event_type` élargi en `String`. |
-| `pbx_connectors` (nouvelle) | `id`, `name`, `type` (`String` : ESL/AMI/TSAPI), `host`, `port`, identifiants via `EncryptedText`, `is_active`. |
-| `pbx_domains_tenants` (nouvelle) | `id`, `pbx_connector_id` (FK), `pbx_domain`, `tenant_id` (FK), `queue_ids`. |
+| `pbx_connectors` (nouvelle) | `id`, `tenant_id` (FK — **tenant-scopée**, revu post-Phase 12, voir §8.4), `name`, `type` (`String` : ESL/AMI/TSAPI), `host`, `port`, identifiants via `EncryptedText`, `is_active`, `is_connected`/`last_seen_at`/`last_error` (heartbeat), `sync_requested_at` (bouton Sync). |
+| `pbx_connector_domains` (nouvelle — ex-`pbx_domains_tenants`) | `id`, `pbx_connector_id` (FK), `pbx_domain`, `queue_ids`. Plus de `tenant_id` propre : hérité du connecteur parent. |
 
 Migrations suivant la convention déjà en place (docstring français, garde-fou
 données explicite, jamais de suppression silencieuse).
@@ -98,7 +98,7 @@ Le détail tâche-par-tâche est dans `docs/suivi_taches_permatel.xlsx`, onglet
 |---|---|---|
 | **Phase 11** | Fondations backend | Migration d'extension `telephony_events`, tables `pbx_connectors`/`pbx_domains_tenants`, route `POST /api/telephony/events/ingest` (auth `X-Connector-Token`), routes `/api/telephony/kpis/*` et `/api/telephony/active-calls` (snapshot initial), route settings CRUD `pbx_connectors`, `config_state.telephony_configured` dans `tenant_features()` |
 | **Phase 11bis** | Infra WebSocket | Ajout `flask-socketio`, worker Gunicorn `eventlet`/`gevent`, Redis en *message queue* Socket.IO, namespace `/telephony` avec auth JWT + *room* par tenant, diffusion des événements depuis la route d'ingestion |
-| **Phase 12** | Connecteur FusionPBX (ESL) | **Fait** (voir §8) — **Un seul** process Docker autonome (`Core Connector`), `ESLAdapter` (port 8021, `CHANNEL_*` + `mod_callcenter`), `Normalizer`, résilience (reconnexion, backoff), healthcheck. Bootstrap config + UI admin (`/pbx-connectors`) et réglages tenant (`Paramètres > Téléphonie`) inclus. |
+| **Phase 12** | Connecteur FusionPBX (ESL) | **Fait** (voir §8) — **Un seul** process Docker autonome (`Core Connector`), `ESLAdapter` (port 8021, `CHANNEL_*` + `mod_callcenter`), `Normalizer`, résilience (reconnexion, backoff), healthcheck. Connecteur **tenant-scopé** (§8.4), géré par l'admin de tenant dans `Paramètres > Téléphonie` (statut live + bouton Sync temps réel via Redis). |
 | **Phase 13** | Supervision frontend (WebSocket) | `SupervisionTelephonieView.vue` (calque de `SupervisionView.vue`), `useTelephonySocket` (connexion Socket.IO + fallback reconnect), `TelephonyKpiCards.vue`, `ActiveCallsTable.vue`, `AgentsGrid.vue`, store `useTelephonyStore` |
 | **Phase 14** | Connecteur Asterisk (AMI) | `AMIAdapter` ajouté au **même** process connecteur (pas un second déploiement), orchestré en parallèle de `ESLAdapter` par le `Core Connector` — même contrat `PBXAdapter`, aucun changement API/frontend attendu, validation de l'architecture Adapter |
 
@@ -193,6 +193,11 @@ revalider la marge face au `pingTimeout` Socket.IO ou envisager d'augmenter
 
 ### 8.1 Bootstrap config + administration (préalable à l'implémentation du connecteur)
 
+> ⚠️ **Superseded par §8.4** : cette section décrit l'implémentation
+> initiale (connecteur global partagé entre tenants, UI admin séparée
+> `/pbx-connectors`). Revue le jour même suite à un pivot d'architecture —
+> conservée ici pour l'historique, voir §8.4 pour l'état actuel.
+
 Avant d'écrire le connecteur lui-même, deux lacunes ont été comblées (elles
 n'étaient pas explicitement dans le phasage initial, mais bloquaient toute
 implémentation réelle) :
@@ -227,9 +232,9 @@ indépendant.
 
 | Fichier | Rôle |
 |---|---|
-| `connector/core_connector.py` | Entrypoint. Boucle de réconciliation : `GET /connectors/config` au démarrage puis toutes les `CONFIG_REFRESH_SECONDS` (défaut 60s), démarre/arrête une greenlet `PBXAdapter` par connecteur actif vu/disparu. Un seul process (jamais un process par PBX). |
-| `connector/adapters/base.py` | Contrat `PBXAdapter` (`run()`/`stop()`) — future implémentation AMI (Phase 14) s'y conforme. |
-| `connector/adapters/esl_adapter.py` | `ESLAdapter` : connexion ESL inbound (greenswitch), souscription `CHANNEL_CREATE/CHANNEL_PROGRESS_MEDIA/CHANNEL_ANSWER/CHANNEL_HANGUP_COMPLETE` + `CUSTOM callcenter::info` (mod_callcenter), reconnexion avec backoff exponentiel borné sur déconnexion, filtrage des événements de file par `queue_ids` supervisées (tenant). |
+| `connector/core_connector.py` | Entrypoint. Boucle de réconciliation : `GET /connectors/config` au démarrage puis toutes les `CONFIG_REFRESH_SECONDS` (défaut 60s), démarre/arrête une greenlet `PBXAdapter` par connecteur actif vu/disparu, envoie le heartbeat de statut (`POST /connectors/status`) à chaque cycle. Un seul process (jamais un process par PBX). Abonné en tâche de fond au canal Redis `telephony:sync` (§8.4) pour appliquer un Sync quasi instantanément. |
+| `connector/adapters/base.py` | Contrat `PBXAdapter` (`run()`/`stop()`/`force_reconnect()`/`is_connected`) — future implémentation AMI (Phase 14) s'y conforme. |
+| `connector/adapters/esl_adapter.py` | `ESLAdapter` : connexion ESL inbound (greenswitch), souscription `CHANNEL_CREATE/CHANNEL_PROGRESS_MEDIA/CHANNEL_ANSWER/CHANNEL_HANGUP_COMPLETE` + `CUSTOM callcenter::info` (mod_callcenter), reconnexion avec backoff exponentiel borné sur déconnexion, filtrage des événements de file par `queue_ids` supervisées (tenant), `force_reconnect()` (Sync). |
 | `connector/normalizer.py` | Fonctions pures FreeSWITCH → format d'ingestion PERMATEL (`event_type`/`call_status` — vocabulaire documenté dans `models/telephony_event.py`). Testé isolément (`connector/tests/test_normalizer.py`, 10 tests). |
 | `connector/ingest_client.py` | POST vers `/api/telephony/events/ingest` + GET config bootstrap, via `requests` (rendu coopératif par le monkey-patch gevent, aucun adaptateur dédié requis contrairement à psycopg2 côté backend). |
 | `connector/Dockerfile` | Multi-stage, non-root, `tini` PID 1. Pas de serveur HTTP dans ce process : healthcheck via fichier heartbeat rafraîchi à chaque cycle de réconciliation. |
@@ -246,8 +251,8 @@ mod_callcenter (`CC-Action`, `CC-Queue`, `CC-Member-Uuid`, `CC-Agent`) a été
 confronté à un flux d'événements réel**. Avant mise en production :
 
 1. Démarrer le connecteur (`docker compose --profile telephony up -d
-   --build`) contre le FusionPBX de test, avec au moins un `pbx_connectors`
-   + un rattachement `pbx_domains_tenants` configurés via `/pbx-connectors`.
+   --build`) contre le FusionPBX de test, avec au moins un connecteur PBX
+   + un domaine rattaché configurés via `Paramètres > Téléphonie`.
 2. Passer un appel de test et comparer les événements réellement reçus
    (logs `connector.esl`) aux en-têtes supposés dans `normalizer.py` —
    ajuster `CC-*` et les causes de raccrochage si l'écart le justifie.
@@ -255,3 +260,46 @@ confronté à un flux d'événements réel**. Avant mise en production :
    FusionPBX multi-domaine (résolution du tenant à l'ingestion en dépend).
 4. Confirmer le comportement de reconnexion (redémarrage du service
    `mod_event_socket` côté FusionPBX) sans perte prolongée d'événements.
+5. Vérifier le bouton Sync (`Paramètres > Téléphonie`) : reconnexion
+   effective en quelques secondes avec Redis actif, puis re-tester sans
+   Redis pour valider le filet de secours (`sync_requested_at`, appliqué au
+   plus tard au prochain sondage périodique).
+
+---
+
+### 8.4 Pivot — connecteur tenant-scopé + Sync temps réel
+
+Décision revue le jour de l'implémentation de la Phase 12 : `PbxConnector`
+n'est **plus une ressource globale** partagée entre tenants (§8.1, §2.3
+initial). Chaque tenant possède et configure désormais **son propre**
+connecteur PBX, exactement comme `SmtpSetting`/`ImapSetting` :
+
+- **Modèle** : `pbx_connectors.tenant_id` (NOT NULL). `pbx_domains_tenants`
+  renommée `pbx_connector_domains`, perd sa colonne `tenant_id` propre
+  (héritée du connecteur parent). Migration `e7f8a9b0c1d2` — DROP/CREATE
+  plutôt qu'ALTER (garde-fou : abandonne si des lignes existent déjà,
+  aucune perte de données possible puisque la Phase 12 venait d'être
+  mergée sans usage réel).
+- **CRUD** : déplacé de `@role_required(ADMIN)` (global) vers
+  `@tenant_admin_required` (propre tenant), même niveau de confiance que
+  les autres réglages d'intégration.
+- **UI** : `/pbx-connectors` (page globale admin) supprimée, fusionnée dans
+  `Paramètres > Téléphonie` (`SettingsTelephony.vue`) — gérée par l'admin
+  de tenant, visible ssi `channel_telephonie` actif pour ce tenant.
+  Sous-ligne dépliable par connecteur (statut live de l'adapter : connecté/
+  déconnecté, dernière activité, dernière erreur) + gestion des domaines/
+  files supervisées + bouton **Sync**.
+- **Sync (reconnexion forcée) quasi temps réel** : `POST
+  /connectors/<id>/sync` bump `sync_requested_at` (filet de secours durable,
+  repris au prochain sondage périodique du connecteur) **et** publie sur
+  Redis (canal `telephony:sync`, Redis déjà présent dans la stack). Le Core
+  Connector maintient une greenlet abonnée en tâche de fond
+  (`_SyncListener`) qui appelle `adapter.force_reconnect()` dès réception —
+  effectif en quelques secondes, sans attendre `CONFIG_REFRESH_SECONDS`
+  (60s par défaut). Fonctionne en dégradé (filet de secours seul) si Redis
+  est absent/injoignable — décision explicite de ne pas rendre Redis
+  obligatoire pour ce cas d'usage non-critique.
+- **Heartbeat de statut** : `POST /connectors/status`, appelé par le Core
+  Connector à chaque cycle de réconciliation, alimente
+  `is_connected`/`last_seen_at`/`last_error` sur `PbxConnector` — c'est ce
+  qui peuple la sous-ligne "adapter" de l'UI.

@@ -1,43 +1,42 @@
 """
-Module Téléphonie — Phase 11 (fondations backend).
+Module Téléphonie.
 
-Trois familles d'endpoints :
-  - Ingestion (POST /events/ingest) : appelée par le connecteur PBX (Phase 12),
+Familles d'endpoints :
+  - Ingestion (POST /events/ingest) : appelée par le Core Connector (Phase 12),
     authentification par jeton technique partagé (X-Connector-Token), pas de JWT.
-  - Lecture tenant-scopée (/active-calls, /kpis/*) : @tenant_required, comme le
-    reste de l'app.
-  - Administration globale des connecteurs PBX (/connectors/*) : un même PBX
-    physique peut héberger plusieurs tenants PERMATEL, ce n'est donc PAS une
-    ressource tenant-scopée — réservée au super-admin global (role ADMIN),
-    même motif que routes/tenants.py.
-
-Le rattachement tenant-scopé d'un domaine PBX (queues supervisées) est exposé
-séparément sous /api/settings/telephony (tenant_admin_required).
+  - Bootstrap config (GET /connectors/config) + heartbeat statut
+    (POST /connectors/status) : même trust boundary, consommées par le Core
+    Connector.
+  - Lecture tenant-scopée (/active-calls, /kpis/*) : @tenant_required.
+  - CRUD connecteurs PBX + domaines (/connectors/*) : TENANT-SCOPÉ
+    (@tenant_admin_required) — chaque tenant possède et configure son propre
+    connecteur, comme SmtpSetting/ImapSetting. Revu depuis la conception
+    initiale (Phase 11/12) où un connecteur pouvait être partagé entre
+    plusieurs tenants — voir TELEPHONIE_INTEGRATION_PLAN.md.
 """
-import uuid
+import logging
 from datetime import datetime, timedelta
 
-from flask import Blueprint, g, jsonify, request
+from flask import Blueprint, current_app, g, jsonify, request
 from flask_cors import CORS
-from flask_jwt_extended import jwt_required
 
 from app import db
-from app.models import PbxConnector, PbxDomainTenant, TelephonyEvent, Tenant, UserRole
-from app.utils.auth import role_required
+from app.models import PbxConnector, PbxConnectorDomain, TelephonyEvent
 from app.utils.decorators import tenant_admin_required, tenant_required
 
 telephony_bp = Blueprint("telephony", __name__, url_prefix="/api/telephony")
 CORS(telephony_bp, supports_credentials=True)
 
 TERMINAL_STATUSES = {"ended", "missed", "abandoned", "technical_failure"}
+SYNC_CHANNEL = "telephony:sync"
+
+logger = logging.getLogger(__name__)
 
 
 def _require_connector_token():
-    """Auth partagée par les routes appelées par le Core Connector (Phase 12) :
-    jeton technique global, pas de JWT (le connecteur n'est pas un utilisateur
+    """Auth partagée par les routes appelées par le Core Connector : jeton
+    technique global, pas de JWT (le connecteur n'est pas un utilisateur
     PERMATEL). Retourne une réponse d'erreur si invalide, sinon None."""
-    from flask import current_app
-
     expected_token = current_app.config.get("TELEPHONY_CONNECTOR_TOKEN")
     provided_token = request.headers.get("X-Connector-Token")
     if not expected_token or not provided_token or provided_token != expected_token:
@@ -46,24 +45,64 @@ def _require_connector_token():
 
 
 # ═════════════════════════════════════════════════════════════════════════
-#  Bootstrap config (connecteur PBX — jeton technique, pas de JWT)
+#  Redis (signal "Sync" temps réel — filet de secours durable en base)
+# ═════════════════════════════════════════════════════════════════════════
+
+_redis_client = None
+_redis_checked = False
+
+
+def _get_redis():
+    """Client Redis mis en cache, ou None si REDIS_URL absent/injoignable.
+    Même dégradation gracieuse que login_throttle.py : le signal temps réel
+    est un plus, `sync_requested_at` (colonne durable) reste le filet de
+    secours consommé par le connecteur à son prochain sondage périodique."""
+    global _redis_client, _redis_checked
+    if _redis_checked:
+        return _redis_client
+    _redis_checked = True
+    try:
+        import redis as redis_lib
+    except ImportError:  # pragma: no cover - redis toujours présent en prod
+        _redis_client = None
+        return None
+    url = current_app.config.get("REDIS_URL")
+    if not url:
+        _redis_client = None
+        return None
+    try:
+        client = redis_lib.from_url(url, socket_connect_timeout=1, socket_timeout=1)
+        client.ping()
+        _redis_client = client
+    except Exception as exc:  # noqa: BLE001 - dégradation volontaire
+        logger.warning("Redis indisponible pour le signal Sync (%s) — filet de secours DB seul.", exc)
+        _redis_client = None
+    return _redis_client
+
+
+def _publish_sync_signal(connector_id: int):
+    r = _get_redis()
+    if r is None:
+        return
+    try:
+        r.publish(SYNC_CHANNEL, str(connector_id))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Échec de publication du signal Sync (connector_id=%s) : %s", connector_id, exc)
+
+
+# ═════════════════════════════════════════════════════════════════════════
+#  Bootstrap config + heartbeat (Core Connector — jeton technique, pas de JWT)
 # ═════════════════════════════════════════════════════════════════════════
 
 @telephony_bp.get("/connectors/config")
 def connectors_bootstrap_config():
     """
-    Config dynamique consommée par le Core Connector (Phase 12) au démarrage
-    (et périodiquement) : liste des `pbx_connectors` actifs, identifiants
-    déchiffrés inclus, avec leurs rattachements `pbx_domains_tenants`
-    (queues supervisées). Le connecteur orchestre un `PBXAdapter` par
-    connecteur retourné ici — pas de config statique dupliquée côté
-    connecteur, la source de vérité reste l'UI admin PERMATEL (CRUD
-    /api/telephony/connectors, Phase 11).
-
-    Auth par jeton technique partagé (même trust boundary que l'ingestion) :
-    le connecteur qui peut écrire des événements peut légitimement lire sa
-    propre config, y compris les secrets PBX qu'il doit utiliser pour se
-    connecter.
+    Config dynamique consommée par le Core Connector au démarrage (et
+    périodiquement) : tous les `pbx_connectors` actifs (tous tenants
+    confondus — vue globale côté connecteur, même si la ressource est
+    tenant-scopée côté administration), identifiants déchiffrés inclus,
+    avec leurs domaines rattachés. `sync_requested_at` sert de filet de
+    secours au signal Redis temps réel (§ ci-dessus).
     """
     if (err := _require_connector_token()) is not None:
         return err
@@ -73,38 +112,63 @@ def connectors_bootstrap_config():
     for c in connectors:
         data = c.to_dict(include_secrets=True)
         data["domains"] = [
-            {
-                "pbx_domain": b.pbx_domain,
-                "tenant_id": str(b.tenant_id),
-                "queue_ids": b.queue_ids or [],
-            }
-            for b in c.domains
+            {"pbx_domain": d.pbx_domain, "queue_ids": d.queue_ids or []}
+            for d in c.domains
         ]
         result.append(data)
     return jsonify({"connectors": result}), 200
 
 
+@telephony_bp.post("/connectors/status")
+def connectors_status_heartbeat():
+    """
+    Heartbeat périodique du Core Connector : état de connexion de chaque
+    adapter en cours. Alimente `is_connected`/`last_seen_at`/`last_error`,
+    affichés en sous-ligne "adapter" sous chaque connecteur (Paramètres >
+    Téléphonie).
+
+    Body : {"connectors": {"<connector_id>": {"connected": bool,
+                                                "error": str|null}, ...}}
+    """
+    if (err := _require_connector_token()) is not None:
+        return err
+
+    data = request.get_json(silent=True) or {}
+    statuses = data.get("connectors") or {}
+    now = datetime.utcnow()
+
+    updated = 0
+    for connector_id_str, status in statuses.items():
+        try:
+            connector_id = int(connector_id_str)
+        except (TypeError, ValueError):
+            continue
+        connector = PbxConnector.query.get(connector_id)
+        if not connector:
+            continue
+        connector.is_connected = bool(status.get("connected"))
+        connector.last_seen_at = now
+        connector.last_error = status.get("error")
+        updated += 1
+
+    db.session.commit()
+    return jsonify({"updated": updated}), 200
+
+
 # ═════════════════════════════════════════════════════════════════════════
-#  Ingestion (connecteur PBX — jeton technique, pas de JWT)
+#  Ingestion (Core Connector — jeton technique, pas de JWT)
 # ═════════════════════════════════════════════════════════════════════════
 
 @telephony_bp.post("/events/ingest")
 def ingest_event():
     """
     Ingestion d'un événement PBX normalisé (voir CDC §5 pour le format).
-    Auth : en-tête `X-Connector-Token`, comparé au jeton technique partagé
-    configuré côté serveur (TELEPHONY_CONNECTOR_TOKEN) — le connecteur n'est
-    pas un utilisateur PERMATEL, aucun token JWT n'a de sens ici.
-    Résolution du tenant : via `pbx_domain` -> pbx_domains_tenants.tenant_id.
+    Résolution du tenant : pbx_domain -> PbxConnectorDomain -> connector.tenant_id.
 
     Un seul jeton global est volontaire : l'architecture ne prévoit qu'UN
-    SEUL process connecteur (Phase 12, `Core Connector`), qui orchestre en
-    interne plusieurs `PBXAdapter` concurrents (un par ligne `pbx_connectors`
-    — ESL, AMI, TSAPI...). Toutes les requêtes d'ingestion proviennent donc
-    du même process quel que soit le PBX/tenant d'origine de l'événement ;
-    un jeton par `PbxConnector` n'aurait pas de granularité de révocation
-    utile ici (ce serait révoquer une partie du même process, pas un
-    déploiement distinct).
+    SEUL process connecteur (Core Connector), qui orchestre en interne
+    plusieurs `PBXAdapter` concurrents. Toutes les requêtes d'ingestion
+    proviennent donc du même process quel que soit le PBX/tenant d'origine.
     """
     if (err := _require_connector_token()) is not None:
         return err
@@ -116,8 +180,8 @@ def ingest_event():
     if not pbx_domain or not event_type:
         return jsonify({"error": "Champs 'pbx_domain' et 'event_type' requis."}), 400
 
-    binding = PbxDomainTenant.query.filter_by(pbx_domain=pbx_domain).first()
-    if not binding:
+    domain = PbxConnectorDomain.query.filter_by(pbx_domain=pbx_domain).first()
+    if not domain:
         return jsonify({"error": f"Domaine PBX inconnu : '{pbx_domain}'."}), 404
 
     call = data.get("call") or {}
@@ -132,8 +196,8 @@ def ingest_event():
             created_at = None
 
     event = TelephonyEvent(
-        tenant_id=binding.tenant_id,
-        pbx_connector_id=binding.pbx_connector_id,
+        tenant_id=domain.connector.tenant_id,
+        pbx_connector_id=domain.pbx_connector_id,
         event_type=event_type,
         call_direction=call.get("direction"),
         call_status=call.get("status"),
@@ -345,24 +409,27 @@ def kpis_agents():
 
 
 # ═════════════════════════════════════════════════════════════════════════
-#  Administration globale des connecteurs PBX (super-admin uniquement)
+#  CRUD connecteurs PBX (tenant-scopé — admin de tenant)
 # ═════════════════════════════════════════════════════════════════════════
 
 def _connector_or_404(connector_id):
-    return PbxConnector.query.get_or_404(connector_id, description="Connecteur PBX introuvable")
+    """Connecteur du tenant actif uniquement — 404 si d'un autre tenant
+    (jamais 403 : ne pas révéler l'existence d'un connecteur d'un autre
+    tenant, même motif que les autres ressources tenant-scopées)."""
+    return PbxConnector.query.filter_by(id=connector_id, tenant_id=g.tenant_id).first_or_404(
+        description="Connecteur PBX introuvable"
+    )
 
 
 @telephony_bp.get("/connectors")
-@jwt_required()
-@role_required(UserRole.ADMIN)
+@tenant_required
 def list_connectors():
-    connectors = PbxConnector.query.order_by(PbxConnector.name).all()
+    connectors = PbxConnector.query.filter_by(tenant_id=g.tenant_id).order_by(PbxConnector.name).all()
     return jsonify([c.to_dict() for c in connectors]), 200
 
 
 @telephony_bp.post("/connectors")
-@jwt_required()
-@role_required(UserRole.ADMIN)
+@tenant_admin_required
 def create_connector():
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "").strip()
@@ -378,6 +445,7 @@ def create_connector():
         return jsonify({"error": "Port invalide."}), 400
 
     connector = PbxConnector(
+        tenant_id=g.tenant_id,
         name=name,
         type=conn_type,
         host=host,
@@ -396,8 +464,7 @@ def create_connector():
 
 
 @telephony_bp.put("/connectors/<int:connector_id>")
-@jwt_required()
-@role_required(UserRole.ADMIN)
+@tenant_admin_required
 def update_connector(connector_id):
     connector = _connector_or_404(connector_id)
     data = request.get_json(silent=True) or {}
@@ -416,8 +483,6 @@ def update_connector(connector_id):
     if "username" in data:
         connector.username = (data["username"] or "").strip() or None
     if data.get("password"):
-        # Colonne EncryptedText : chiffrement transparent à l'écriture (pas
-        # d'appel manuel à encrypt_secret ici — même convention que Email.subject).
         connector.password = data["password"]
     if "is_active" in data:
         connector.is_active = bool(data["is_active"])
@@ -427,8 +492,7 @@ def update_connector(connector_id):
 
 
 @telephony_bp.delete("/connectors/<int:connector_id>")
-@jwt_required()
-@role_required(UserRole.ADMIN)
+@tenant_admin_required
 def delete_connector(connector_id):
     connector = _connector_or_404(connector_id)
     db.session.delete(connector)
@@ -436,96 +500,82 @@ def delete_connector(connector_id):
     return jsonify({"message": "Connecteur supprimé."}), 200
 
 
+@telephony_bp.post("/connectors/<int:connector_id>/sync")
+@tenant_admin_required
+def sync_connector(connector_id):
+    """
+    Force une reconnexion de l'adapter PBX correspondant. Signal Redis
+    (quasi temps réel si le Core Connector est à l'écoute) + horodatage
+    durable `sync_requested_at` (filet de secours, appliqué au plus tard au
+    prochain sondage périodique du connecteur — cf. GET /connectors/config).
+    """
+    connector = _connector_or_404(connector_id)
+    connector.sync_requested_at = datetime.utcnow()
+    db.session.commit()
+    _publish_sync_signal(connector.id)
+    return jsonify(connector.to_dict()), 200
+
+
 @telephony_bp.get("/connectors/<int:connector_id>/domains")
-@jwt_required()
-@role_required(UserRole.ADMIN)
+@tenant_required
 def list_connector_domains(connector_id):
     _connector_or_404(connector_id)
-    bindings = PbxDomainTenant.query.filter_by(pbx_connector_id=connector_id).all()
-    return jsonify([b.to_dict() for b in bindings]), 200
+    domains = PbxConnectorDomain.query.filter_by(pbx_connector_id=connector_id).all()
+    return jsonify([d.to_dict() for d in domains]), 200
 
 
 @telephony_bp.post("/connectors/<int:connector_id>/domains")
-@jwt_required()
-@role_required(UserRole.ADMIN)
+@tenant_admin_required
 def create_connector_domain(connector_id):
     _connector_or_404(connector_id)
     data = request.get_json(silent=True) or {}
 
     pbx_domain = (data.get("pbx_domain") or "").strip()
-    tenant_id_raw = data.get("tenant_id")
-    if not pbx_domain or not tenant_id_raw:
-        return jsonify({"error": "Champs 'pbx_domain' et 'tenant_id' requis."}), 400
+    if not pbx_domain:
+        return jsonify({"error": "Le champ 'pbx_domain' est requis."}), 400
 
-    # UUID reçu en JSON = str ; la colonne UUID(as_uuid=True) attend un objet
-    # uuid.UUID pour le binding SQLAlchemy (cf. bug identique déjà corrigé sur
-    # users.py::_parse_tenant_ids — sinon AttributeError: 'str' object has no
-    # attribute 'hex' au flush, remontant en 500).
-    try:
-        tenant_id = uuid.UUID(str(tenant_id_raw))
-    except (ValueError, TypeError):
-        return jsonify({"error": "Identifiant de tenant invalide."}), 400
-
-    tenant = Tenant.query.filter_by(id=tenant_id, is_active=True).first()
-    if not tenant:
-        return jsonify({"error": "Tenant introuvable ou inactif."}), 404
-
-    if PbxDomainTenant.query.filter_by(pbx_connector_id=connector_id, pbx_domain=pbx_domain).first():
+    if PbxConnectorDomain.query.filter_by(pbx_connector_id=connector_id, pbx_domain=pbx_domain).first():
         return jsonify({"error": "Ce domaine est déjà rattaché à ce connecteur."}), 409
 
-    binding = PbxDomainTenant(
+    queue_ids = data.get("queue_ids")
+    if queue_ids is not None and not isinstance(queue_ids, list):
+        return jsonify({"error": "'queue_ids' doit être une liste."}), 400
+
+    domain = PbxConnectorDomain(
         pbx_connector_id=connector_id,
         pbx_domain=pbx_domain,
-        tenant_id=tenant_id,
-        queue_ids=data.get("queue_ids") or [],
+        queue_ids=queue_ids or [],
     )
-    db.session.add(binding)
+    db.session.add(domain)
     db.session.commit()
-    return jsonify(binding.to_dict()), 201
+    return jsonify(domain.to_dict()), 201
 
 
-@telephony_bp.delete("/connectors/<int:connector_id>/domains/<int:binding_id>")
-@jwt_required()
-@role_required(UserRole.ADMIN)
-def delete_connector_domain(connector_id, binding_id):
-    binding = PbxDomainTenant.query.filter_by(id=binding_id, pbx_connector_id=connector_id).first_or_404(
-        description="Rattachement introuvable"
-    )
-    db.session.delete(binding)
-    db.session.commit()
-    return jsonify({"message": "Rattachement supprimé."}), 200
-
-
-# ═════════════════════════════════════════════════════════════════════════
-#  Réglages tenant-scopés (queues supervisées — CDC §2.3)
-# ═════════════════════════════════════════════════════════════════════════
-
-@telephony_bp.get("/settings")
-@tenant_required
-def get_tenant_telephony_settings():
-    """Rattachements PBX du tenant actif (lecture seule sauf `queue_ids`)."""
-    bindings = PbxDomainTenant.query.filter_by(tenant_id=g.tenant_id).all()
-    result = []
-    for b in bindings:
-        d = b.to_dict()
-        d["connector_name"] = b.connector.name if b.connector else None
-        d["connector_type"] = b.connector.type if b.connector else None
-        result.append(d)
-    return jsonify(result), 200
-
-
-@telephony_bp.put("/settings/<int:binding_id>/queues")
+@telephony_bp.put("/connectors/<int:connector_id>/domains/<int:domain_id>")
 @tenant_admin_required
-def update_tenant_queues(binding_id):
-    """Édite les files d'attente supervisées pour un rattachement du tenant actif."""
-    binding = PbxDomainTenant.query.filter_by(id=binding_id, tenant_id=g.tenant_id).first_or_404(
-        description="Rattachement introuvable pour ce tenant"
+def update_connector_domain(connector_id, domain_id):
+    """Édite les files d'attente supervisées d'un domaine PBX rattaché."""
+    _connector_or_404(connector_id)
+    domain = PbxConnectorDomain.query.filter_by(id=domain_id, pbx_connector_id=connector_id).first_or_404(
+        description="Domaine PBX introuvable"
     )
     data = request.get_json(silent=True) or {}
     queue_ids = data.get("queue_ids")
     if not isinstance(queue_ids, list):
         return jsonify({"error": "'queue_ids' doit être une liste."}), 400
 
-    binding.queue_ids = queue_ids
+    domain.queue_ids = queue_ids
     db.session.commit()
-    return jsonify(binding.to_dict()), 200
+    return jsonify(domain.to_dict()), 200
+
+
+@telephony_bp.delete("/connectors/<int:connector_id>/domains/<int:domain_id>")
+@tenant_admin_required
+def delete_connector_domain(connector_id, domain_id):
+    _connector_or_404(connector_id)
+    domain = PbxConnectorDomain.query.filter_by(id=domain_id, pbx_connector_id=connector_id).first_or_404(
+        description="Domaine PBX introuvable"
+    )
+    db.session.delete(domain)
+    db.session.commit()
+    return jsonify({"message": "Domaine supprimé."}), 200

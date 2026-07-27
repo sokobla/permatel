@@ -31,6 +31,7 @@ class ESLAdapter(PBXAdapter):
         super().__init__(connector_config, ingest_client)
         self._esl = None
         self._disconnect_event = Event()
+        self.last_error = None
         # domaine -> ensemble des queue_id supervisées ; liste vide = pas de
         # filtre (toutes les queues du domaine sont transmises).
         self._supervised_queues = {
@@ -38,20 +39,27 @@ class ESLAdapter(PBXAdapter):
             for d in connector_config.get("domains", [])
         }
 
+    @property
+    def is_connected(self) -> bool:
+        return bool(self._esl is not None and self._esl.connected)
+
     def run(self):
         backoff = config.ESL_RECONNECT_BACKOFF_INITIAL
         while not self._stopping:
             try:
                 self._connect_and_subscribe()
+                self.last_error = None
                 backoff = config.ESL_RECONNECT_BACKOFF_INITIAL  # connexion OK, reset backoff
                 self._disconnect_event.clear()
-                self._disconnect_event.wait()  # bloque jusqu'à déconnexion (ou stop())
+                self._disconnect_event.wait()  # bloque jusqu'à déconnexion (ou stop()/force_reconnect())
             except (NotConnectedError, OSError) as exc:
+                self.last_error = str(exc)
                 logger.warning(
                     "[%s] Connexion ESL échouée (%s) — nouvelle tentative dans %.0fs",
                     self.connector_config["name"], exc, backoff,
                 )
-            except Exception:
+            except Exception as exc:
+                self.last_error = str(exc)
                 logger.exception("[%s] Erreur inattendue dans l'adapter ESL", self.connector_config["name"])
             finally:
                 if self._esl is not None:
@@ -69,6 +77,19 @@ class ESLAdapter(PBXAdapter):
     def stop(self):
         super().stop()
         self._disconnect_event.set()  # débloque la boucle run()
+        if self._esl is not None:
+            try:
+                self._esl.stop()
+            except Exception:
+                pass
+
+    def force_reconnect(self):
+        """Bouton "Sync" (signal Redis) — casse la connexion ESL en cours,
+        `run()` reboucle et reconnecte après `ESL_RECONNECT_BACKOFF_INITIAL`
+        (backoff déjà réinitialisé par la connexion en cours si elle avait
+        réussi), sans attendre le prochain sondage périodique de config."""
+        logger.info("[%s] Reconnexion forcée (Sync).", self.connector_config["name"])
+        self._disconnect_event.set()
         if self._esl is not None:
             try:
                 self._esl.stop()

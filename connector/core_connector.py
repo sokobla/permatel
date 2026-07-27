@@ -12,10 +12,13 @@ Boucle principale :
      démarrage puis toutes les CONFIG_REFRESH_SECONDS.
   2. Réconciliation : démarre une greenlet PBXAdapter pour tout connecteur
      actif nouvellement vu, arrête celles dont le connecteur a disparu/été
-     désactivé — sans redémarrer les adapters déjà en cours (config stable).
+     désactivé — sans redémarrer les adapters déjà en cours (config stable),
+     sauf si `sync_requested_at` a changé (bouton "Sync", filet de secours
+     du signal Redis temps réel — voir _SyncListener).
+  3. Heartbeat de statut (POST /connectors/status) à chaque cycle.
 """
 # gevent monkey-patch AVANT tout import réseau (requests, socket…) — c'est ce
-# qui rend `requests`/`greenswitch` coopératifs. Doit rester la toute
+# qui rend `requests`/`greenswitch`/`redis` coopératifs. Doit rester la toute
 # première chose exécutée dans le process.
 from gevent import monkey
 monkey.patch_all()
@@ -42,11 +45,60 @@ ADAPTER_CLASSES = {
 }
 
 
+class _SyncListener:
+    """Écoute Redis pub/sub (canal `telephony:sync`) pour appliquer un
+    "Sync" quasi instantanément, sans attendre le prochain sondage
+    périodique. Best-effort : si Redis est absent/injoignable, le connecteur
+    fonctionne quand même — le filet de secours (`sync_requested_at` dans le
+    payload de config, comparé à chaque cycle) prend le relais."""
+
+    def __init__(self, on_sync_requested):
+        self._on_sync_requested = on_sync_requested
+        self._greenlet = None
+
+    def start(self):
+        if not config.REDIS_URL:
+            logger.info("REDIS_URL non configuré — Sync appliqué au prochain sondage périodique uniquement.")
+            return
+        self._greenlet = gevent.spawn(self._run)
+
+    def stop(self):
+        if self._greenlet is not None:
+            gevent.kill(self._greenlet)
+
+    def _run(self):
+        try:
+            import redis as redis_lib
+        except ImportError:  # pragma: no cover - redis toujours présent en prod
+            logger.warning("Bibliothèque redis absente — Sync temps réel désactivé.")
+            return
+
+        while True:
+            try:
+                client = redis_lib.from_url(config.REDIS_URL, socket_connect_timeout=5)
+                pubsub = client.pubsub()
+                pubsub.subscribe(config.REDIS_SYNC_CHANNEL)
+                logger.info("Abonné au canal Redis '%s' (signal Sync temps réel).", config.REDIS_SYNC_CHANNEL)
+                for message in pubsub.listen():
+                    if message.get("type") != "message":
+                        continue
+                    try:
+                        connector_id = int(message["data"])
+                    except (TypeError, ValueError):
+                        continue
+                    self._on_sync_requested(connector_id)
+            except Exception as exc:  # noqa: BLE001 - reconnexion Redis, ne doit jamais tuer le process
+                logger.warning("Connexion Redis (Sync) interrompue (%s) — nouvelle tentative dans 5s.", exc)
+                gevent.sleep(5)
+
+
 class CoreConnector:
     def __init__(self):
         self.ingest_client = IngestClient()
         self._running_adapters = {}  # connector_id -> (adapter, greenlet)
+        self._last_sync_requested_at = {}  # connector_id -> dernière valeur vue
         self._stopping = False
+        self._sync_listener = _SyncListener(self._on_sync_requested)
 
     def start(self):
         if not config.TELEPHONY_CONNECTOR_TOKEN:
@@ -58,18 +110,31 @@ class CoreConnector:
         )
         gevent.signal_handler(signal.SIGTERM, self.stop)
         gevent.signal_handler(signal.SIGINT, self.stop)
+        self._sync_listener.start()
 
         while not self._stopping:
             self._reconcile()
+            self._send_status_heartbeat()
             HEARTBEAT_PATH.touch()
             gevent.sleep(config.CONFIG_REFRESH_SECONDS)
 
+        self._sync_listener.stop()
         self._stop_all_adapters()
         logger.info("Core Connector arrêté proprement.")
 
     def stop(self):
         logger.info("Signal d'arrêt reçu — fin de la boucle de réconciliation.")
         self._stopping = True
+
+    def _on_sync_requested(self, connector_id: int):
+        """Callback du _SyncListener (signal Redis) — greenlet séparée de la
+        boucle de réconciliation, donc thread-safe côté gevent (coopératif,
+        pas de vrai parallélisme)."""
+        entry = self._running_adapters.get(connector_id)
+        if entry is None:
+            return
+        adapter, _greenlet = entry
+        adapter.force_reconnect()
 
     def _reconcile(self):
         try:
@@ -82,8 +147,16 @@ class CoreConnector:
         for connector_cfg in connectors:
             connector_id = connector_cfg["id"]
             seen_ids.add(connector_id)
+            sync_requested_at = connector_cfg.get("sync_requested_at")
 
             if connector_id in self._running_adapters:
+                # Filet de secours : le signal Redis a pu être manqué (connecteur
+                # en redémarrage au moment de la publication) — détecté ici au
+                # prochain sondage périodique via le changement d'horodatage.
+                if sync_requested_at and sync_requested_at != self._last_sync_requested_at.get(connector_id):
+                    logger.info("Connecteur id=%s : sync_requested_at modifié — reconnexion forcée.", connector_id)
+                    self._on_sync_requested(connector_id)
+                self._last_sync_requested_at[connector_id] = sync_requested_at
                 continue  # déjà en cours — pas de redémarrage sur simple refresh
 
             adapter_cls = ADAPTER_CLASSES.get(connector_cfg["type"])
@@ -98,6 +171,7 @@ class CoreConnector:
             adapter = adapter_cls(connector_cfg, self.ingest_client)
             greenlet = gevent.spawn(adapter.run)
             self._running_adapters[connector_id] = (adapter, greenlet)
+            self._last_sync_requested_at[connector_id] = sync_requested_at
 
         # Connecteurs disparus/désactivés depuis le dernier refresh.
         for connector_id in list(self._running_adapters):
@@ -106,6 +180,16 @@ class CoreConnector:
                 adapter, greenlet = self._running_adapters.pop(connector_id)
                 adapter.stop()
                 greenlet.join(timeout=10)
+                self._last_sync_requested_at.pop(connector_id, None)
+
+    def _send_status_heartbeat(self):
+        if not self._running_adapters:
+            return
+        statuses = {
+            str(connector_id): {"connected": adapter.is_connected, "error": adapter.last_error}
+            for connector_id, (adapter, _greenlet) in self._running_adapters.items()
+        }
+        self.ingest_client.send_status(statuses)
 
     def _stop_all_adapters(self):
         for adapter, greenlet in self._running_adapters.values():
