@@ -27,6 +27,12 @@ export function useTelephonySocket() {
     if (!token) return;
 
     socket = io(`${BACKEND_ORIGIN}/telephony`, {
+      // Doit correspondre exactement au `path=` de socketio.init_app()
+      // (backend/app/__init__.py) — le défaut /socket.io n'est proxifié par
+      // aucune location Nginx (seuls /api et /uploads le sont) et tombe
+      // dans le fallback SPA (index.html), d'où un statut "Déconnecté"
+      // permanent sans la moindre requête n'atteignant jamais le backend.
+      path: "/api/socket.io",
       query: { token },
       transports: ["websocket"],
     });

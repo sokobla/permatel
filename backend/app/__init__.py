@@ -70,6 +70,12 @@ def create_app(config_object=None):
         cors_allowed_origins=app.config.get('CORS_ORIGINS', "*"),
         message_queue=app.config.get('REDIS_URL') or None,
         async_mode=app.config.get('SOCKETIO_ASYNC_MODE', 'threading'),
+        # Sous /api pour rester same-origin avec le reste de l'app (Nginx ne
+        # proxifie que /api et /uploads vers le backend — un chemin par
+        # défaut /socket.io tomberait dans le fallback SPA et ne joindrait
+        # jamais le backend). Le client (useTelephonySocket.js) doit utiliser
+        # exactement le même chemin.
+        path='/api/socket.io',
     )
     from app.sockets.telephony import TelephonyNamespace
     socketio.on_namespace(TelephonyNamespace("/telephony"))
