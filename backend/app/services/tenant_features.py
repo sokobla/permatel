@@ -11,9 +11,13 @@ Règles :
   - Onglet CHAT      : visible ssi canal chat (disponibilité simple).
   - Intégrations     : disponible ssi canal chat OU téléphonie.
     - Slack          : ssi canal chat.
-    - Téléphonie     : ssi canal téléphonie.
+    - Téléphonie     : ssi canal téléphonie ET au moins un rattachement PBX
+                        configuré pour ce tenant (pbx_domains_tenants) —
+                        avant Phase 11, ce flag n'avait aucune config
+                        derrière ; il reflète maintenant un état réel.
 """
 from app.models.setting import SmtpSetting
+from app.models.pbx import PbxDomainTenant
 
 
 def tenant_features(tenant) -> dict:
@@ -28,11 +32,16 @@ def tenant_features(tenant) -> dict:
     imap_configured = bool(cfg and cfg.imap_host and cfg.inbound_enabled)
     mail_ready = ch["email"] and smtp_configured and imap_configured
 
+    telephony_configured = bool(
+        PbxDomainTenant.query.filter_by(tenant_id=tenant.id).first()
+    )
+
     return {
         "channels": ch,
         "config_state": {
             "smtp_configured": smtp_configured,
             "imap_configured": imap_configured,
+            "telephony_configured": telephony_configured,
         },
         "workspace_tabs": {
             "workspace": True,
@@ -45,9 +54,10 @@ def tenant_features(tenant) -> dict:
             "imap": ch["email"],
             "reference": True,
             "integrations": ch["chat"] or ch["telephonie"],
+            "telephony": ch["telephonie"],
         },
         "integrations": {
             "slack": ch["chat"],
-            "telephony": ch["telephonie"],
+            "telephony": ch["telephonie"] and telephony_configured,
         },
     }

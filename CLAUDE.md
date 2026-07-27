@@ -8,6 +8,8 @@ PERMATEL is a full-stack multi-tenant SaaS for managing security-agent operation
 
 > The root `README.md`, `PROJECT_STRUCTURE.md`, and `DATABASE_SCHEMA.md` are long-running changelog-style docs and contain **stale/contradictory sections** (older content wasn't deleted when new changelog entries were prepended, so "à implémenter" markers coexist with features that are actually shipped). Treat their changelog headers as the most reliable part; verify implementation status against the actual code (`backend/app/routes/`, `backend/app/models/`) rather than trusting the prose tables.
 
+> `AUDIT_PERMATEL.md`, `ODOO_INTEGRATION_PLAN.md`, `TELEPHONIE_INTEGRATION_PLAN.md`, and `docs/cdc/` are **planning/audit documents, not implementation status** — the Odoo and Téléphonie modules they describe are not built (no `odoo_*`/`pbx_*` tables, no connector process exist yet). One partial exception: `telephony_events` (`backend/app/models/telephony_event.py`) and the `channel_telephonie` tenant flag already exist in the schema but are dormant — no route/service reads or writes them today; don't assume telephony ingestion works because the table is present.
+
 ## Commands
 
 ### Backend (from `backend/`)
@@ -34,7 +36,9 @@ flask superadmin list|create|promote|demote|reset-password|disable|enable
 flask seed-prestataires --tenant-code <CODE> --no-dry-run --yes
 flask seed-agents --tenant-code <CODE> [--prestataire-code <CODE>] --no-dry-run --yes
 ```
-Note: `create_app()` auto-runs migrations/seeding on startup (empty DB → `db.create_all()` + seed; existing DB → `flask db upgrade heads` if `AUTO_MIGRATE` is set) — this runs every time the app factory is invoked, including under `pytest` against the in-memory SQLite test DB.
+Note: `create_app()` auto-runs migrations/seeding on startup (empty DB → `db.create_all()` + seed; existing DB → `flask db upgrade heads` if `AUTO_MIGRATE` is set) — this runs every time the app factory is invoked, including under `pytest` against the in-memory SQLite test DB. Guarded by a Postgres advisory lock (no-op under SQLite) so concurrent Gunicorn workers don't race the same migration/seed on startup.
+
+Redis (`REDIS_URL` config var) backs the login anti-brute-force counter (`app/utils/login_throttle.py`) with a graceful in-memory fallback if unset/unreachable — required in multi-worker production so the lockout threshold isn't diluted per-worker; optional for local dev.
 
 ### Frontend (from `frontend/`)
 ```bash
@@ -45,7 +49,7 @@ npm run lint      # eslint . --ext .js,.vue
 ```
 
 ### Docker / production
-`docker-compose.yml` is production-oriented (Traefik + Gunicorn + Nginx, hardened). Local day-to-day dev is `flask run` + `npm run dev`, not Docker. See README.md § Déploiement for the full TLS/secrets/cron runbook and the `/dockerdeploy` skill for the pre-flight checklist (gitlinks, UTF-16 requirements.txt, Traefik Docker API version, etc.) before deploying.
+`docker-compose.yml` is production-oriented (Gunicorn + Nginx + Postgres + Redis, hardened). **Traefik is not part of this compose file** — it's a separate, shared reverse-proxy stack (`traefik/docker-compose.yml`, see `traefik/README.md`) meant to run once per server and front multiple applications via the external `traefik_public` Docker network; PERMATEL's `frontend` container just joins that network and carries `traefik.*` labels. Local day-to-day dev is `flask run` + `npm run dev`, not Docker. See README.md § Déploiement for the full TLS/secrets/cron runbook and the `/dockerdeploy` skill for the pre-flight checklist (gitlinks, UTF-16 requirements.txt, Traefik Docker API version, etc.) before deploying.
 
 ## Architecture
 
@@ -63,7 +67,8 @@ Shared database, shared schema, isolation by `tenant_id` column (UUID PK on `ten
 - `models/` — one file per SQLAlchemy model. `demande.py` implements **single-table inheritance**: `Demande` is the polymorphic base (discriminator `type_demande`), with `DemandeAnomalie`/`DemandeCommande`/`DemandePlanning`/`DemandeAdmin` subclasses adding type-specific columns on the same table.
 - `routes/` — one Flask blueprint per resource, registered in `__init__.py`. Business routes are wrapped with `@tenant_required`/`@tenant_admin_required`; `auth.py` and `support.py` are pre-auth/public.
 - `services/` — cross-cutting business logic that doesn't belong to a single route: `tenant_features.py` (derives which Workspace tabs/config sections a tenant sees from its `channel_telephonie/email/chat` flags), `agent_kpis.py` (anomaly-vs-incident scoring per agent), `sla.py`, `notifications.py`, `reencrypt.py` (re-encrypts Fernet-sealed secrets after a key rotation).
-- `utils/` — `decorators.py` (tenant context, above), `crypto.py` (Fernet encryption for SMTP/IMAP secrets + email content/attachments — key is `SETTINGS_ENCRYPTION_KEY`, must stay stable in prod or encrypted data becomes unreadable), `login_throttle.py` (anti-brute-force on `/auth/login`), `mailer.py`, `invitations.py`.
+- `utils/` — `decorators.py` (tenant context, above), `crypto.py` (Fernet encryption; two patterns coexist: manual `encrypt_secret()`/`decrypt_secret()` used by `SmtpSetting`, and the `EncryptedText` SQLAlchemy `TypeDecorator` used transparently on `Email.subject/body_text/body_html` — prefer `EncryptedText` for new encrypted columns, key is `SETTINGS_ENCRYPTION_KEY`, must stay stable in prod or encrypted data becomes unreadable, `services/reencrypt.py` handles key rotation), `login_throttle.py` (anti-brute-force on `/auth/login`, Redis-backed with in-memory fallback), `mailer.py`, `invitations.py`.
+- Migration convention: French docstring explaining intent, explicit data-safety guards (abort with offending IDs rather than silently dropping/guessing on a NOT NULL tightening or new FK — see `a3178519ad55_tenant_id_not_null_clients_sites.py`), and a standing preference for `String` over native Postgres `ENUM` on any column expected to grow new values (`c5e10bf50c26_use_varchar_for_enums.py` converted several columns for exactly this reason — follow suit for new status/type columns rather than reaching for `Enum`).
 - `scripts/` — CLI-invoked one-off/maintenance scripts (seeding, session sweep, mail fetch, superadmin management), wired into `app.cli` from `__init__.py`.
 - Auth: JWT via Flask-JWT-Extended; access token carries `role` (global `UserRole`: PERMANENCIER/MANAGER/ADMIN) and `tid` (active tenant UUID); revocation via `token_blocklist` table checked in `@jwt.token_in_blocklist_loader`; `user_sessions` tracks JTI/IP/user-agent/status (`active/paused/ended/expired/revoked`).
 
@@ -76,4 +81,4 @@ Shared database, shared schema, isolation by `tenant_id` column (UUID PK on `ten
 - `router/index.js` — route guards layered in order: auth required → tenant-selection required (if user belongs to >1 tenant and none active) → `meta.roles` check (`ALL`/`STAFF`/`ADMIN` role sets) → `meta.requiresMemberAdmin` (tenant-admin capability) before entering a route.
 
 ### Testing
-pytest against SQLite in-memory (`TestingConfig`), fixtures in `backend/tests/conftest.py` provide `default_tenant`, role-specific users (`user_permanencier/manager/admin/inactive`), `agent_securite`, and JWT helpers (`tokens_permanencier`, `auth_headers`, `refresh_headers`). `test_isolation.py` specifically covers cross-tenant access rejection — extend it when adding new tenant-scoped resources.
+pytest against SQLite in-memory (`TestingConfig`), fixtures in `backend/tests/conftest.py` provide `default_tenant`, role-specific users (`user_permanencier/manager/admin/inactive`), `agent_securite`, and per-role JWT helpers (`tokens_permanencier`/`auth_headers`, `tokens_manager`/`auth_headers_manager`, `tokens_admin`/`auth_headers_admin`, `refresh_headers`) — match the fixture to the route's actual `@role_required`, since e.g. `/api/users` and `/api/contacts` DELETE are ADMIN-only and will 403 under the default `auth_headers` (PERMANENCIER). Note the global-ADMIN quirk: unlike a single-tenant standard user, ADMIN is *never* auto-selected into a tenant at login (even with only one accessible), so `tokens_admin` must explicitly call `/api/auth/select-tenant` to get a token carrying `tid` before hitting any `@tenant_required` route. `test_isolation.py` specifically covers cross-tenant access rejection — extend it when adding new tenant-scoped resources.

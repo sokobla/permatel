@@ -34,6 +34,7 @@ class Tenant(Base):
     agents_securite = relationship("AgentSecurite", back_populates="tenant")
     contacts = relationship("Contact", back_populates="tenant")
     telephony_events = relationship("TelephonyEvent", back_populates="tenant")
+    pbx_domains = relationship("PbxDomainTenant", back_populates="tenant")
 
     def __repr__(self):
         return f"<Tenant {self.code} - {self.nom}>"

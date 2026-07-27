@@ -52,7 +52,18 @@ class BaseConfig:
     # multi-worker Gunicorn — sans Redis le seuil de verrouillage est dilué
     # par le nombre de workers). Repli sur un compteur en mémoire si absent.
     REDIS_URL = os.environ.get("REDIS_URL")
-    
+    # Jeton technique partagé attendu sur l'en-tête X-Connector-Token par
+    # POST /api/telephony/events/ingest (le connecteur PBX n'est pas un
+    # utilisateur PERMATEL, pas d'authentification JWT sur cet endpoint).
+    TELEPHONY_CONNECTOR_TOKEN = os.environ.get("TELEPHONY_CONNECTOR_TOKEN")
+    # Mode async Flask-SocketIO. "threading" par défaut : évite qu'Engine.IO
+    # importe (donc monkey-patche) eventlet au simple chargement de l'app —
+    # utile en dev/tests (pytest, `flask run`) où rien n'a pré-patché le
+    # process. En production, GUNICORN_WORKER_CLASS=eventlet fait tourner le
+    # worker Gunicorn sous eventlet (patché avant l'import de l'app) : y
+    # positionner SOCKETIO_ASYNC_MODE=eventlet dans l'environnement.
+    SOCKETIO_ASYNC_MODE = os.environ.get("SOCKETIO_ASYNC_MODE", "threading")
+
     # Base de données PostgreSQL
     DB_USER = os.environ.get('DB_USER', 'postgres')
     DB_PASSWORD = os.environ.get('DB_PASSWORD', 'postgres')
@@ -121,6 +132,7 @@ class TestingConfig(BaseConfig):
     # max_overflow/pool_timeout (options QueuePool, spécifiques à Postgres).
     SQLALCHEMY_ENGINE_OPTIONS = {}
     SQLALCHEMY_ECHO = False
+    TELEPHONY_CONNECTOR_TOKEN = "test-connector-token"
 
 
 

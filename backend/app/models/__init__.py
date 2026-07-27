@@ -25,7 +25,8 @@ from .fichier import Fichier
 from .audit_log import AuditLog, AuditAction
 from .token_blocklist import TokenBlocklist
 from .user_session import UserSession, SessionStatus
-from .telephony_event import TelephonyEvent, EventType
+from .telephony_event import TelephonyEvent
+from .pbx import PbxConnector, PbxDomainTenant, PBX_TYPES
 from .tenant import Tenant
 from .tenant_user import TenantUser, MEMBERSHIP_ADMIN, MEMBERSHIP_MEMBER
 from .tenant_invitation import TenantInvitation
@@ -67,8 +68,9 @@ __all__ = [
     'AuditLog', 'AuditAction',
     'TokenBlocklist',
     'UserSession', 'SessionStatus',
-    'TelephonyEvent', 'EventType',
-    
+    'TelephonyEvent',
+    'PbxConnector', 'PbxDomainTenant', 'PBX_TYPES',
+
     # Prestataires
     'Prestataire'
 ]

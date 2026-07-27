@@ -14,6 +14,11 @@ set -eu
 
 GUNICORN_WORKERS="${GUNICORN_WORKERS:-3}"
 GUNICORN_TIMEOUT="${GUNICORN_TIMEOUT:-60}"
+# eventlet : requis pour les connexions WebSocket persistantes (module Téléphonie,
+# Phase 11bis) — un worker "sync" bloque un connexion WebSocket entière.
+# Le worker eventlet de Gunicorn monkey-patche automatiquement (I/O réseau, psycopg2
+# via son sous-module socket) avant l'import de l'app — aucun patch applicatif requis.
+GUNICORN_WORKER_CLASS="${GUNICORN_WORKER_CLASS:-eventlet}"
 
 echo "[entrypoint] Attente de la base de données…"
 python - <<'PY'
@@ -37,9 +42,10 @@ flask db upgrade heads
 echo "[entrypoint] Amorce (tenant Root + admin global, idempotent)…"
 flask seed
 
-echo "[entrypoint] Démarrage de Gunicorn (workers=${GUNICORN_WORKERS})…"
+echo "[entrypoint] Démarrage de Gunicorn (workers=${GUNICORN_WORKERS}, worker-class=${GUNICORN_WORKER_CLASS})…"
 exec gunicorn \
   --workers "${GUNICORN_WORKERS}" \
+  --worker-class "${GUNICORN_WORKER_CLASS}" \
   --bind 0.0.0.0:5000 \
   --timeout "${GUNICORN_TIMEOUT}" \
   --access-logfile - \

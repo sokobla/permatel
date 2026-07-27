@@ -1,10 +1,28 @@
 # third-party imports
 import os
+
+# psycopg2 (driver Postgres, extension C) fait ses appels réseau via libpq,
+# hors du module `socket` Python — le monkey-patch automatique du worker
+# Gunicorn "eventlet" (qui ne patche que les sockets Python) NE le rend PAS
+# coopératif. Sans ce patch dédié, un seul appel psycopg2 bloque tout le
+# worker (toutes les greenlets), gelant les autres requêtes concurrentes —
+# constaté empiriquement lors du test de charge Phase 11bis (timeouts
+# systématiques ~10s sous charge REST+WS concurrente). Best-effort : no-op
+# si eventlet n'a pas monkey-patché le process (dev/tests, mode "threading").
+try:
+    import eventlet
+    if eventlet.patcher.is_monkey_patched("socket"):
+        from eventlet.support import psycopg2_patcher
+        psycopg2_patcher.make_psycopg_green()
+except ImportError:
+    pass
+
 import click
 from flask_cors import CORS
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
+from flask_socketio import SocketIO
 from flask.cli import with_appcontext
 
 # local imports
@@ -15,6 +33,11 @@ from .config import BaseConfig, DevelopmentConfig, ProductionConfig, TestingConf
 db = SQLAlchemy()
 jwt = JWTManager()
 cors = CORS()
+# async_mode volontairement non forcé : Flask-SocketIO détecte eventlet quand
+# le worker Gunicorn "eventlet" l'a monkey-patché au démarrage du process, et
+# retombe sur le mode "threading" sinon (dev local, tests pytest) — cf.
+# TELEPHONIE_INTEGRATION_PLAN.md §2.1 et §4 (Phase 11bis).
+socketio = SocketIO()
 
 def create_app(config_object=None):
     if config_object is None:
@@ -42,6 +65,14 @@ def create_app(config_object=None):
     db.init_app(app)
     jwt.init_app(app)
     cors.init_app(app, origins=app.config.get('CORS_ORIGINS', ["*"]), supports_credentials=True)
+    socketio.init_app(
+        app,
+        cors_allowed_origins=app.config.get('CORS_ORIGINS', "*"),
+        message_queue=app.config.get('REDIS_URL') or None,
+        async_mode=app.config.get('SOCKETIO_ASYNC_MODE', 'threading'),
+    )
+    from app.sockets.telephony import TelephonyNamespace
+    socketio.on_namespace(TelephonyNamespace("/telephony"))
 
     Migrate(app, db)
     from app import models  # Importer les modeles pour que Flask-Migrate puisse les detecter
@@ -293,6 +324,9 @@ def create_app(config_object=None):
 
     from app.routes.prises_de_service import prises_de_service_bp
     app.register_blueprint(prises_de_service_bp)
+
+    from app.routes.telephony import telephony_bp
+    app.register_blueprint(telephony_bp)
 
 
 

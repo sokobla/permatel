@@ -1,8 +1,15 @@
 # PERMATEL - Gestion Intégrée de Demandes et Sessions
 
-**Version** : 1.5.0  
-**Dernière mise à jour** : 25 juin 2026  
-**Statut** : Backend ✅ / Frontend ✅ | **Tests** : 160 ✅
+**Version** : 1.6.0  
+**Dernière mise à jour** : 27 juillet 2026  
+**Statut** : Backend ✅ / Frontend ✅ | **Tests** : 188 ✅
+
+### Changelog v1.6.0 (27 juillet 2026)
+- ☎️ **Module Téléphonie — Phase 11 (fondations backend)** : tables `pbx_connectors` / `pbx_domains_tenants` (identifiants chiffrés `EncryptedText`), extension de `telephony_events` (existait déjà mais dormante — `event_type` élargi en `String`, ajout `pbx_connector_id`/`call_direction`/`callee_number`/`agent_login`/`queue_id`/`recording_url`/`raw_payload`). Routes `/api/telephony` : ingestion (`POST /events/ingest`, auth `X-Connector-Token` dédiée — un seul connecteur global orchestrant plusieurs `PBXAdapter`), lecture temps réel (`/active-calls`, `/kpis/*`), CRUD connecteurs (ADMIN global) et réglages tenant. `config_state.telephony_configured` dans `GET /api/tenant/features`. 16 nouveaux tests.
+- 🔌 **Module Téléphonie — Phase 11bis (infra WebSocket)** : ajout `flask-socketio` + worker Gunicorn `eventlet` (`GUNICORN_WORKER_CLASS`, configurable), namespace Socket.IO `/telephony` (auth JWT en query string, *room* par tenant), Redis en *message queue* Socket.IO pour la compatibilité multi-worker. **Validé par un test de charge réel** (stack Docker Python 3.11, hors simulation) : deux bugs détectés et corrigés (incompatibilité `flask-socketio==5.4.1`/Flask 3.1 → `flask-socketio==5.6.1` ; psycopg2 rendu coopératif sous eventlet via `eventlet.support.psycopg2_patcher`) ; connexions WebSocket validées stables (20/20) y compris sous charge REST concurrente CPU-bound — détails dans `TELEPHONIE_INTEGRATION_PLAN.md` §7.
+- 📄 **Planification** : `ODOO_INTEGRATION_PLAN.md` (intégration ERP Odoo — hybride sync + file de retry `odoo_sync_queue`, client `xmlrpc.client`) et `TELEPHONIE_INTEGRATION_PLAN.md` (phasage 11 à 14), cahiers des charges sources dans `docs/cdc/`. Suivi détaillé tâche-par-tâche dans `docs/suivi_taches_permatel.xlsx`.
+- 🌐 **Traefik mutualisé** : le reverse-proxy TLS est désormais un stack **partagé** et **externe** (`traefik/`), démarré une seule fois par serveur et mutualisable avec d'autres applications — `docker-compose.yml` de PERMATEL ne démarre plus son propre Traefik, le conteneur `frontend` rejoint simplement le réseau externe `traefik_public`.
+- 🔐 **Durcissement sécurité / performance (audit)** : verrou advisory Postgres au démarrage (migrations/seed concurrents multi-worker), anti-brute-force login **Redis** (compteur partagé multi-worker, repli mémoire local), tuning du pool de connexions SQLAlchemy, nettoyage d'index, en-tête CSP, exceptions applicatives resserrées. Détails dans `AUDIT_PERMATEL.md`.
 
 ### Changelog v1.5.0 (25 juin 2026)
 - 🚀 **Seeding & Import Avancé (CLI)** :

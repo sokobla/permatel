@@ -1,6 +1,36 @@
 # Permatel - Architecture et Structure du Projet
 
-**Version** : 1.4.0 | **Statut** : Backend ✅ / Frontend ✅ | **Tests** : 160 ✅
+**Version** : 1.4.0 | **Statut** : Backend ✅ / Frontend ✅ | **Tests** : 172 ✅
+
+### 🚧 TODO planifié — Intégration Odoo (add-on activable par tenant, non démarré)
+> Plan détaillé : [`ODOO_INTEGRATION_PLAN.md`](ODOO_INTEGRATION_PLAN.md) · Suivi tâche-par-tâche : `docs/suivi_taches_permatel.xlsx` (Phases 6-10).
+
+Intégration d'Odoo 18 Community comme service ERP additionnel (CRM/Vente,
+Facturation, Planning RH), activable par tenant via un flag `integrations.erp`
+(même mécanisme que `channel_telephonie/email/chat`), jamais bloquant pour
+PERMATEL. Décisions actées : orchestration hybride (tentative synchrone +
+file de retry `odoo_sync_queue` + cron, **pas de Celery**), client
+`xmlrpc.client` (stdlib, pas de dépendance ajoutée). Phasage : 6 (fondations)
+→ 7 (infra + partenaires F1) → 8 (commande→devis F2/F4) → 9 (vacation→temps
+F3) → 10 (planning agents F5). **Aucune implémentation lancée à ce stade.**
+
+### 🚧 TODO planifié — Module Téléphonie (collecte ESL/AMI + supervision, non démarré)
+> Plan détaillé : [`TELEPHONIE_INTEGRATION_PLAN.md`](TELEPHONIE_INTEGRATION_PLAN.md) · CDC : [`docs/cdc/CDC-Module-Telephonie.md`](docs/cdc/CDC-Module-Telephonie.md) · Suivi tâche-par-tâche : `docs/suivi_taches_permatel.xlsx` (Phases 11-14).
+
+Collecte/standardisation/historisation des événements de téléphonie agents
+(FusionPBX phase 1, Asterisk phase 2), activable par tenant via
+`channel_telephonie` (existait déjà comme flag cosmétique — active désormais
+un vrai état de config via `pbx_domains_tenants`). La table `telephony_events`
+existait déjà mais dormante (posée, non alimentée) : **étendue par migration
+(non recréée)**. Décisions actées : `event_type`/`call_status` en `String`
+(pas enum Postgres, cohérent avec `use_varchar_for_enums`), **supervision en
+WebSocket** (namespace `/telephony`, Flask-SocketIO + worker Gunicorn
+`eventlet`/`gevent` + Redis comme message queue multi-worker — changement
+d'infra explicite, phase 11bis dédiée). Phasage : **11 (fondations backend) ✅
+implémenté** (`routes/telephony.py` : ingestion, KPIs, appels actifs, CRUD
+connecteurs PBX, réglages tenant ; 16 tests, 188/188 verts) → 11bis (infra
+WebSocket) → 12 (connecteur FusionPBX/ESL) → 13 (supervision frontend) → 14
+(connecteur Asterisk/AMI), ces 4 dernières phases non démarrées.
 
 ### Changelog v1.4.0 (22 juin 2026)
 > ⚠️ Les sections détaillées plus bas datent de v1.1.0 (mai 2026). Les changelogs font foi pour l'état courant.
