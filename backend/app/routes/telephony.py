@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, current_app, g, jsonify, request
 from flask_cors import CORS
 
-from app import db
+from app import db, socketio
 from app.models import PbxConnector, PbxConnectorDomain, TelephonyEvent
 from app.utils.decorators import tenant_admin_required, tenant_required
 
@@ -213,6 +213,19 @@ def ingest_event():
     )
     db.session.add(event)
     db.session.commit()
+
+    # Diffusion temps réel vers les superviseurs connectés du tenant
+    # (namespace /telephony, room = tenant_id — cf. app/sockets/telephony.py).
+    # Best-effort : une panne de diffusion ne doit jamais faire échouer
+    # l'ingestion elle-même (l'événement reste persisté et consultable après
+    # coup dans tous les cas).
+    try:
+        socketio.emit(
+            "telephony_event", event.to_dict(),
+            room=str(event.tenant_id), namespace="/telephony",
+        )
+    except Exception:
+        current_app.logger.exception("Échec de diffusion WebSocket de l'événement téléphonie")
 
     return jsonify({"id": event.id, "message": "Événement enregistré."}), 201
 

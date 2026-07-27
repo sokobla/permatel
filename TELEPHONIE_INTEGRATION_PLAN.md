@@ -1,6 +1,6 @@
 # PERMATEL — Module Téléphonie : Plan d'intégration
 
-**Statut** : Phases 11 et 11bis implémentées et validées (197/197 tests backend, test de charge Docker réel — §7). **Phase 12 implémentée** (Core Connector ESL, connecteur **tenant-scopé** revu en cours de route — §8.4, Sync temps réel via Redis) — validation contre un FusionPBX réel restant à faire (§8.3). Phases 13-14 non démarrées.
+**Statut** : Phases 11 et 11bis implémentées et validées (197/197 tests backend, test de charge Docker réel — §7). **Phase 12 implémentée** (Core Connector ESL, connecteur **tenant-scopé** revu en cours de route — §8.4, Sync temps réel via Redis), **connecté en production** à un FusionPBX réel (`fusion.cloud228.com`) — validation des en-têtes réels contre `normalizer.py` en cours, un écart déjà confirmé (`Hangup-Cause: WRONG_CALL_STATE` non catégorisé), voir §8.3. Tâche 11bis.4 (diffusion WebSocket à l'ingestion) complétée + panneau live filtrable dans `Paramètres > Téléphonie` (`useTelephonySocket`, en avance sur la Phase 13). Phases 13 (reste : vue de supervision dédiée)-14 non démarrées.
 **Date** : 27 juillet 2026
 **Source** : `docs/cdc/CDC-Module-Telephonie.md` (v1.0, 27 juillet 2026)
 **Suivi des tâches** : `docs/suivi_taches_permatel.xlsx` (Phases 11 à 14)

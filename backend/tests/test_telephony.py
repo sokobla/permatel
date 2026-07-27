@@ -1,5 +1,6 @@
 import pytest
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
 from app.models import PbxConnector, PbxConnectorDomain, TelephonyEvent
 from app.models.tenant import Tenant
@@ -90,6 +91,33 @@ class TestIngestEvent:
         assert event.agent_login == "agent01"
         assert event.queue_id == "queue-support"
         assert event.raw_payload == payload
+
+    def test_ingest_diffuse_sur_le_websocket_du_tenant(self, client, db, pbx_domain, default_tenant):
+        payload = {
+            "event_type": "CHANNEL_ANSWER",
+            "pbx_domain": pbx_domain.pbx_domain,
+            "call": {"id": "call-uuid-ws", "status": "answered"},
+        }
+        with patch("app.routes.telephony.socketio.emit") as emit_mock:
+            resp = client.post("/api/telephony/events/ingest", json=payload, headers=CONNECTOR_TOKEN_HEADERS)
+        assert resp.status_code == 201
+
+        emit_mock.assert_called_once()
+        args, kwargs = emit_mock.call_args
+        assert args[0] == "telephony_event"
+        assert args[1]["call_uuid"] == "call-uuid-ws"
+        assert kwargs["room"] == str(default_tenant.id)
+        assert kwargs["namespace"] == "/telephony"
+
+    def test_ingest_reussit_meme_si_la_diffusion_websocket_echoue(self, client, db, pbx_domain):
+        payload = {
+            "event_type": "CHANNEL_CREATE",
+            "pbx_domain": pbx_domain.pbx_domain,
+            "call": {"id": "call-uuid-ws2", "status": "ringing"},
+        }
+        with patch("app.routes.telephony.socketio.emit", side_effect=RuntimeError("boom")):
+            resp = client.post("/api/telephony/events/ingest", json=payload, headers=CONNECTOR_TOKEN_HEADERS)
+        assert resp.status_code == 201
 
 
 class TestBootstrapConfig:

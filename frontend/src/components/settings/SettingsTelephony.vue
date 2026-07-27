@@ -179,6 +179,165 @@
             >
               Ajouter un domaine
             </v-btn>
+
+            <v-divider class="my-3" />
+
+            <!-- Panneau événements ESL en temps réel (masquable, filtrable) -->
+            <div class="live-head" @click="toggleLivePanel(item.id)">
+              <v-icon
+                size="16"
+                class="live-chevron"
+                :class="{ 'live-chevron--open': isLivePanelOpen(item.id) }"
+              >
+                mdi-chevron-right
+              </v-icon>
+              <span class="live-head__title">
+                <span
+                  class="pulse-dot"
+                  :class="{
+                    'pulse-dot--paused': !socketConnected || livePaused,
+                  }"
+                ></span>
+                Événements ESL en temps réel
+              </span>
+              <v-chip size="x-small" variant="tonal" class="ml-2">
+                {{ connectorEvents(item.id).length }}
+              </v-chip>
+              <v-spacer />
+              <v-chip
+                size="x-small"
+                variant="tonal"
+                :color="socketConnected ? '#22c55e' : '#9aa0aa'"
+                @click.stop
+              >
+                <v-icon start size="8">mdi-circle</v-icon>
+                {{ socketConnected ? "Connecté" : "Déconnecté" }}
+              </v-chip>
+              <v-btn
+                :icon="
+                  isLivePanelOpen(item.id)
+                    ? 'mdi-eye-off-outline'
+                    : 'mdi-eye-outline'
+                "
+                variant="text"
+                size="x-small"
+                :title="
+                  isLivePanelOpen(item.id)
+                    ? 'Masquer ce panneau'
+                    : 'Afficher ce panneau'
+                "
+                @click.stop="toggleLivePanel(item.id)"
+              />
+            </div>
+
+            <div v-if="isLivePanelOpen(item.id)" class="live-body">
+              <div class="live-filters">
+                <v-chip
+                  v-for="def_ in EVENT_TYPE_LIST"
+                  :key="def_.key"
+                  size="small"
+                  variant="tonal"
+                  class="live-filter-chip"
+                  :class="{
+                    'live-filter-chip--active': liveFilters.has(def_.key),
+                  }"
+                  :style="{ '--chip-color': def_.color }"
+                  @click="toggleLiveFilter(def_.key)"
+                >
+                  <span
+                    class="live-filter-chip__swatch"
+                    :style="{ background: def_.color }"
+                  ></span>
+                  {{ def_.label }}
+                  <span class="live-filter-chip__count">{{
+                    eventTypeCount(item.id, def_.key)
+                  }}</span>
+                </v-chip>
+                <v-spacer />
+                <v-btn
+                  size="small"
+                  variant="outlined"
+                  class="text-none"
+                  :prepend-icon="livePaused ? 'mdi-play' : 'mdi-pause'"
+                  @click="togglePause"
+                >
+                  {{ livePaused ? "Reprendre" : "Pause" }}
+                </v-btn>
+                <v-btn
+                  size="small"
+                  variant="outlined"
+                  class="text-none ml-2"
+                  prepend-icon="mdi-broom"
+                  @click="clearLiveEvents"
+                >
+                  Effacer
+                </v-btn>
+              </div>
+
+              <div class="live-feed-wrap">
+                <table class="live-feed">
+                  <thead>
+                    <tr>
+                      <th>Heure</th>
+                      <th>Événement</th>
+                      <th>Appel / File</th>
+                      <th>Statut</th>
+                      <th>UUID</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-if="connectorEvents(item.id).length === 0">
+                      <td colspan="5" class="tel-muted live-empty">
+                        En attente du prochain événement PBX…
+                      </td>
+                    </tr>
+                    <tr
+                      v-for="e in connectorEvents(item.id)"
+                      :key="e._receivedAt + (e.call_uuid || '')"
+                    >
+                      <td class="tel-mono live-time">
+                        {{ formatTime(e._receivedAt) }}
+                      </td>
+                      <td>
+                        <span
+                          class="live-ev-badge"
+                          :style="{
+                            color: eventTypeMeta(e.event_type).color,
+                            background:
+                              eventTypeMeta(e.event_type).color + '1f',
+                          }"
+                        >
+                          <span
+                            class="live-filter-chip__swatch"
+                            :style="{
+                              background: eventTypeMeta(e.event_type).color,
+                            }"
+                          ></span>
+                          {{ eventTypeMeta(e.event_type).label }}
+                        </span>
+                      </td>
+                      <td>
+                        <span v-if="e.caller || e.callee"
+                          >{{ e.caller || "?" }} → {{ e.callee || "?" }}</span
+                        >
+                        <span v-else-if="e.queue_id"
+                          >file {{ e.queue_id }}</span
+                        >
+                        <span v-else class="tel-muted">—</span>
+                      </td>
+                      <td class="tel-muted">
+                        {{
+                          STATUS_LABEL[e.call_status] || e.call_status || "—"
+                        }}
+                      </td>
+                      <td class="tel-mono live-uuid">
+                        {{ (e.call_uuid || "").slice(0, 13) }}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </td>
         </tr>
       </template>
@@ -338,14 +497,95 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, onMounted, onUnmounted } from "vue";
 import apiClient from "@/services/http/axios";
+import { useTelephonySocket } from "@/composables/useTelephonySocket";
 
 const connectors = ref([]);
 const domainsByConnector = reactive({});
 const expanded = ref([]);
 const loading = ref(false);
 const feedback = reactive({ text: "", type: "success" });
+
+// ── Événements ESL en temps réel (namespace /telephony, room = tenant) ────
+const telephonySocket = useTelephonySocket();
+const socketConnected = telephonySocket.connected;
+const livePaused = ref(false);
+const pausedSnapshot = ref(null); // copie figée de telephonySocket.events pendant la pause
+const openLivePanels = reactive({}); // connector.id -> bool, replié par défaut
+
+const EVENT_TYPE_LIST = [
+  { key: "CHANNEL_CREATE", label: "Création", color: "#f59e0b" },
+  { key: "CHANNEL_PROGRESS_MEDIA", label: "Sonnerie", color: "#0ea5e9" },
+  { key: "CHANNEL_ANSWER", label: "Décroché", color: "#22c55e" },
+  { key: "CHANNEL_HANGUP_COMPLETE", label: "Raccroché", color: "#6b7280" },
+  { key: "CALLCENTER_QUEUE_ENTER", label: "Entrée file", color: "#8b5cf6" },
+  {
+    key: "CALLCENTER_AGENT_STATE_CHANGE",
+    label: "État agent",
+    color: "#00a8a8",
+  },
+];
+const EVENT_TYPE_MAP = Object.fromEntries(
+  EVENT_TYPE_LIST.map((d) => [d.key, d]),
+);
+const liveFilters = reactive(new Set(EVENT_TYPE_LIST.map((d) => d.key)));
+
+const STATUS_LABEL = {
+  ringing: "En sonnerie",
+  early_media: "Pré-décroché",
+  answered: "En cours",
+  ended: "Terminé",
+  missed: "Manqué",
+  on_hold: "En attente",
+  abandoned: "Abandonné",
+  technical_failure: "Échec technique",
+};
+
+function eventTypeMeta(type) {
+  return EVENT_TYPE_MAP[type] || { label: type || "?", color: "#9aa0aa" };
+}
+function isLivePanelOpen(connectorId) {
+  return !!openLivePanels[connectorId];
+}
+function toggleLivePanel(connectorId) {
+  openLivePanels[connectorId] = !openLivePanels[connectorId];
+}
+function toggleLiveFilter(key) {
+  if (liveFilters.has(key)) liveFilters.delete(key);
+  else liveFilters.add(key);
+}
+function clearLiveEvents() {
+  telephonySocket.clear();
+  pausedSnapshot.value = livePaused.value ? [] : null;
+}
+function togglePause() {
+  pausedSnapshot.value = livePaused.value
+    ? null
+    : telephonySocket.events.value.slice();
+  livePaused.value = !livePaused.value;
+}
+function connectorEvents(connectorId) {
+  const source =
+    livePaused.value && pausedSnapshot.value
+      ? pausedSnapshot.value
+      : telephonySocket.events.value;
+  return source
+    .filter(
+      (e) =>
+        e.pbx_connector_id === connectorId && liveFilters.has(e.event_type),
+    )
+    .slice()
+    .reverse();
+}
+function eventTypeCount(connectorId, key) {
+  return telephonySocket.events.value.filter(
+    (e) => e.pbx_connector_id === connectorId && e.event_type === key,
+  ).length;
+}
+function formatTime(ts) {
+  return new Date(ts).toLocaleTimeString("fr-FR", { hour12: false });
+}
 
 const headers = [
   { title: "Nom", key: "name" },
@@ -610,7 +850,13 @@ async function removeDomain(connector, domain) {
   }
 }
 
-onMounted(fetchConnectors);
+onMounted(() => {
+  fetchConnectors();
+  telephonySocket.connect();
+});
+onUnmounted(() => {
+  telephonySocket.disconnect();
+});
 </script>
 
 <style scoped>
@@ -728,5 +974,150 @@ onMounted(fetchConnectors);
 .tel-domains-table__actions {
   white-space: nowrap;
   text-align: right;
+}
+
+/* ── Événements ESL en temps réel ── */
+.live-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  padding: 6px 4px;
+  border-radius: 6px;
+}
+.live-head:hover {
+  background: #eef0f3;
+}
+.live-chevron {
+  color: #9aa0aa;
+  transition: transform 0.18s ease;
+}
+.live-chevron--open {
+  transform: rotate(90deg);
+}
+.live-head__title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #1a1a2e;
+}
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+  animation: tel-pulse 1.8s infinite;
+}
+.pulse-dot--paused {
+  background: #9aa0aa;
+  animation: none;
+}
+@keyframes tel-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+.live-body {
+  margin-top: 8px;
+}
+.live-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  background: #fafafa;
+  border: 1px solid #eceef1;
+  border-radius: 8px 8px 0 0;
+  border-bottom: none;
+}
+.live-filter-chip {
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+.live-filter-chip--active {
+  opacity: 1;
+  color: var(--chip-color);
+}
+.live-filter-chip__swatch {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+.live-filter-chip__count {
+  font-family: "Fira Code", ui-monospace, monospace;
+  font-size: 10px;
+  opacity: 0.75;
+  margin-left: 4px;
+}
+
+.live-feed-wrap {
+  max-height: 260px;
+  overflow-y: auto;
+  overflow-x: auto;
+  border: 1px solid #eceef1;
+  border-radius: 0 0 8px 8px;
+}
+.live-feed {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+.live-feed thead th {
+  position: sticky;
+  top: 0;
+  text-align: left;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #9aa0aa;
+  background: #fff;
+  padding: 6px 8px;
+  border-bottom: 1px solid #eceef1;
+  white-space: nowrap;
+}
+.live-feed tbody tr {
+  border-bottom: 1px solid #f2f2f2;
+}
+.live-feed td {
+  padding: 5px 8px;
+  vertical-align: middle;
+}
+.live-time {
+  color: #9aa0aa;
+  white-space: nowrap;
+  font-size: 10.5px;
+}
+.live-uuid {
+  color: #9aa0aa;
+  font-size: 10px;
+}
+.live-empty {
+  text-align: center;
+  padding: 20px 8px !important;
+}
+.live-ev-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
 }
 </style>
