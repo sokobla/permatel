@@ -6,6 +6,7 @@ export function useSites() {
   const sites = ref([]);
   const totalSites = ref(0);
   const loading = ref(true);
+  const listError = ref(null);
   const submissionLoading = ref(false);
   const submissionError = ref(null);
   const submissionSuccess = ref(false);
@@ -23,6 +24,7 @@ export function useSites() {
 
   const loadSites = async () => {
     loading.value = true;
+    listError.value = null;
     try {
       const params = {
         page: page.value,
@@ -38,6 +40,8 @@ export function useSites() {
       totalSites.value = response.data.total;
     } catch (error) {
       console.error("Erreur lors du chargement des sites:", error);
+      listError.value =
+        error.response?.data?.error || "Erreur lors du chargement des sites.";
       sites.value = [];
       totalSites.value = 0;
     } finally {
@@ -130,6 +134,7 @@ export function useSites() {
     sites,
     totalSites,
     loading,
+    listError,
     submissionLoading,
     submissionError,
     submissionSuccess,

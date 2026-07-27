@@ -522,7 +522,6 @@ const {
   page,
   totalPages,
   loadClients,
-  goToPage,
   onSearchInput,
   onTableOptions,
   createClient,
@@ -789,6 +788,10 @@ const visiblePages = computed(() => {
   for (let i = start; i <= end; i++) res.push(i);
   return res;
 });
+
+const goToPage = (p) => {
+  page.value = p;
+};
 </script>
 
 <style>

@@ -547,7 +547,7 @@ const {
   loading,
   submissionLoading,
   submissionError,
-  listError, // Assuming this will be added to the composable
+  listError,
   submissionSuccess,
   searchQuery,
   statusFilter,
@@ -556,7 +556,6 @@ const {
   page,
   totalPages,
   loadSites,
-  goToPage,
   onSearchInput,
   onTableOptions,
   createSite,
@@ -687,6 +686,10 @@ const visiblePages = computed(() => {
   for (let i = start; i <= end; i++) res.push(i);
   return res;
 });
+
+const goToPage = (p) => {
+  page.value = p;
+};
 
 const openCreatePanel = () => {
   resetForm();

@@ -491,8 +491,6 @@ const {
   statusFilter,
   loadPartners,
   totalPages,
-  visiblePages,
-  goToPage,
   onSearchInput,
   onTableOptions,
   createPartner,
@@ -502,9 +500,18 @@ const {
   init,
   submissionLoading,
   submissionError,
-  listError, // Assuming this will be added to the composable
+  listError,
   submissionSuccess,
 } = usePartners();
+
+const visiblePages = computed(() => {
+  let pages = [];
+  for (let i = 1; i <= totalPages.value; i++) pages.push(i);
+  return pages;
+});
+const goToPage = (p) => {
+  page.value = p;
+};
 
 // --- Constantes ---
 const tableHeaders = [

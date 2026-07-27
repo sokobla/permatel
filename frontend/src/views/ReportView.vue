@@ -854,7 +854,10 @@ async function loadData() {
     const [a, c, p] = await Promise.all([
       listDemandes({ type_demande: "anomalie" }),
       listDemandes({ type_demande: "commande" }),
-      listPrisesDeService().catch(() => []),
+      listPrisesDeService().catch((err) => {
+        console.error("Erreur lors du chargement des prises de service:", err);
+        return [];
+      }),
     ]);
     rawAnomalies.value = Array.isArray(a) ? a : (a.items ?? []);
     rawCommandes.value = Array.isArray(c) ? c : (c.items ?? []);

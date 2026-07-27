@@ -52,7 +52,9 @@
       </div>
       <div class="bc-grid">
         <div class="form-group">
-          <label class="form-label" for="csa-prenom">PRÉNOM</label>
+          <label class="form-label" for="csa-prenom">
+            PRÉNOM <span class="df-required">*</span>
+          </label>
           <input
             id="csa-prenom"
             v-model="newContact.prenom"
@@ -71,6 +73,28 @@
             autocomplete="off"
           />
         </div>
+        <div class="form-group bc-full">
+          <label class="form-label" for="csa-adresse">
+            ADRESSE <span class="df-required">*</span>
+          </label>
+          <input
+            id="csa-adresse"
+            v-model="newContact.adresse"
+            class="form-input"
+            autocomplete="off"
+          />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="csa-ville">
+            VILLE <span class="df-required">*</span>
+          </label>
+          <input
+            id="csa-ville"
+            v-model="newContact.ville"
+            class="form-input"
+            autocomplete="off"
+          />
+        </div>
         <div class="form-group">
           <label class="form-label" for="csa-fonction">FONCTION</label>
           <input
@@ -82,7 +106,9 @@
           />
         </div>
         <div class="form-group">
-          <label class="form-label" for="csa-tel2">TÉLÉPHONE</label>
+          <label class="form-label" for="csa-tel2">
+            TÉLÉPHONE <span class="df-required">*</span>
+          </label>
           <input
             id="csa-tel2"
             v-model="newContact.telephone"
@@ -92,7 +118,9 @@
           />
         </div>
         <div class="form-group bc-full">
-          <label class="form-label" for="csa-email2">EMAIL</label>
+          <label class="form-label" for="csa-email2">
+            EMAIL <span class="df-required">*</span>
+          </label>
           <input
             id="csa-email2"
             v-model="newContact.email"
@@ -137,7 +165,15 @@ const selectedContact = ref(null);
 const addMode = ref(false);
 const saving = ref(false);
 const addError = ref("");
-const newContact = ref({ prenom: "", nom: "", fonction: "", telephone: "", email: "" });
+const newContact = ref({
+  prenom: "",
+  nom: "",
+  adresse: "",
+  ville: "",
+  fonction: "",
+  telephone: "",
+  email: "",
+});
 
 // Charger les contacts quand le client change
 watch(
@@ -175,7 +211,15 @@ function onSelectChange() {
 }
 
 function openAddMode() {
-  newContact.value = { prenom: "", nom: "", fonction: "", telephone: "", email: "" };
+  newContact.value = {
+    prenom: "",
+    nom: "",
+    adresse: "",
+    ville: "",
+    fonction: "",
+    telephone: "",
+    email: "",
+  };
   addError.value = "";
   addMode.value = true;
 }
@@ -184,17 +228,28 @@ function closeAddMode() {
   addMode.value = false;
 }
 
+const REQUIRED_FIELDS = {
+  nom: "Le nom est requis.",
+  prenom: "Le prénom est requis.",
+  adresse: "L'adresse est requise.",
+  ville: "La ville est requise.",
+  telephone: "Le téléphone est requis.",
+  email: "L'email est requis.",
+};
+
 async function saveContact() {
   addError.value = "";
-  if (!newContact.value.nom.trim()) {
-    addError.value = "Le nom est requis.";
-    return;
+  for (const [field, message] of Object.entries(REQUIRED_FIELDS)) {
+    if (!newContact.value[field]?.trim()) {
+      addError.value = message;
+      return;
+    }
   }
   saving.value = true;
   try {
     const created = await createContact({
       ...newContact.value,
-      client_id: props.clientId,
+      client_ids: [props.clientId],
       type: "Client",
     });
     contacts.value.push(created);
