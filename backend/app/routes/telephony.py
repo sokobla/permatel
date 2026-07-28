@@ -296,6 +296,47 @@ def _cdr_epoch_to_dt(raw):
     return datetime.utcfromtimestamp(value) if value else None
 
 
+def _trace_cdr_payload(connector_id: int, payload: dict) -> None:
+    """
+    Diagnostic activable via TELEPHONY_CDR_TRACE=true — journalise
+    l'inventaire complet des variables reçues (clé, type, aperçu de valeur)
+    et écrit le payload intégral dans un fichier, pour confirmer quelles
+    variables un PBX réel envoie effectivement (au-delà de celles déjà
+    exploitées : uuid, start/answer/end_epoch, billsec, caller_id_number,
+    destination_number, direction, hangup_cause, record_file_path,
+    cc_queue/cc_agent). Ne doit jamais faire échouer l'ingestion : toute
+    erreur ici est journalisée puis ignorée.
+    """
+    try:
+        variables = payload.get("variables") or {}
+        top_level_keys = sorted(k for k in payload.keys() if k != "variables")
+        var_lines = []
+        for key in sorted(variables.keys()):
+            value = variables[key]
+            preview = repr(value)
+            if len(preview) > 120:
+                preview = preview[:120] + "…"
+            var_lines.append(f"    {key} ({type(value).__name__}) = {preview}")
+
+        call_uuid = variables.get("uuid") or variables.get("call_uuid") or payload.get("uuid") or "?"
+        trace_path = "/tmp/cdr_trace_last.json"
+        try:
+            with open(trace_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2, ensure_ascii=False, default=str)
+        except OSError as exc:
+            logger.warning("CDR TRACE : échec d'écriture du fichier %s : %s", trace_path, exc)
+            trace_path = None
+
+        logger.info(
+            "CDR TRACE connecteur id=%s call_uuid=%s — %d clé(s) top-level=%s, "
+            "%d variable(s) sous 'variables' :\n%s\n  (payload complet écrit dans %s)",
+            connector_id, call_uuid, len(top_level_keys), top_level_keys,
+            len(var_lines), "\n".join(var_lines), trace_path or "(échec)",
+        )
+    except Exception:  # noqa: BLE001 - diagnostic best-effort, ne doit jamais casser l'ingestion
+        logger.exception("CDR TRACE : erreur inattendue pendant la trace (ignorée)")
+
+
 # Confirmé sur trafic FusionPBX réel (28/07) : certains champs (en-têtes SIP
 # bruts type `sip_full_from`/`sip_full_to`, ex. `"33186569392" <sip:...>;tag=...`)
 # sont interpolés par FusionPBX dans le JSON SANS échapper les guillemets
@@ -439,6 +480,9 @@ def cdr_ingest(token):
             list(request.form.keys())[:5], error_detail,
         )
         return jsonify({"error": "Corps CDR JSON invalide ou absent."}), 400
+
+    if current_app.config.get("TELEPHONY_CDR_TRACE"):
+        _trace_cdr_payload(connector.id, payload)
 
     variables = payload.get("variables") or {}
     call_uuid = (

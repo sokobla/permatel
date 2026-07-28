@@ -776,6 +776,25 @@ class TestCdrIngest:
         assert resp.status_code == 201
         assert TelephonyEvent.query.filter_by(call_uuid="call-cdr-sip-quotes").count() >= 1
 
+    def test_ingest_cdr_mode_trace_actif_ne_casse_pas_l_ingestion(self, client, db, pbx_connector_with_cdr_token):
+        """TELEPHONY_CDR_TRACE=true (activé le temps d'un appel de test réel,
+        cf. TELEPHONIE_INTEGRATION_PLAN.md) journalise l'inventaire complet
+        des variables et écrit le payload dans un fichier — ne doit jamais
+        faire échouer l'ingestion, même si l'écriture fichier échoue."""
+        _, raw_token = pbx_connector_with_cdr_token
+        app = client.application
+        app.config["TELEPHONY_CDR_TRACE"] = True
+        try:
+            payload = {
+                "variables": {"uuid": "call-cdr-trace-mode", "start_epoch": "1700000000"},
+                "app_log": {"applications": []},
+            }
+            resp = client.post(f"/api/telephony/cdr/ingest/{raw_token}", json=payload)
+        finally:
+            app.config["TELEPHONY_CDR_TRACE"] = False
+        assert resp.status_code == 201
+        assert TelephonyEvent.query.filter_by(call_uuid="call-cdr-trace-mode").count() >= 1
+
 
 class TestCdrTokenRegenerate:
     def test_refuse_sans_droit_admin_tenant(self, client, auth_headers, pbx_connector):

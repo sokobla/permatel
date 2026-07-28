@@ -56,6 +56,13 @@ class BaseConfig:
     # POST /api/telephony/events/ingest (le connecteur PBX n'est pas un
     # utilisateur PERMATEL, pas d'authentification JWT sur cet endpoint).
     TELEPHONY_CONNECTOR_TOKEN = os.environ.get("TELEPHONY_CONNECTOR_TOKEN")
+    # Trace diagnostique du webhook CDR (POST /telephony/cdr/ingest/<token>) :
+    # journalise l'inventaire complet des variables reçues + écrit le
+    # payload intégral dans un fichier, pour valider quelles variables un
+    # PBX réel envoie effectivement (cf. TELEPHONIE_INTEGRATION_PLAN.md).
+    # Désactivé par défaut — un CDR complet peut peser plusieurs dizaines de
+    # Ko, à activer ponctuellement le temps d'un appel de test.
+    TELEPHONY_CDR_TRACE = os.environ.get("TELEPHONY_CDR_TRACE", "false").lower() == "true"
     # Mode async Flask-SocketIO. "threading" par défaut : évite qu'Engine.IO
     # importe (donc monkey-patche) eventlet au simple chargement de l'app —
     # utile en dev/tests (pytest, `flask run`) où rien n'a pré-patché le
