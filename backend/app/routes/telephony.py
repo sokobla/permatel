@@ -32,7 +32,7 @@ import logging
 import secrets
 import zipfile
 from datetime import datetime, timedelta
-from urllib.parse import urlparse
+from urllib.parse import unquote_plus, urlparse
 
 import requests
 from flask import Blueprint, Response, current_app, g, jsonify, request
@@ -326,31 +326,38 @@ def cdr_ingest(token):
             )
             return jsonify({"error": "Adresse IP non autorisée."}), 403
 
-    # Confirmé sur trafic FusionPBX réel (28/07) : le corps est POSTé en
-    # Content-Type application/x-www-form-urlencoded (comportement par
-    # défaut de libcurl avec POSTFIELDS, pas une vraie soumission de
-    # formulaire) — le JSON brut se retrouve décodé par Werkzeug comme une
-    # clé ou une valeur du formulaire, selon que le JSON contient ou non un
-    # '=' littéral (s'il n'y en a aucun, tout le corps devient une clé
-    # unique à valeur vide plutôt qu'une paire clé=valeur). On scanne donc
-    # les clés ET les valeurs du formulaire décodé à la recherche d'un objet
-    # JSON valide, en plus des tentatives corps-JSON-brut (au cas où un
-    # autre PBX/config poste vraiment du JSON avec le bon Content-Type).
-    payload = request.get_json(silent=True, force=True)
-    if payload is None:
-        for candidate_str in (*request.form.keys(), *request.form.values()):
-            try:
-                candidate = json.loads(candidate_str)
-            except (TypeError, ValueError):
-                continue
-            if isinstance(candidate, dict):
-                payload = candidate
-                break
-    if payload is None:
+    # Confirmé sur trafic FusionPBX réel (28/07, 3 tentatives successives) :
+    # Content-Type application/x-www-form-urlencoded (défaut libcurl
+    # POSTFIELDS, pas une vraie soumission de formulaire), corps `cdr=<json>`
+    # — MAIS le JSON (dump de variables de canal, ~80 Ko) contient des '&'/'='
+    # littéraux non échappés (URIs SIP, en-têtes...), que le parseur de
+    # formulaire de Werkzeug interprète à tort comme des séparateurs de
+    # paires, tronquant `request.form['cdr']` au premier caractère litigieux.
+    # On ne fait donc plus confiance au décodage form de Werkzeug : on relit
+    # le corps BRUT (non altéré, indépendant du Content-Type déclaré) et on
+    # extrait nous-mêmes le premier objet JSON qu'il contient (première '{'
+    # à la dernière '}'), avec un essai de décodage URL en repli si le corps
+    # s'avère réellement URL-encodé.
+    raw_body = request.get_data(as_text=True) or ""
+    payload = None
+    # Deux hypothèses testées : le corps est déjà en clair (émetteur non
+    # conforme, cas réel ci-dessus — chercher '{'/'}' littéraux fonctionne
+    # même avec des '&'/'=' internes puisqu'on ne fait pas de parsing
+    # clé=valeur), ou le corps est correctement URL-encodé (émetteur
+    # conforme — décoder d'abord fait réapparaître les '{'/'}').
+    for text in (raw_body, unquote_plus(raw_body)):
+        start, end = text.find("{"), text.rfind("}")
+        if start == -1 or end <= start:
+            continue
         try:
-            payload = json.loads(request.get_data(as_text=True) or "")
+            candidate = json.loads(text[start:end + 1])
         except (TypeError, ValueError):
-            payload = None
+            continue
+        if isinstance(candidate, dict):
+            payload = candidate
+            break
+    if payload is None:
+        payload = request.get_json(silent=True, force=True)
     if not isinstance(payload, dict):
         logger.warning(
             "CDR webhook : corps illisible pour le connecteur id=%s "

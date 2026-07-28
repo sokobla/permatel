@@ -610,6 +610,33 @@ class TestCdrIngest:
         assert resp.status_code == 201
         assert TelephonyEvent.query.filter_by(call_uuid="call-cdr-urlencoded-rawbody").count() >= 1
 
+    def test_ingest_cdr_corps_cdr_avec_caracteres_speciaux_non_echappes(
+        self, client, db, pbx_connector_with_cdr_token,
+    ):
+        """Reproduit le trafic réel du 28/07 (3e tentative) : corps
+        `cdr=<json>` en Content-Type urlencoded, mais le JSON contient des
+        '&'/'=' littéraux non échappés (URI SIP, en-têtes...) — le parseur
+        de formulaire de Werkzeug tronque la valeur au premier caractère
+        litigieux, il faut donc extraire le JSON depuis le corps brut plutôt
+        que faire confiance à request.form['cdr']."""
+        import json as json_mod
+        _, raw_token = pbx_connector_with_cdr_token
+        payload = {
+            "variables": {
+                "uuid": "call-cdr-special-chars",
+                "start_epoch": "1700000000",
+                "sip_contact_uri": "sip:alice@10.0.0.5;transport=udp&x-fs-orig=abc",
+            }
+        }
+        body = "cdr=" + json_mod.dumps(payload, separators=(",", ":"))
+        resp = client.post(
+            f"/api/telephony/cdr/ingest/{raw_token}",
+            data=body,
+            content_type="application/x-www-form-urlencoded",
+        )
+        assert resp.status_code == 201
+        assert TelephonyEvent.query.filter_by(call_uuid="call-cdr-special-chars").count() >= 1
+
     def test_ingest_cdr_uuid_en_repli_depuis_la_query_string(self, client, db, pbx_connector_with_cdr_token):
         """FusionPBX ajoute `?uuid=<call-uuid>` à l'URL configurée — utilisé
         en repli si le corps ne porte pas l'UUID (observé en prod)."""
