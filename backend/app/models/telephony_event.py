@@ -37,6 +37,7 @@ class TelephonyEvent(Base):
     caller_number = Column(String(20), nullable=True)
     callee_number = Column(String(20), nullable=True)
     agent_login = Column(String(50), nullable=True, index=True)
+    agent_status = Column(String(50), nullable=True)  # brut FreeSWITCH (CC-Agent-Status), normalisé côté route
     queue_id = Column(String(100), nullable=True, index=True)
     duration = Column(Integer, nullable=True)  # en secondes
     call_uuid = Column(String(100), nullable=True, index=True)
@@ -64,6 +65,7 @@ class TelephonyEvent(Base):
             "caller": self.caller_number,
             "callee": self.callee_number,
             "agent_login": self.agent_login,
+            "agent_status": self.agent_status,
             "queue_id": self.queue_id,
             "duration": self.duration,
             "call_uuid": self.call_uuid,

@@ -130,6 +130,11 @@ def normalize_callcenter_info(headers: dict, pbx_domain: str) -> dict | None:
         payload = _base_payload(headers, pbx_domain, "CALLCENTER_AGENT_STATE_CHANGE")
         payload["call"]["status"] = "on_hold"
         payload["agent"]["login"] = agent_login
+        # Statut brut mod_callcenter (ex. "Available", "On Break", "Logged
+        # Out") — la route d'ingestion se charge de le normaliser en
+        # présence disponible/pause/hors-ligne, on ne fait ici que le
+        # relayer tel quel (pas de perte d'information à l'ingestion).
+        payload["agent"]["status"] = headers.get("CC-Agent-Status")
         payload["queue"]["id"] = queue_id
         return payload
 

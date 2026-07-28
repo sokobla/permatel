@@ -205,6 +205,7 @@ def ingest_event():
         callee_number=call.get("callee"),
         call_uuid=call.get("id"),
         agent_login=agent.get("login"),
+        agent_status=agent.get("status"),
         queue_id=queue.get("id"),
         duration=data.get("duration_seconds"),
         recording_url=data.get("recording_url"),
@@ -418,6 +419,110 @@ def kpis_agents():
     return jsonify({
         "period": {"from": dt_from.isoformat(), "to": dt_to.isoformat()},
         "agents": result,
+    }), 200
+
+
+# Statuts bruts mod_callcenter (CC-Agent-Status) connus, normalisés en
+# présence disponible/pause/hors-ligne. Tout statut absent ou non reconnu
+# retombe sur "offline" — on ne fabrique jamais un état "disponible" par
+# défaut à partir de données incertaines.
+_AGENT_PRESENCE_ONLINE = {"available", "available (on demand)"}
+_AGENT_PRESENCE_AWAY = {"on break"}
+
+
+def _normalize_agent_presence(raw_status):
+    if not raw_status:
+        return "offline"
+    key = raw_status.strip().lower()
+    if key in _AGENT_PRESENCE_ONLINE:
+        return "online"
+    if key in _AGENT_PRESENCE_AWAY:
+        return "away"
+    return "offline"
+
+
+@telephony_bp.get("/agents/status")
+@tenant_required
+def agents_status():
+    """
+    Présence agent (disponible/pause/hors-ligne), dérivée du dernier
+    événement `CALLCENTER_AGENT_STATE_CHANGE` connu par `agent_login` —
+    seuls les agents ayant émis au moins un tel événement apparaissent (pas
+    de roster fabriqué). Croisé avec le volume d'appels traités sur la
+    période (même règle que /kpis/agents) : `calls_handled` est un compte
+    d'appels, pas un taux d'occupation — aucune durée continue disponible/
+    occupée n'est suivie aujourd'hui.
+    """
+    dt_from, dt_to = _parse_period()
+
+    latest_ts = (
+        db.session.query(
+            TelephonyEvent.agent_login,
+            db.func.max(TelephonyEvent.created_at).label("max_created_at"),
+        )
+        .filter(
+            TelephonyEvent.tenant_id == g.tenant_id,
+            TelephonyEvent.event_type == "CALLCENTER_AGENT_STATE_CHANGE",
+            TelephonyEvent.agent_login.isnot(None),
+        )
+        .group_by(TelephonyEvent.agent_login)
+        .subquery()
+    )
+    latest_events = (
+        TelephonyEvent.query
+        .join(
+            latest_ts,
+            db.and_(
+                TelephonyEvent.agent_login == latest_ts.c.agent_login,
+                TelephonyEvent.created_at == latest_ts.c.max_created_at,
+            ),
+        )
+        .filter(TelephonyEvent.tenant_id == g.tenant_id)
+        .all()
+    )
+
+    calls_events = (
+        TelephonyEvent.query.filter(
+            TelephonyEvent.tenant_id == g.tenant_id,
+            TelephonyEvent.created_at >= dt_from,
+            TelephonyEvent.created_at <= dt_to,
+            TelephonyEvent.agent_login.isnot(None),
+            TelephonyEvent.call_uuid.isnot(None),
+        ).all()
+    )
+    by_call = {}
+    for e in calls_events:
+        by_call.setdefault(e.call_uuid, []).append(e)
+    calls_handled = {}
+    for call_uuid, call_events in by_call.items():
+        call_events.sort(key=lambda e: e.created_at)
+        terminal = next((e for e in call_events if e.call_status in TERMINAL_STATUSES), None)
+        if terminal is None:
+            continue
+        agent_login = next((e.agent_login for e in call_events if e.agent_login), None)
+        if not agent_login:
+            continue
+        answered = next((e for e in call_events if e.call_status == "answered"), None)
+        if answered:
+            calls_handled[agent_login] = calls_handled.get(agent_login, 0) + 1
+
+    agents = sorted(
+        (
+            {
+                "agent_login": e.agent_login,
+                "presence": _normalize_agent_presence(e.agent_status),
+                "raw_status": e.agent_status,
+                "last_seen_at": e.created_at.isoformat() if e.created_at else None,
+                "calls_handled": calls_handled.get(e.agent_login, 0),
+            }
+            for e in latest_events
+        ),
+        key=lambda a: a["agent_login"],
+    )
+
+    return jsonify({
+        "period": {"from": dt_from.isoformat(), "to": dt_to.isoformat()},
+        "agents": agents,
     }), 200
 
 

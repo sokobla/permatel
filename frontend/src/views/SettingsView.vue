@@ -16,7 +16,6 @@
       <v-tab value="reference" class="text-none"><v-icon start size="16">mdi-format-list-bulleted</v-icon>Valeurs de référence</v-tab>
       <v-tab value="sla" class="text-none"><v-icon start size="16">mdi-timer-alert-outline</v-icon>SLA</v-tab>
       <v-tab v-if="sections.integrations" value="integrations" class="text-none"><v-icon start size="16">mdi-puzzle-outline</v-icon>Intégrations</v-tab>
-      <v-tab v-if="sections.telephony" value="telephony" class="text-none"><v-icon start size="16">mdi-phone-settings-outline</v-icon>Téléphonie</v-tab>
     </v-tabs>
 
     <!-- Contenu (transition douce) -->
@@ -39,9 +38,6 @@
       <v-window-item v-if="sections.integrations" value="integrations" transition="fade-transition">
         <SettingsIntegrations />
       </v-window-item>
-      <v-window-item v-if="sections.telephony" value="telephony" transition="fade-transition">
-        <SettingsTelephony />
-      </v-window-item>
     </v-window>
   </div>
 </template>
@@ -56,20 +52,20 @@ import SettingsImap from "@/components/settings/SettingsImap.vue";
 import SettingsReferenceValues from "@/components/settings/SettingsReferenceValues.vue";
 import SettingsSla from "@/components/settings/SettingsSla.vue";
 import SettingsIntegrations from "@/components/settings/SettingsIntegrations.vue";
-import SettingsTelephony from "@/components/settings/SettingsTelephony.vue";
 
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 
 // Sections disponibles (pilotées par les canaux du tenant). SMTP/Général/Référence toujours là.
+// Téléphonie n'est plus un onglet autonome : sa configuration vit dans le
+// panneau « Configurer » de l'onglet Intégrations (voir SettingsIntegrations.vue).
 const sections = computed(() => authStore.featureMap.settings_sections || {});
 const availableTabs = computed(() => [
   "general", "smtp",
   ...(sections.value.imap ? ["imap"] : []),
   "reference", "sla",
   ...(sections.value.integrations ? ["integrations"] : []),
-  ...(sections.value.telephony ? ["telephony"] : []),
 ]);
 
 // Onglet initial depuis ?tab= (deep-link), borné aux onglets disponibles.

@@ -92,6 +92,20 @@ class TestIngestEvent:
         assert event.queue_id == "queue-support"
         assert event.raw_payload == payload
 
+    def test_ingest_persiste_le_statut_agent_brut(self, client, db, pbx_domain):
+        payload = {
+            "event_type": "CALLCENTER_AGENT_STATE_CHANGE",
+            "pbx_domain": pbx_domain.pbx_domain,
+            "call": {"id": "call-agent-status", "status": "on_hold"},
+            "agent": {"login": "agent01", "status": "Available"},
+            "queue": {"id": "queue-support"},
+        }
+        resp = client.post("/api/telephony/events/ingest", json=payload, headers=CONNECTOR_TOKEN_HEADERS)
+        assert resp.status_code == 201
+
+        event = TelephonyEvent.query.filter_by(call_uuid="call-agent-status").first()
+        assert event.agent_status == "Available"
+
     def test_ingest_diffuse_sur_le_websocket_du_tenant(self, client, db, pbx_domain, default_tenant):
         payload = {
             "event_type": "CHANNEL_ANSWER",
@@ -265,6 +279,80 @@ class TestKpis:
         resp2 = client.get("/api/telephony/kpis/agents", headers=auth_headers)
         assert resp2.status_code == 200
         assert resp2.get_json()["agents"] == []
+
+
+class TestAgentsStatus:
+    def test_agents_status_vide_si_aucun_evenement_de_presence(self, client, auth_headers, db):
+        resp = client.get("/api/telephony/agents/status", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.get_json()["agents"] == []
+
+    def test_agents_status_derive_la_presence_du_dernier_evenement(self, client, db, auth_headers, default_tenant):
+        base = datetime.utcnow() - timedelta(minutes=10)
+        # Deux changements d'état pour agent01 : seul le plus récent doit compter.
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CALLCENTER_AGENT_STATE_CHANGE",
+            call_status="on_hold", call_uuid="ev-1", agent_login="agent01",
+            agent_status="On Break", created_at=base,
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CALLCENTER_AGENT_STATE_CHANGE",
+            call_status="on_hold", call_uuid="ev-2", agent_login="agent01",
+            agent_status="Available", created_at=base + timedelta(minutes=5),
+        ))
+        # Agent en pause, statut inconnu -> offline par défaut (pas de fabrication).
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CALLCENTER_AGENT_STATE_CHANGE",
+            call_status="on_hold", call_uuid="ev-3", agent_login="agent02",
+            agent_status="Logged Out", created_at=base,
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/agents/status", headers=auth_headers)
+        assert resp.status_code == 200
+        agents = {a["agent_login"]: a for a in resp.get_json()["agents"]}
+        assert agents["agent01"]["presence"] == "online"
+        assert agents["agent01"]["raw_status"] == "Available"
+        assert agents["agent02"]["presence"] == "offline"
+
+    def test_agents_status_compte_les_appels_traites_sur_la_periode(self, client, db, auth_headers, default_tenant):
+        base = datetime.utcnow() - timedelta(minutes=5)
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CALLCENTER_AGENT_STATE_CHANGE",
+            call_status="on_hold", call_uuid="ev-presence", agent_login="agent01",
+            agent_status="Available", created_at=base,
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CHANNEL_ANSWER", call_status="answered",
+            call_uuid="call-1", agent_login="agent01", created_at=base,
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CHANNEL_HANGUP_COMPLETE", call_status="ended",
+            call_uuid="call-1", agent_login="agent01", duration=30, created_at=base + timedelta(seconds=30),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/agents/status", headers=auth_headers)
+        agents = {a["agent_login"]: a for a in resp.get_json()["agents"]}
+        assert agents["agent01"]["calls_handled"] == 1
+
+    def test_agents_status_isolation_cross_tenant(self, client, db, auth_headers, default_tenant):
+        from app.models.tenant import Tenant
+        other_tenant = Tenant(code="AGENTSTATUS", nom="Autre Tenant", slug="agentstatus")
+        db.session.add(other_tenant)
+        db.session.commit()
+
+        db.session.add(TelephonyEvent(
+            tenant_id=other_tenant.id, event_type="CALLCENTER_AGENT_STATE_CHANGE",
+            call_status="on_hold", call_uuid="ev-other", agent_login="agent-autre-tenant",
+            agent_status="Available", created_at=datetime.utcnow(),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/agents/status", headers=auth_headers)
+        assert resp.status_code == 200
+        logins = [a["agent_login"] for a in resp.get_json()["agents"]]
+        assert "agent-autre-tenant" not in logins
 
 
 class TestConnectorsCrud:

@@ -11,10 +11,15 @@ Règles :
   - Onglet CHAT      : visible ssi canal chat (disponibilité simple).
   - Intégrations     : disponible ssi canal chat OU téléphonie.
     - Slack          : ssi canal chat.
-    - Téléphonie     : ssi canal téléphonie ET au moins un PbxConnector actif
-                        configuré pour ce tenant — avant Phase 11, ce flag
-                        n'avait aucune config derrière ; il reflète
-                        maintenant un état réel.
+    - Téléphonie     : ssi canal téléphonie activé sur le tenant — le bouton
+                        « Configurer » (Intégrations) ne dépend plus de
+                        `telephony_configured` (Phase 13) : un admin doit
+                        pouvoir ouvrir le panneau de configuration avant
+                        d'avoir créé son premier connecteur, pas seulement
+                        après. `telephony_configured` reste exposé dans
+                        `config_state` pour ce qui en dépend réellement
+                        (ex. onglet Supervision > Téléphonie, qui a besoin
+                        de données pour être utile).
 """
 from app.models.setting import SmtpSetting
 from app.models.pbx import PbxConnector
@@ -54,10 +59,9 @@ def tenant_features(tenant) -> dict:
             "imap": ch["email"],
             "reference": True,
             "integrations": ch["chat"] or ch["telephonie"],
-            "telephony": ch["telephonie"],
         },
         "integrations": {
             "slack": ch["chat"],
-            "telephony": ch["telephonie"] and telephony_configured,
+            "telephony": ch["telephonie"],
         },
     }

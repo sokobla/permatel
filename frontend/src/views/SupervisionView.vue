@@ -21,20 +21,29 @@
       Aucun tenant actif sélectionné — la supervision nécessite un tenant.
     </div>
 
-    <!-- Monitoring des sessions -->
-    <SessionMonitoring v-else />
+    <template v-else>
+      <v-tabs v-if="showTelephonyTab" v-model="tab" color="#00a8a8" density="comfortable" class="sv-tabs">
+        <v-tab value="sessions" class="text-none"><v-icon start size="16">mdi-account-clock-outline</v-icon>Sessions</v-tab>
+        <v-tab value="telephony" class="text-none"><v-icon start size="16">mdi-phone-in-talk-outline</v-icon>Téléphonie</v-tab>
+      </v-tabs>
+
+      <SessionMonitoring v-if="!showTelephonyTab || tab === 'sessions'" />
+      <SupervisionTelephony v-else-if="tab === 'telephony'" />
+    </template>
 
   </div>
 </template>
 
 <script setup>
 // === IMPORTS ===
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import SessionMonitoring from "@/components/supervision/SessionMonitoring.vue";
+import SupervisionTelephony from "@/components/supervision/SupervisionTelephony.vue";
 import { useAuthStore } from "@/store/auth";
 
 // === STATE ===
 const authStore = useAuthStore();
+const tab = ref("sessions");
 
 // === COMPUTED ===
 const activeTenantId = computed(() => authStore.activeTenantId);
@@ -42,6 +51,13 @@ const activeTenantName = computed(() => {
   const t = authStore.tenants?.find((x) => x.id === authStore.activeTenantId);
   return t?.nom || t?.code || "—";
 });
+// Onglet Téléphonie visible ssi canal actif ET au moins un connecteur PBX
+// configuré — un tableau de bord sans donnée derrière n'a pas d'utilité
+// (contrairement au bouton « Configurer » d'Intégrations, qui doit rester
+// accessible avant la première configuration).
+const showTelephonyTab = computed(
+  () => !!authStore.featureMap.channels?.telephonie && !!authStore.featureMap.config_state?.telephony_configured,
+);
 </script>
 
 <style scoped>
@@ -99,6 +115,11 @@ const activeTenantName = computed(() => {
   height: 8px;
   border-radius: 50%;
   background: #22c55e;
+}
+
+.sv-tabs {
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .sv-warn {

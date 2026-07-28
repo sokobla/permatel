@@ -34,26 +34,54 @@
         </v-btn>
       </div>
     </div>
+
+    <!-- Panneau de configuration Téléphonie (connecteurs PBX, domaines, événements ESL). -->
+    <v-dialog v-model="telephonyDialog" max-width="960" scrollable>
+      <v-card rounded="lg">
+        <div class="tel-dlg-head">
+          <span class="tel-dlg-head__title">Configuration — Téléphonie</span>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="telephonyDialog = false" />
+        </div>
+        <v-divider />
+        <v-card-text class="tel-dlg-body">
+          <SettingsTelephony />
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </v-card>
 </template>
 
 <script setup>
-import { computed } from "vue";
-import { useRouter } from "vue-router";
+import { computed, ref, onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { integrationList } from "@/config/integrations";
 import { useAuthStore } from "@/store/auth";
+import SettingsTelephony from "@/components/settings/SettingsTelephony.vue";
 
 const INTEGRATIONS = integrationList();
 const authStore = useAuthStore();
+const route = useRoute();
 const router = useRouter();
 const availability = computed(() => authStore.featureMap.integrations || {});
 const isActive = (key) => availability.value[key] === true;
 
-// Seule la Téléphonie a une page de configuration dédiée pour l'instant
-// (Slack n'est pas encore implémenté côté backend).
+// Seule la Téléphonie a un panneau de configuration dédié pour l'instant
+// (Slack n'est pas encore implémenté côté backend). Le panneau s'ouvre en
+// dialog inline, plus en tant qu'onglet Paramètres autonome (relocalisé
+// depuis SettingsView.vue).
+const telephonyDialog = ref(false);
 function configure(key) {
-  if (key === "telephony") router.push({ path: "/parameters", query: { tab: "telephony" } });
+  if (key === "telephony") telephonyDialog.value = true;
 }
+
+// Lien profond conservé pour les anciens signets (/pbx-connectors) : ouvre
+// directement le panneau si le canal est actif.
+onMounted(() => {
+  if (route.query.configure === "telephony" && isActive("telephony")) {
+    telephonyDialog.value = true;
+    router.replace({ query: { ...route.query, configure: undefined } });
+  }
+});
 </script>
 
 <style scoped>
@@ -87,4 +115,11 @@ function configure(key) {
 .int-item__name { font-size: 14px; font-weight: 700; color: #000b23; }
 .int-item__desc { font-size: 12px; color: #6b7280; margin: 4px 0 0; line-height: 1.45; }
 .int-item__btn { flex-shrink: 0; }
+
+.tel-dlg-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px;
+}
+.tel-dlg-head__title { font-size: 15px; font-weight: 700; color: #000b23; }
+.tel-dlg-body { padding: 0 !important; background: #f2f2f2; }
 </style>

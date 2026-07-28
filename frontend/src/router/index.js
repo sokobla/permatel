@@ -140,9 +140,10 @@ const routes = [
   },
   {
     // Ex-page globale admin (Phase 12) — les connecteurs PBX sont désormais
-    // tenant-scopés, gérés depuis Paramètres > Téléphonie.
+    // tenant-scopés, configurés depuis Paramètres > Intégrations > Téléphonie
+    // > Configurer (relocalisé depuis l'ex-onglet Paramètres > Téléphonie, Phase 13).
     path: "/pbx-connectors",
-    redirect: { path: "/parameters", query: { tab: "telephony" } },
+    redirect: { path: "/parameters", query: { tab: "integrations", configure: "telephony" } },
   },
   {
     // Configuration du tenant : déléguée à l'admin de tenant (et super-admin)
