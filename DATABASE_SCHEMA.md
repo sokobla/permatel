@@ -1,7 +1,12 @@
 # Schéma de la base de données PERMATEL
 
-**Version** : 2.5.0 (Module Téléphonie ESL) | **Base de données** : PostgreSQL 15  
-**Dernière mise à jour** : 28 juillet 2026
+**Version** : 2.6.0 (Module Téléphonie — webhook CDR + grille agents) | **Base de données** : PostgreSQL 15  
+**Dernière mise à jour** : 29 juillet 2026
+
+### Changelog v2.6.0 (29 juillet 2026)
+- ☎️ **`telephony_events.agent_status`** (nouvelle colonne) : statut brut FreeSWITCH (`CC-Agent-Status`, mod_callcenter), normalisé en présence disponible/pause/hors-ligne par `GET /telephony/agents/status` (Phase 13, grille d'état des agents).
+- ➕ **`pbx_connectors.authorized_ip`/`cdr_webhook_token_hash`/`cdr_webhook_token`** (Phase 14 — webhook CDR) : canal d'ingestion complémentaire à l'ESL live, alimenté par FusionPBX (`mod_json_cdr`) via `POST /telephony/cdr/ingest/<token>`. Jeton **par connecteur** (pas le jeton global `TELEPHONY_CONNECTOR_TOKEN` du Core Connector), stocké à la fois hashé (recherche/comparaison) et chiffré (réaffichable via "Copier le token").
+- 🗃️ Migrations : `2f54e418e600` (`agent_status`), `9c8b7a6f5e4d` (webhook CDR).
 
 ### Changelog v2.5.0 (28 juillet 2026)
 - ☎️ **`telephony_events` étendue** (existait déjà mais dormante) : `event_type`/`call_status` en `String` (pas enum), + `pbx_connector_id`, `call_direction`, `callee_number`, `agent_login`, `queue_id`, `recording_url`, `raw_payload` (JSONB). `user_session_id` passé nullable.
@@ -725,10 +730,13 @@ CREATE TABLE telephony_events (
   caller_number       VARCHAR(20),
   callee_number       VARCHAR(20),
   agent_login         VARCHAR(50),
+  agent_status        VARCHAR(50),                       -- brut FreeSWITCH (CC-Agent-Status), normalisé côté route
   queue_id            VARCHAR(100),
   duration            INTEGER,                           -- Durée en secondes
   call_uuid           VARCHAR(100),                       -- Identifiant appel
-  recording_url       VARCHAR(500),                       -- lien seulement, pas de stockage physique
+  recording_url       VARCHAR(500),                       -- chemin/URL rapporté par le PBX — souvent un chemin de
+                                                            -- fichier local FreeSWITCH, pas une URL http(s)
+                                                            -- exploitable (non confirmé) ; pas de stockage physique
   raw_payload         JSONB,
   created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
   FOREIGN KEY (tenant_id, demande_id) REFERENCES demandes(tenant_id, id) ON DELETE SET NULL
@@ -753,10 +761,14 @@ CREATE TABLE pbx_connectors (
   last_seen_at        TIMESTAMP,
   last_error          VARCHAR(500),
   sync_requested_at   TIMESTAMP,                            -- bouton "Sync"
+  authorized_ip       VARCHAR(255),                          -- IP(s) autorisée(s) pour le webhook CDR, vide = aucune restriction
+  cdr_webhook_token_hash VARCHAR(64) UNIQUE,                  -- SHA-256 du jeton webhook CDR (recherche/comparaison)
+  cdr_webhook_token   TEXT,                                  -- EncryptedText — copie chiffrée, réaffichable via "Copier le token"
   created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
   updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 CREATE INDEX ix_pbx_connectors_tenant_id ON pbx_connectors(tenant_id);
+CREATE UNIQUE INDEX ix_pbx_connectors_cdr_webhook_token_hash ON pbx_connectors(cdr_webhook_token_hash);
 
 CREATE TABLE pbx_connector_domains (
   id                  SERIAL PRIMARY KEY,
@@ -773,9 +785,14 @@ CREATE INDEX ix_pbx_connector_domains_pbx_domain ON pbx_connector_domains(pbx_do
 
 **Intégration ESL** (FreeSWITCH/FusionPBX Event Socket Library) :
 - Process Docker séparé `connector/` (bibliothèque `greenswitch`, gevent), opt-in (`docker compose --profile telephony`)
-- `pbx_connectors` **tenant-scopée** (comme `smtp_settings`) — chaque tenant possède et configure son propre connecteur, géré par son admin dans `Paramètres > Téléphonie`
+- `pbx_connectors` **tenant-scopée** (comme `smtp_settings`) — chaque tenant possède et configure son propre connecteur, géré par son admin dans `Paramètres > Intégrations > Téléphonie`
 - `pbx_connector_domains` route `pbx_domain` (porté par chaque événement FreeSWITCH) vers le bon connecteur/tenant à l'ingestion
 - Diffusion temps réel via WebSocket (namespace `/telephony`) en plus de la persistance
+
+**Webhook CDR** (FusionPBX `mod_json_cdr`, Phase 14) :
+- Canal d'ingestion complémentaire à l'ESL live : `POST /api/telephony/cdr/ingest/<token>`, authentifié par `cdr_webhook_token_hash`/`cdr_webhook_token` (jeton **par connecteur**, pas le jeton global du Core Connector), restriction IP optionnelle via `authorized_ip`
+- Un CDR produit jusqu'à 3 `telephony_events` rétrodatés (ringing/answered/terminal) plutôt qu'un type d'événement dédié — compatible sans modification avec les routes KPI existantes
+- `agent_status` : statut brut FreeSWITCH (`CC-Agent-Status`, mod_callcenter) — normalisé en présence disponible/pause/hors-ligne par `GET /telephony/agents/status`
 
 **Relations** :
 - N:1 → `demandes` (optionnel)
@@ -943,7 +960,7 @@ LIMIT 50;
 ----
 
 **Maintenu par** : Équipe PERMATEL  
-**Dernière révision** : 28 juillet 2026
+**Dernière révision** : 29 juillet 2026
 ### `telephony_events` (étendue — Phase 11)
 - `id` : Integer (PK)
 - `tenant_id` : UUID (FK -> tenants.id, ON DELETE CASCADE), NOT NULL
@@ -955,10 +972,11 @@ LIMIT 50;
 - `call_status` : String(30), nullable (`ringing`/`early_media`/`answered`/`missed`/`abandoned`/`technical_failure`/`on_hold`/`ended`)
 - `caller_number` / `callee_number` : String(20), nullable
 - `agent_login` : String(50), nullable, indexé
+- `agent_status` : String(50), nullable — statut brut FreeSWITCH (`CC-Agent-Status`, mod_callcenter), normalisé en présence disponible/pause/hors-ligne par `GET /telephony/agents/status` (Phase 13)
 - `queue_id` : String(100), nullable, indexé
 - `duration` : Integer, nullable (secondes)
 - `call_uuid` : String(100), nullable, indexé
-- `recording_url` : String(500), nullable (lien seulement — pas de stockage physique)
+- `recording_url` : String(500), nullable — chemin/URL rapporté par le PBX (`variable_record_file_path`), le plus souvent un **chemin de fichier local FreeSWITCH**, pas une URL http(s) exploitable par PERMATEL (non confirmé) ; pas de stockage physique côté PERMATEL
 - `raw_payload` : JSONB (JSON sous SQLite), nullable — payload complet de l'événement ingéré
 - `created_at` : DateTime
 - **Contraintes** : `FK(tenant_id, demande_id) -> demandes(tenant_id, id) ON DELETE SET NULL`
@@ -977,6 +995,9 @@ tenant peut posséder plusieurs connecteurs (rare en pratique).
 - `is_active` : Boolean, NOT NULL
 - `is_connected` / `last_seen_at` / `last_error` : statut live rapporté par le heartbeat du Core Connector (`POST /connectors/status`)
 - `sync_requested_at` : DateTime, nullable — horodatage du dernier clic "Sync" (filet de secours durable du signal Redis temps réel)
+- `authorized_ip` : String(255), nullable — IP(s) autorisée(s) à poster sur le webhook CDR (Phase 14), vide = aucune restriction
+- `cdr_webhook_token_hash` : String(64), nullable, **unique**, indexé — SHA-256 du jeton webhook CDR, résout directement le connecteur à l'ingestion (comparaison en temps constant)
+- `cdr_webhook_token` : `EncryptedText`, nullable — copie chiffrée du même jeton, réaffichable à volonté via "Copier le token" (décision produit : pas un secret à usage unique)
 - `created_at` / `updated_at` : DateTime
 
 ### `pbx_connector_domains` (Phase 12, ex-`pbx_domains_tenants`)

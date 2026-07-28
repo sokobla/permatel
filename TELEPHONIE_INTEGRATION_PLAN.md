@@ -1,7 +1,7 @@
 # PERMATEL — Module Téléphonie : Plan d'intégration
 
-**Statut** : Phases 11 et 11bis implémentées et validées (199/199 tests backend, test de charge Docker réel — §7). **Phase 12 implémentée** (Core Connector ESL, connecteur **tenant-scopé** revu en cours de route — §8.4, Sync temps réel via Redis), **connectée en production** à un FusionPBX réel (`fusion.cloud228.com`) — deux bugs de production détectés et corrigés en conditions réelles (deadlock de reconnexion concurrente, route Nginx manquante pour le WebSocket) — voir §8.5. Validation des en-têtes ESL réels contre `normalizer.py` toujours en cours (un écart déjà confirmé, `Hangup-Cause: WRONG_CALL_STATE` non catégorisé, capturé sur du trafic de scan, pas encore sur un appel légitime), voir §8.3. Tâche 11bis.4 (diffusion WebSocket à l'ingestion) complétée + panneau live filtrable dans `Paramètres > Téléphonie` (`useTelephonySocket`, en avance sur la Phase 13). Phases 13 (reste : vue de supervision dédiée)-14 non démarrées.
-**Date** : 28 juillet 2026
+**Statut** : Phases 11 à 14 implémentées et connectées en production (236/236 tests backend). Phase 12 (Core Connector ESL, connecteur **tenant-scopé** — §8.4) raccordée à un FusionPBX réel (`fusion.cloud228.com`) — deux bugs de production détectés et corrigés (deadlock de reconnexion concurrente, route Nginx manquante pour le WebSocket) — voir §8.5. Phase 13 (config relocalisée sous `Paramètres > Intégrations`, `Supervision > Téléphonie` avec grille d'état des agents via `CC-Agent-Status`) et Phase 14 (webhook CDR `POST /telephony/cdr/ingest/<token>` + onglet `Rapports > Téléphonie`) **faites** — voir §8.6, qui documente aussi les six correctifs successifs du webhook CDR, chacun validé contre du trafic FusionPBX réel. Validation des en-têtes ESL réels contre `normalizer.py` toujours en cours (un écart déjà confirmé, `Hangup-Cause: WRONG_CALL_STATE` non catégorisé, capturé sur du trafic de scan, pas encore sur un appel légitime), voir §8.3 — de même, l'exposition des enregistrements par FusionPBX (URL http(s) exploitable ou chemin local) reste à confirmer, voir §8.6. Phase 15 (connecteur Asterisk/AMI) non démarrée.
+**Date** : 29 juillet 2026
 **Source** : `docs/cdc/CDC-Module-Telephonie.md` (v1.0, 27 juillet 2026)
 **Suivi des tâches** : `docs/suivi_taches_permatel.xlsx` (Phases 11 à 14)
 
@@ -98,9 +98,10 @@ Le détail tâche-par-tâche est dans `docs/suivi_taches_permatel.xlsx`, onglet
 |---|---|---|
 | **Phase 11** | Fondations backend | Migration d'extension `telephony_events`, tables `pbx_connectors`/`pbx_domains_tenants`, route `POST /api/telephony/events/ingest` (auth `X-Connector-Token`), routes `/api/telephony/kpis/*` et `/api/telephony/active-calls` (snapshot initial), route settings CRUD `pbx_connectors`, `config_state.telephony_configured` dans `tenant_features()` |
 | **Phase 11bis** | Infra WebSocket | Ajout `flask-socketio`, worker Gunicorn `eventlet`/`gevent`, Redis en *message queue* Socket.IO, namespace `/telephony` avec auth JWT + *room* par tenant, diffusion des événements depuis la route d'ingestion |
-| **Phase 12** | Connecteur FusionPBX (ESL) | **Fait** (voir §8) — **Un seul** process Docker autonome (`Core Connector`), `ESLAdapter` (port 8021, `CHANNEL_*` + `mod_callcenter`), `Normalizer`, résilience (reconnexion, backoff), healthcheck. Connecteur **tenant-scopé** (§8.4), géré par l'admin de tenant dans `Paramètres > Téléphonie` (statut live + bouton Sync temps réel via Redis). |
-| **Phase 13** | Supervision frontend (WebSocket) | `SupervisionTelephonieView.vue` (calque de `SupervisionView.vue`), `useTelephonySocket` (connexion Socket.IO + fallback reconnect), `TelephonyKpiCards.vue`, `ActiveCallsTable.vue`, `AgentsGrid.vue`, store `useTelephonyStore` |
-| **Phase 14** | Connecteur Asterisk (AMI) | `AMIAdapter` ajouté au **même** process connecteur (pas un second déploiement), orchestré en parallèle de `ESLAdapter` par le `Core Connector` — même contrat `PBXAdapter`, aucun changement API/frontend attendu, validation de l'architecture Adapter |
+| **Phase 12** | Connecteur FusionPBX (ESL) | **Fait** (voir §8) — **Un seul** process Docker autonome (`Core Connector`), `ESLAdapter` (port 8021, `CHANNEL_*` + `mod_callcenter`), `Normalizer`, résilience (reconnexion, backoff), healthcheck. Connecteur **tenant-scopé** (§8.4), géré par l'admin de tenant dans `Paramètres > Intégrations > Téléphonie` (statut live + bouton Sync temps réel via Redis). |
+| **Phase 13** | Config relocalisée + Supervision frontend (WebSocket) | **Fait** (voir §8.6) — config déplacée de l'onglet Paramètres autonome vers un panneau "Configurer" inline sous `Paramètres > Intégrations` ; nouvel onglet `Supervision > Téléphonie` (KPIs, appels en cours temps réel, files, grille d'état des agents via `CC-Agent-Status`/`GET /agents/status`) |
+| **Phase 14** | Webhook CDR + Rapports | **Fait** (voir §8.6) — `POST /telephony/cdr/ingest/<token>` (jeton par connecteur, canal complémentaire à l'ESL live, alimenté par FusionPBX `mod_json_cdr`), onglet `Rapports > Téléphonie` (historique paginé/filtrable + export CSV, enregistrements + export ZIP) |
+| **Phase 15** | Connecteur Asterisk (AMI) | Non démarré — `AMIAdapter` ajouté au **même** process connecteur (pas un second déploiement), orchestré en parallèle de `ESLAdapter` par le `Core Connector` — même contrat `PBXAdapter`, aucun changement API/frontend attendu, validation de l'architecture Adapter |
 
 > ⚠️ **Architecture du connecteur (précision importante)** : il n'y a qu'**un seul process/service connecteur** dans PERMATEL (`Core Connector`, Phase 12.1), quel que soit le nombre de PBX physiques (`pbx_connectors`) ou de types de PBX (ESL, AMI, TSAPI...) à couvrir. Ce process unique orchestre **plusieurs `PBXAdapter` concurrents en son sein** (un par ligne `pbx_connectors`), pas un process par PBX/adapter. C'est pour cette raison que `TELEPHONY_CONNECTOR_TOKEN` (§ ingestion, Phase 11) est un jeton **global unique** et non un jeton par connecteur : toutes les requêtes d'ingestion proviennent du même process quel que soit le PBX/tenant d'origine.
 
@@ -365,3 +366,98 @@ eventlet + Redis), pas seulement au niveau unitaire : connexion WebSocket
 via le proxy Nginx exactement comme le ferait un navigateur, création d'un
 connecteur + domaine via l'API, ingestion d'un événement, réception
 confirmée côté client en moins de 2 secondes.
+
+### 8.6 Phase 13/14 — Relocalisation config, Supervision temps réel, webhook CDR + Rapports
+
+**Phase 13 (config + supervision).** La configuration Téléphonie a quitté
+l'onglet `Paramètres` autonome pour un panneau "Configurer" inline sous
+`Paramètres > Intégrations` — le bouton s'active dès que `channel_telephonie`
+est actif sur le tenant, **indépendamment** d'un connecteur déjà configuré
+(contrairement à l'onglet `Supervision > Téléphonie`, qui exige en plus
+`telephony_configured` : un tableau de bord sans donnée derrière n'a pas
+d'utilité). Le nouvel onglet `Supervision > Téléphonie` affiche des KPIs du
+jour, les appels en cours (temps réel via le namespace WebSocket existant),
+les files d'attente, et une grille d'état des agents. Cette dernière
+s'appuie sur une donnée réellement nouvelle : le connecteur capte désormais
+le header FreeSWITCH `CC-Agent-Status` (`mod_callcenter`, jusque-là ignoré),
+et `GET /telephony/agents/status` normalise ce statut brut en présence
+disponible/pause/hors-ligne (défaut hors-ligne si absent/inconnu — jamais
+fabriqué). La charge affichée par agent est un compte d'appels traités
+relatif au plus sollicité, pas un taux d'occupation (aucune durée continue
+disponible/occupée n'est suivie aujourd'hui).
+
+**Phase 14 (webhook CDR + Rapports).** FusionPBX (`mod_json_cdr`) POSTe un
+résumé JSON à la fin de chaque appel vers `POST /telephony/cdr/ingest/<token>`
+— canal complémentaire à l'ESL live (jamais d'événement "en cours", un
+résumé arrivé après coup), authentifié par un jeton **par connecteur**
+(généré à la création, régénérable, stocké chiffré+redisplayable via
+"Copier le token" — décision produit délibérée, pas un secret à usage
+unique façon jeton d'invitation), avec restriction IP optionnelle
+(`authorized_ip`). Un CDR produit jusqu'à 3 `TelephonyEvent` rétrodatés
+(ringing/answered/terminal), pour rester compatible sans aucune modification
+avec les routes KPI existantes (toutes basées sur "grouper par `call_uuid`,
+trouver l'événement terminal + l'événement answered"). Nouvel onglet
+`Rapports > Téléphonie` (visible ssi canal actif, gating identique au bouton
+"Configurer" — l'historique reste consultable même sans connecteur actif) :
+historique des appels paginé/filtrable avec export CSV, et section
+Enregistrements avec écoute/téléchargement (proxy backend, uniquement si
+`recording_url` est une URL http(s) réellement exploitable — sinon signalé
+indisponible plutôt qu'un lien cassé, cf. limitation ci-dessous) et export
+groupé en ZIP (`_indisponibles.txt` listant ce qui a été exclu plutôt que
+silencieusement absent de l'archive).
+
+> ⚠️ **Limitation connue, non résolue** : `TelephonyEvent.recording_url`
+> reflète ce que FreeSWITCH rapporte (`variable_record_file_path`), qui est
+> le plus souvent un **chemin de fichier local sur le serveur PBX**, pas une
+> URL accessible depuis PERMATEL. Écoute/téléchargement ne fonctionnent que
+> si FusionPBX est configuré pour exposer ces fichiers via une URL http(s) —
+> non confirmé à ce jour, à valider avec un enregistrement réel.
+
+**Six correctifs successifs sur le webhook CDR, chacun découvert et validé
+contre du vrai trafic FusionPBX en production** (pas en local, pas en
+supposant — le format réel a divergé de l'hypothèse initiale à chaque
+round) :
+
+1. **`request.get_json()` refusait de parser sans `force=True`** — première
+   itération, corps réellement JSON mais Content-Type non reconnu par défaut.
+2. **Le corps est en réalité `application/x-www-form-urlencoded`**
+   (`cdr=<json>`, comportement par défaut de libcurl `POSTFIELDS`), pas du
+   JSON brut malgré ce que suggérait le premier correctif.
+3. **`&`/`=` littéraux dans le JSON (~15-80 Ko, dump complet des variables
+   de canal) tronquaient la valeur** via le parseur de formulaire de
+   Werkzeug (qui les interprète à tort comme des séparateurs clé=valeur).
+   Remplacé par une extraction directe sur le corps brut (recherche du
+   premier `{` à la dernière `}`), immunisée à ces caractères puisqu'aucun
+   découpage clé=valeur n'est tenté.
+4. **Préservation du `+` des numéros E.164** : `unquote` (RFC 3986, ne
+   touche pas aux `+`) tenté avant `unquote_plus` (RFC 1866, `+` = espace)
+   — sinon un `+` non échappé par l'émetteur devient un espace, corruption
+   silencieuse (JSON toujours valide, juste une donnée fausse).
+5. **Caractères de contrôle bruts non échappés** (probablement issus
+   d'en-têtes SIP multi-lignes) rejetés par `json.loads` strict par défaut
+   — `strict=False`.
+6. **Root cause finale**, identifiée grâce à un diagnostic précis
+   (position/ligne/colonne de la `JSONDecodeError`, ajouté après l'échec du
+   correctif 5) : FusionPBX interpole certains en-têtes SIP bruts
+   (`sip_full_from`/`sip_full_to`, ex. `"Nom Affiché" <sip:...>;tag=...`)
+   directement dans le JSON **sans échapper les guillemets internes** du
+   nom d'affichage — JSON syntaxiquement invalide à la source, qu'aucun
+   décodage/encodage ne peut réparer. `_repair_unescaped_quotes()` (dans
+   `app/routes/telephony.py`) répare heuristiquement en dernier recours :
+   repère la vraie fin de chaque valeur-chaîne (le prochain `"` suivi de
+   `,`/`}`/`]`) et échappe tout guillemet interne rencontré avant ce point —
+   sans effet sur les champs déjà bien formés.
+
+Chaque correctif a été écrit avec un test de non-régression reproduisant le
+fragment réel exact observé en production (pas un cas synthétique
+générique) — 21 tests dédiés au webhook CDR dans `TestCdrIngest` et classes
+adjacentes de `backend/tests/test_telephony.py`.
+
+**Trace diagnostique** (`TELEPHONY_CDR_TRACE=true`, désactivée par défaut,
+voir `.env.example`) : journalise l'inventaire complet des variables reçues
+(nom, type, aperçu de valeur) + écrit le payload intégral dans
+`/tmp/cdr_trace_last.json`, pour confirmer quelles variables un PBX réel
+envoie effectivement (`cc_queue`/`cc_agent` notamment, toujours non
+confirmés — best-effort) avant d'exploiter de nouveaux champs. Un CDR
+complet peut peser plusieurs dizaines de Ko : à activer ponctuellement, pas
+en fonctionnement normal.

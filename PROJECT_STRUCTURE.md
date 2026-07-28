@@ -14,34 +14,46 @@ file de retry `odoo_sync_queue` + cron, **pas de Celery**), client
 → 7 (infra + partenaires F1) → 8 (commande→devis F2/F4) → 9 (vacation→temps
 F3) → 10 (planning agents F5). **Aucune implémentation lancée à ce stade.**
 
-### 🚧 TODO planifié — Module Téléphonie (collecte ESL/AMI + supervision, en cours)
-> Plan détaillé : [`TELEPHONIE_INTEGRATION_PLAN.md`](TELEPHONIE_INTEGRATION_PLAN.md) · CDC : [`docs/cdc/CDC-Module-Telephonie.md`](docs/cdc/CDC-Module-Telephonie.md) · Suivi tâche-par-tâche : `docs/suivi_taches_permatel.xlsx` (Phases 11-14).
+### 🚧 TODO planifié — Module Téléphonie (connecteur Asterisk/AMI, non démarré)
+> Plan détaillé : [`TELEPHONIE_INTEGRATION_PLAN.md`](TELEPHONIE_INTEGRATION_PLAN.md) · CDC : [`docs/cdc/CDC-Module-Telephonie.md`](docs/cdc/CDC-Module-Telephonie.md) · Suivi tâche-par-tâche : `docs/suivi_taches_permatel.xlsx` (Phases 11-15).
 
 Collecte/standardisation/historisation des événements de téléphonie agents
 (FusionPBX phase 1, Asterisk phase 2), activable par tenant via
-`channel_telephonie` (existait déjà comme flag cosmétique — active désormais
-un vrai état de config via `pbx_connectors`, tenant-scopé). La table
-`telephony_events` existait déjà mais dormante (posée, non alimentée) :
-**étendue par migration (non recréée)**. Décisions actées : `event_type`/
-`call_status` en `String` (pas enum Postgres, cohérent avec
-`use_varchar_for_enums`), **supervision en WebSocket** (namespace
-`/telephony`, Flask-SocketIO + worker Gunicorn `eventlet` + Redis comme
-message queue multi-worker). Phasage : **11 (fondations backend) ✅**,
-**11bis (infra WebSocket) ✅** validée en test de charge Docker réel, **12
-(connecteur FusionPBX/ESL) ✅ connecté en production** — process Docker
-séparé `connector/` (bibliothèque `greenswitch`, gevent) ; `pbx_connectors`
-**tenant-scopé** (revu en cours d'implémentation — chaque tenant possède son
-propre connecteur, comme SMTP/IMAP, géré par son admin dans `Paramètres >
-Téléphonie` : statut live de l'adapter, bouton Sync quasi temps réel via
-Redis pub/sub, panneau "Événements ESL en temps réel" filtrable). Raccordé à
-un FusionPBX réel (`fusion.cloud228.com`) — deux bugs de production détectés
-et corrigés (deadlock du connecteur sur reconnexion concurrente ; route
-Nginx manquante pour le WebSocket, `/api/socket.io`) — voir §8 du plan.
-Écart d'en-têtes ESL réels toujours à confirmer contre un appel légitime
+`channel_telephonie` — active un vrai état de config via `pbx_connectors`,
+tenant-scopé. Décisions actées : `event_type`/`call_status` en `String`
+(pas enum Postgres), **supervision en WebSocket** (namespace `/telephony`,
+Flask-SocketIO + worker Gunicorn `eventlet` + Redis comme message queue
+multi-worker). Phasage : **11 (fondations backend) ✅**, **11bis (infra
+WebSocket) ✅** validée en test de charge Docker réel, **12 (connecteur
+FusionPBX/ESL) ✅ connecté en production** — process Docker séparé
+`connector/` (bibliothèque `greenswitch`, gevent), `pbx_connectors`
+**tenant-scopé** (chaque tenant possède son propre connecteur, comme
+SMTP/IMAP). Raccordé à un FusionPBX réel (`fusion.cloud228.com`) — deux
+bugs de production détectés et corrigés (deadlock du connecteur sur
+reconnexion concurrente ; route Nginx manquante pour le WebSocket) — voir
+§8.5 du plan. **13 (config relocalisée + Supervision frontend) ✅** —
+config déplacée de l'onglet Paramètres autonome vers un panneau
+"Configurer" sous `Paramètres > Intégrations` (actif dès que le canal est
+activé, indépendamment d'un connecteur déjà configuré) ; onglet
+`Supervision > Téléphonie` (KPIs, appels en cours temps réel, files, grille
+d'état des agents via le header FreeSWITCH `CC-Agent-Status`). **14
+(webhook CDR + Rapports) ✅** — `POST /telephony/cdr/ingest/<token>` (jeton
+par connecteur, canal complémentaire à l'ESL live alimenté par FusionPBX
+`mod_json_cdr`), onglet `Rapports > Téléphonie` (historique paginé/
+filtrable + export CSV, enregistrements + export ZIP). Six correctifs
+successifs sur le parsing du webhook CDR, chacun validé contre du trafic
+FusionPBX réel (root cause finale : FusionPBX interpole des en-têtes SIP
+bruts non échappés dans le JSON) — voir §8.6 du plan pour le détail
+complet. Trace diagnostique disponible (`TELEPHONY_CDR_TRACE=true`).
+
+Deux points toujours à confirmer contre du trafic réel (non bloquants,
+suivis dans le plan) : l'écart d'en-têtes ESL live
 (`variable_domain_name`/`Caller-Caller-ID-Number`, capturés jusqu'ici
-uniquement sur du trafic de scan) — voir §8.3. → 13
-(supervision frontend) → 14 (connecteur Asterisk/AMI), ces 2 dernières
-phases non démarrées.
+uniquement sur du trafic de scan — §8.3), et l'exposition des
+enregistrements par FusionPBX (`recording_url` est aujourd'hui un chemin de
+fichier local FreeSWITCH, pas une URL http(s) exploitable par PERMATEL tant
+que la configuration côté PBX n'est pas confirmée — §8.6). → **15**
+(connecteur Asterisk/AMI), non démarrée.
 
 ### Changelog v1.4.0 (22 juin 2026)
 > ⚠️ Les sections détaillées plus bas datent de v1.1.0 (mai 2026). Les changelogs font foi pour l'état courant.
