@@ -694,6 +694,32 @@ class TestCdrIngest:
         assert resp.status_code == 201
         assert TelephonyEvent.query.filter_by(call_uuid="call-cdr-double-encoded").count() >= 1
 
+    def test_ingest_cdr_tolere_les_caracteres_de_controle_bruts(self, client, db, pbx_connector_with_cdr_token):
+        """Reproduit le trafic réel du 28/07 (5e round) : le corps décode
+        correctement (single-pass unquote, bornes '{'/'}' correctes), mais
+        json.loads strict rejette le JSON à cause de caractères de contrôle
+        bruts (non échappés) dans une valeur de chaîne — typique d'un dump
+        FusionPBX de variables de canal incluant des en-têtes SIP
+        multi-lignes. strict=False doit tolérer ça plutôt que de tout rejeter."""
+        from urllib.parse import quote
+        _, raw_token = pbx_connector_with_cdr_token
+        # Construit un JSON syntaxiquement valide SAUF pour une tabulation
+        # brute (non échappée en \t) dans une valeur de chaîne — json.dumps()
+        # échapperait proprement ce caractère, donc construit à la main pour
+        # reproduire fidèlement la non-conformité observée en prod.
+        raw_json = (
+            '{"variables":{"uuid":"call-cdr-ctrl-char","start_epoch":"1700000000",'
+            '"sip_header":"foo\tbar"}}'
+        )
+        body = "cdr=" + quote(raw_json, safe="")
+        resp = client.post(
+            f"/api/telephony/cdr/ingest/{raw_token}",
+            data=body,
+            content_type="application/x-www-form-urlencoded",
+        )
+        assert resp.status_code == 201
+        assert TelephonyEvent.query.filter_by(call_uuid="call-cdr-ctrl-char").count() >= 1
+
 
 class TestCdrTokenRegenerate:
     def test_refuse_sans_droit_admin_tenant(self, client, auth_headers, pbx_connector):

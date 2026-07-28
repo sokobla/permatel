@@ -362,7 +362,13 @@ def cdr_ingest(token):
         if start == -1 or end <= start:
             continue
         try:
-            candidate = json.loads(text[start:end + 1])
+            # strict=False : confirmé sur trafic FusionPBX réel (28/07) — le
+            # dump complet des variables de canal (SIP headers multi-lignes,
+            # etc.) embarque des caractères de contrôle bruts (\n, \t...) non
+            # échappés dans des valeurs de chaîne, invalides au sens strict
+            # RFC 8259 mais tolérés ici plutôt que de rejeter tout le CDR
+            # pour un champ secondaire mal échappé.
+            candidate = json.loads(text[start:end + 1], strict=False)
         except (TypeError, ValueError):
             continue
         if isinstance(candidate, dict):
