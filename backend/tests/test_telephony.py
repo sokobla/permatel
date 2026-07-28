@@ -649,6 +649,32 @@ class TestCdrIngest:
         assert resp.status_code == 201
         assert TelephonyEvent.query.filter_by(call_uuid="call-cdr-query-uuid").count() >= 1
 
+    def test_ingest_cdr_preserve_le_plus_dans_un_numero_e164(self, client, db, pbx_connector_with_cdr_token):
+        """Encodeur type RFC 3986 (curl_easy_escape et consorts) qui laisse
+        '+' littéral au lieu de l'encoder en %2B : unquote_plus (RFC 1866,
+        '+' = espace) corromprait "+33612345678" en " 33612345678". unquote
+        (tenté en premier) doit préserver le '+'."""
+        import json as json_mod
+        from urllib.parse import quote
+        _, raw_token = pbx_connector_with_cdr_token
+        payload = {
+            "variables": {
+                "uuid": "call-cdr-plus-e164",
+                "start_epoch": "1700000000",
+                "caller_id_number": "+33612345678",
+            }
+        }
+        body_json = json_mod.dumps(payload)
+        encoded_body = "cdr=" + quote(body_json, safe="+")
+        resp = client.post(
+            f"/api/telephony/cdr/ingest/{raw_token}",
+            data=encoded_body,
+            content_type="application/x-www-form-urlencoded",
+        )
+        assert resp.status_code == 201
+        event = TelephonyEvent.query.filter_by(call_uuid="call-cdr-plus-e164").first()
+        assert event.caller_number == "+33612345678"
+
 
 class TestCdrTokenRegenerate:
     def test_refuse_sans_droit_admin_tenant(self, client, auth_headers, pbx_connector):

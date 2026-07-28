@@ -32,7 +32,7 @@ import logging
 import secrets
 import zipfile
 from datetime import datetime, timedelta
-from urllib.parse import unquote_plus, urlparse
+from urllib.parse import unquote, unquote_plus, urlparse
 
 import requests
 from flask import Blueprint, Response, current_app, g, jsonify, request
@@ -340,12 +340,17 @@ def cdr_ingest(token):
     # s'avère réellement URL-encodé.
     raw_body = request.get_data(as_text=True) or ""
     payload = None
-    # Deux hypothèses testées : le corps est déjà en clair (émetteur non
-    # conforme, cas réel ci-dessus — chercher '{'/'}' littéraux fonctionne
-    # même avec des '&'/'=' internes puisqu'on ne fait pas de parsing
-    # clé=valeur), ou le corps est correctement URL-encodé (émetteur
-    # conforme — décoder d'abord fait réapparaître les '{'/'}').
-    for text in (raw_body, unquote_plus(raw_body)):
+    # Trois hypothèses testées, dans cet ordre :
+    #  1. corps déjà en clair (émetteur non conforme, cas réel confirmé en
+    #     prod — chercher '{'/'}' littéraux fonctionne même avec des '&'/'='
+    #     internes puisqu'aucun parsing clé=valeur n'est tenté) ;
+    #  2. corps URL-encodé au sens strict RFC 3986 (%XX uniquement, '+' non
+    #     transformé) — le cas d'un encodeur type JS `encodeURIComponent`,
+    #     qui laisse '+' tel quel : décoder avec unquote_plus corromprait un
+    #     numéro E.164 ("+33...") en le remplaçant par un espace ;
+    #  3. corps réellement application/x-www-form-urlencoded au sens strict
+    #     (RFC 1866, '+' = espace) — unquote_plus, en dernier recours.
+    for text in (raw_body, unquote(raw_body), unquote_plus(raw_body)):
         start, end = text.find("{"), text.rfind("}")
         if start == -1 or end <= start:
             continue
