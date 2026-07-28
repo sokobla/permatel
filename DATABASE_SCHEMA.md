@@ -1,7 +1,13 @@
 # Schéma de la base de données PERMATEL
 
-**Version** : 2.4.0 (Multi-tenant, invitations, canaux, KPI agents) | **Base de données** : PostgreSQL 15  
-**Dernière mise à jour** : 22 juin 2026
+**Version** : 2.5.0 (Module Téléphonie ESL) | **Base de données** : PostgreSQL 15  
+**Dernière mise à jour** : 28 juillet 2026
+
+### Changelog v2.5.0 (28 juillet 2026)
+- ☎️ **`telephony_events` étendue** (existait déjà mais dormante) : `event_type`/`call_status` en `String` (pas enum), + `pbx_connector_id`, `call_direction`, `callee_number`, `agent_login`, `queue_id`, `recording_url`, `raw_payload` (JSONB). `user_session_id` passé nullable.
+- ➕ **`pbx_connectors`** : connecteur PBX (ESL/AMI/TSAPI) **tenant-scopé** (`tenant_id` NOT NULL, comme `smtp_settings`) — pivot d'une conception initiale globale (partagée entre tenants) décidé en cours d'implémentation. Identifiants chiffrés (`EncryptedText`), statut live (`is_connected`/`last_seen_at`/`last_error`), `sync_requested_at`.
+- ➕ **`pbx_connector_domains`** (ex-`pbx_domains_tenants`, renommée) : domaines PBX rattachés à un connecteur + files d'attente supervisées. A perdu sa colonne `tenant_id` propre (héritée du connecteur parent).
+- 🗃️ Migrations : `c9d0e1f2a3b4` (création initiale), `d0e1f2a3b4c5` (extension telephony_events), `e7f8a9b0c1d2` (pivot tenant-scopé — DROP/CREATE avec garde-fou données).
 
 ### Changelog v2.4.0 (22 juin 2026)
 - ➕ **`tenant_invitations`** : onboarding par invitation (`tenant_id`, `email`, `role`, `membership_role`, `token_hash`, `status` pending/accepted/revoked/expired, `invited_by_user_id`, `expires_at` (TTL 48h), `accepted_at`).
@@ -709,31 +715,73 @@ CREATE INDEX idx_agents_prestataire_id ON agents_securite(prestataire_id);
 ```sql
 CREATE TABLE telephony_events (
   id                  SERIAL PRIMARY KEY,
-  tenant_id           UUID REFERENCES tenants(id) ON DELETE CASCADE,
-  user_session_id     INTEGER NOT NULL REFERENCES user_sessions(id) ON DELETE CASCADE,
+  tenant_id           UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  user_session_id     INTEGER REFERENCES user_sessions(id),
   demande_id          INTEGER,
+  pbx_connector_id    INTEGER REFERENCES pbx_connectors(id) ON DELETE SET NULL,
+  event_type          VARCHAR(50) NOT NULL,              -- CHANNEL_CREATE/PROGRESS_MEDIA/ANSWER/HANGUP_COMPLETE, CALLCENTER_QUEUE_ENTER/AGENT_STATE_CHANGE
+  call_direction      VARCHAR(10),                       -- inbound | outbound
+  call_status         VARCHAR(30),                       -- ringing/early_media/answered/missed/abandoned/technical_failure/on_hold/ended
   caller_number       VARCHAR(20),
-  type_event          VARCHAR(50),                      -- 'CALL_IN', 'CALL_OUT', 'MISSED', 'VOICEMAIL'
-  duration            INTEGER DEFAULT 0,                -- Durée en secondes
-  call_uuid           VARCHAR(100),                     -- Identifiant appel
+  callee_number       VARCHAR(20),
+  agent_login         VARCHAR(50),
+  queue_id            VARCHAR(100),
+  duration            INTEGER,                           -- Durée en secondes
+  call_uuid           VARCHAR(100),                       -- Identifiant appel
+  recording_url       VARCHAR(500),                       -- lien seulement, pas de stockage physique
+  raw_payload         JSONB,
   created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
   FOREIGN KEY (tenant_id, demande_id) REFERENCES demandes(tenant_id, id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_telephony_events_session ON telephony_events(user_session_id);
-CREATE INDEX idx_telephony_events_demande ON telephony_events(demande_id);
+CREATE INDEX ix_telephony_events_agent_login ON telephony_events(agent_login);
+CREATE INDEX ix_telephony_events_queue_id ON telephony_events(queue_id);
+CREATE INDEX ix_telephony_events_call_uuid ON telephony_events(call_uuid);
+CREATE INDEX ix_telephony_events_pbx_connector_id ON telephony_events(pbx_connector_id);
+
+CREATE TABLE pbx_connectors (
+  id                  SERIAL PRIMARY KEY,
+  tenant_id           UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name                VARCHAR(100) NOT NULL,
+  type                VARCHAR(20) NOT NULL,               -- ESL | AMI | TSAPI
+  host                VARCHAR(255) NOT NULL,
+  port                INTEGER NOT NULL,
+  username            VARCHAR(100),
+  password            TEXT,                               -- EncryptedText (Fernet)
+  is_active           BOOLEAN NOT NULL DEFAULT true,
+  is_connected        BOOLEAN,                             -- heartbeat du Core Connector
+  last_seen_at        TIMESTAMP,
+  last_error          VARCHAR(500),
+  sync_requested_at   TIMESTAMP,                            -- bouton "Sync"
+  created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE INDEX ix_pbx_connectors_tenant_id ON pbx_connectors(tenant_id);
+
+CREATE TABLE pbx_connector_domains (
+  id                  SERIAL PRIMARY KEY,
+  pbx_connector_id    INTEGER NOT NULL REFERENCES pbx_connectors(id) ON DELETE CASCADE,
+  pbx_domain          VARCHAR(255) NOT NULL,
+  queue_ids           JSONB,
+  created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  UNIQUE (pbx_connector_id, pbx_domain)
+);
+CREATE INDEX ix_pbx_connector_domains_pbx_connector_id ON pbx_connector_domains(pbx_connector_id);
+CREATE INDEX ix_pbx_connector_domains_pbx_domain ON pbx_connector_domains(pbx_domain);
 ```
 
-**Intégration ESL** (Freeswitch Event Socket Layer) :
-- Réception d'événements temps réel du serveur Freeswitch
-- Stockage des appels entrant/sortants
-- Enregistrements d'appels
-- Lien vers demandes
+**Intégration ESL** (FreeSWITCH/FusionPBX Event Socket Library) :
+- Process Docker séparé `connector/` (bibliothèque `greenswitch`, gevent), opt-in (`docker compose --profile telephony`)
+- `pbx_connectors` **tenant-scopée** (comme `smtp_settings`) — chaque tenant possède et configure son propre connecteur, géré par son admin dans `Paramètres > Téléphonie`
+- `pbx_connector_domains` route `pbx_domain` (porté par chaque événement FreeSWITCH) vers le bon connecteur/tenant à l'ingestion
+- Diffusion temps réel via WebSocket (namespace `/telephony`) en plus de la persistance
 
 **Relations** :
-- N:1 → `demandes`
+- N:1 → `demandes` (optionnel)
+- N:1 → `pbx_connectors` (optionnel)
 
-**Status** : 🚧 Intégration ESL à implémenter
+**Status** : ✅ Implémenté et connecté à un FusionPBX de production (voir `TELEPHONIE_INTEGRATION_PLAN.md` §8)
 
 ----
 
@@ -836,7 +884,8 @@ ORDER BY s.created_at DESC;
 | interactions | ✅ | ✅ | 🚧 Routes CRUD en attente |
 | fichiers | ✅ | ✅ | 🚧 Routes upload en attente |
 | agents_securite | ✅ | ✅ | 🚧 Routes CRUD en attente |
-| telephony_events | ✅ | ✅ | 🚧 Intégration ESL en attente |
+| telephony_events | ✅ | ✅ | ✅ Connecteur ESL en prod |
+| pbx_connectors / pbx_connector_domains | ✅ | ✅ | ✅ CRUD tenant-scopé |
 
 ----
 
@@ -894,18 +943,52 @@ LIMIT 50;
 ----
 
 **Maintenu par** : Équipe PERMATEL  
-**Dernière révision** : 19 avril 2026
-### `telephony_events`
+**Dernière révision** : 28 juillet 2026
+### `telephony_events` (étendue — Phase 11)
 - `id` : Integer (PK)
-- `tenant_id` : UUID (FK -> tenants.id), NOT NULL
-- `user_session_id` : Integer (FK -> user_sessions.id), NOT NULL
+- `tenant_id` : UUID (FK -> tenants.id, ON DELETE CASCADE), NOT NULL
+- `user_session_id` : Integer (FK -> user_sessions.id), **nullable** (assoupli — un événement PBX se rattache à `agent_login`, pas forcément à une session active)
 - `demande_id` : Integer, nullable
-- `event_type` : Enum (CALL_START, CALL_END, CALL_TRANSFER, CALL_HOLD)
-- `caller_number` : String(20), nullable
-- `duration` : Integer, nullable
-- `call_uuid` : String(100), nullable
+- `pbx_connector_id` : Integer (FK -> pbx_connectors.id, ON DELETE SET NULL), nullable
+- `event_type` : **String(50)** (pas d'enum Postgres — `CHANNEL_CREATE`/`CHANNEL_PROGRESS_MEDIA`/`CHANNEL_ANSWER`/`CHANNEL_HANGUP_COMPLETE`/`CALLCENTER_QUEUE_ENTER`/`CALLCENTER_AGENT_STATE_CHANGE`)
+- `call_direction` : String(10), nullable (`inbound`/`outbound`)
+- `call_status` : String(30), nullable (`ringing`/`early_media`/`answered`/`missed`/`abandoned`/`technical_failure`/`on_hold`/`ended`)
+- `caller_number` / `callee_number` : String(20), nullable
+- `agent_login` : String(50), nullable, indexé
+- `queue_id` : String(100), nullable, indexé
+- `duration` : Integer, nullable (secondes)
+- `call_uuid` : String(100), nullable, indexé
+- `recording_url` : String(500), nullable (lien seulement — pas de stockage physique)
+- `raw_payload` : JSONB (JSON sous SQLite), nullable — payload complet de l'événement ingéré
 - `created_at` : DateTime
-- **Contraintes** : `FK(tenant_id, demande_id) -> demandes(tenant_id, id)`
+- **Contraintes** : `FK(tenant_id, demande_id) -> demandes(tenant_id, id) ON DELETE SET NULL`
+
+### `pbx_connectors` (Phase 12 — tenant-scopée, pivot post-implémentation)
+Connecteur PBX (ESL/AMI/TSAPI) d'un tenant, comme `smtp_settings`. Un
+tenant peut posséder plusieurs connecteurs (rare en pratique).
+- `id` : Integer (PK)
+- `tenant_id` : UUID (FK -> tenants.id, ON DELETE CASCADE), NOT NULL, indexé
+- `name` : String(100), NOT NULL
+- `type` : String(20), NOT NULL (`ESL`/`AMI`/`TSAPI` — pas d'enum, extensible sans migration)
+- `host` : String(255), NOT NULL
+- `port` : Integer, NOT NULL
+- `username` : String(100), nullable
+- `password` : `EncryptedText` (chiffré au repos, Fernet), nullable
+- `is_active` : Boolean, NOT NULL
+- `is_connected` / `last_seen_at` / `last_error` : statut live rapporté par le heartbeat du Core Connector (`POST /connectors/status`)
+- `sync_requested_at` : DateTime, nullable — horodatage du dernier clic "Sync" (filet de secours durable du signal Redis temps réel)
+- `created_at` / `updated_at` : DateTime
+
+### `pbx_connector_domains` (Phase 12, ex-`pbx_domains_tenants`)
+Domaine PBX (FusionPBX `domain_name`) couvert par un connecteur, avec les
+files d'attente supervisées — route `pbx_domain` (porté par chaque
+événement FreeSWITCH) vers le bon `pbx_connector_id`, donc le bon tenant.
+- `id` : Integer (PK)
+- `pbx_connector_id` : Integer (FK -> pbx_connectors.id, ON DELETE CASCADE), NOT NULL, indexé
+- `pbx_domain` : String(255), NOT NULL, indexé
+- `queue_ids` : JSONB (JSON sous SQLite), nullable — liste des `queue_id` supervisées
+- `created_at` / `updated_at` : DateTime
+- **Contraintes** : `UNIQUE(pbx_connector_id, pbx_domain)`
 
 ### `audit_log`
 - `id` : Integer (PK)

@@ -28,13 +28,18 @@ un vrai état de config via `pbx_connectors`, tenant-scopé). La table
 `/telephony`, Flask-SocketIO + worker Gunicorn `eventlet` + Redis comme
 message queue multi-worker). Phasage : **11 (fondations backend) ✅**,
 **11bis (infra WebSocket) ✅** validée en test de charge Docker réel, **12
-(connecteur FusionPBX/ESL) ✅** — process Docker séparé `connector/`
-(bibliothèque `greenswitch`, gevent) ; `pbx_connectors` **tenant-scopé**
-(revu en cours d'implémentation — chaque tenant possède son propre
-connecteur, comme SMTP/IMAP, géré par son admin dans `Paramètres >
-Téléphonie` : statut live de l'adapter + bouton Sync quasi temps réel via
-Redis pub/sub) ; **reste à valider contre un FusionPBX réel** (accès de
-test disponible — voir §8.3 du plan). → 13
+(connecteur FusionPBX/ESL) ✅ connecté en production** — process Docker
+séparé `connector/` (bibliothèque `greenswitch`, gevent) ; `pbx_connectors`
+**tenant-scopé** (revu en cours d'implémentation — chaque tenant possède son
+propre connecteur, comme SMTP/IMAP, géré par son admin dans `Paramètres >
+Téléphonie` : statut live de l'adapter, bouton Sync quasi temps réel via
+Redis pub/sub, panneau "Événements ESL en temps réel" filtrable). Raccordé à
+un FusionPBX réel (`fusion.cloud228.com`) — deux bugs de production détectés
+et corrigés (deadlock du connecteur sur reconnexion concurrente ; route
+Nginx manquante pour le WebSocket, `/api/socket.io`) — voir §8 du plan.
+Écart d'en-têtes ESL réels toujours à confirmer contre un appel légitime
+(`variable_domain_name`/`Caller-Caller-ID-Number`, capturés jusqu'ici
+uniquement sur du trafic de scan) — voir §8.3. → 13
 (supervision frontend) → 14 (connecteur Asterisk/AMI), ces 2 dernières
 phases non démarrées.
 

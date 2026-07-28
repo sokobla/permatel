@@ -1,8 +1,17 @@
 # PERMATEL - Gestion Intégrée de Demandes et Sessions
 
-**Version** : 1.6.0  
-**Dernière mise à jour** : 27 juillet 2026  
-**Statut** : Backend ✅ / Frontend ✅ | **Tests** : 188 ✅
+**Version** : 1.7.0  
+**Dernière mise à jour** : 28 juillet 2026  
+**Statut** : Backend ✅ / Frontend ✅ | **Tests** : 199 ✅
+
+### Changelog v1.7.0 (28 juillet 2026)
+- ☎️ **Module Téléphonie — Phase 12 (connecteur FusionPBX/ESL)** : `connector/`, process Docker séparé (opt-in, `docker compose --profile telephony`), bibliothèque `greenswitch` (gevent) — `ESLAdapter` souscrit aux événements `CHANNEL_*` + `mod_callcenter`, reconnexion avec backoff. **Pivot d'architecture décidé en cours de route** : `PbxConnector` n'est plus une ressource globale partagée entre tenants (conception initiale) mais **tenant-scopée** (`tenant_id` direct), comme `SmtpSetting`/`ImapSetting` — CRUD délégué à l'admin de tenant dans `Paramètres > Téléphonie`, plus de page globale `/pbx-connectors`. Migration `e7f8a9b0c1d2` (DROP/CREATE avec garde-fou données), `pbx_domains_tenants` renommée `pbx_connector_domains`.
+- 🔁 **Sync temps réel + statut live** : bouton "Sync" (reconnexion forcée) diffusé via Redis pub/sub (canal `telephony:sync`, filet de secours durable si Redis indisponible) — effectif en quelques secondes plutôt que d'attendre le sondage périodique (60s). Heartbeat de statut (`POST /connectors/status`) alimentant une sous-ligne "adapter" par connecteur (connecté/déconnecté, dernière activité, dernière erreur).
+- 📡 **Panneau "Événements ESL en temps réel"** (`Paramètres > Téléphonie`) : diffusion WebSocket à l'ingestion (tâche 11bis.4, restée en suspens depuis la Phase 11bis — `socketio.emit` room-scopée au tenant), composable `useTelephonySocket`, filtrage par type d'événement, pause/effacer, masquable.
+- 🐛 **Deux bugs de production détectés et corrigés lors du raccordement à un FusionPBX réel** (`fusion.cloud228.com`) :
+  - **Deadlock du connecteur sur reconnexion concurrente** : `force_reconnect()`/`stop()` appelaient `ESLProtocol.stop()` (greenswitch — envoie `'exit'`, attend une réponse **sans timeout**) directement depuis la greenlet appelante, en course avec la greenlet `run()` de l'adapter faisant la même chose — un double appel concurrent bloquait indéfiniment le connecteur après un clic sur "Sync". Corrigé : une seule greenlet ferme désormais la socket (fermeture directe, non bloquante), les autres se contentent de signaler.
+  - **Panneau live bloqué en "Déconnecté"** : le chemin Socket.IO par défaut (`/socket.io/`) n'était proxifié par aucune règle Nginx (seuls `/api` et `/uploads` le sont) et tombait dans le fallback SPA — jamais acheminé vers le backend. Déplacé sous `/api/socket.io` (same-origin, cohérent avec le reste de l'app) + en-têtes `Upgrade`/`Connection` ajoutés à la location Nginx. Validé de bout en bout contre une vraie stack Docker (pas seulement des tests unitaires) : connexion WebSocket via le proxy Nginx, ingestion d'un événement, réception confirmée côté client.
+- 📄 Documentation détaillée : `TELEPHONIE_INTEGRATION_PLAN.md` §8 (Phase 12), suivi `docs/suivi_taches_permatel.xlsx`.
 
 ### Changelog v1.6.0 (27 juillet 2026)
 - ☎️ **Module Téléphonie — Phase 11 (fondations backend)** : tables `pbx_connectors` / `pbx_domains_tenants` (identifiants chiffrés `EncryptedText`), extension de `telephony_events` (existait déjà mais dormante — `event_type` élargi en `String`, ajout `pbx_connector_id`/`call_direction`/`callee_number`/`agent_login`/`queue_id`/`recording_url`/`raw_payload`). Routes `/api/telephony` : ingestion (`POST /events/ingest`, auth `X-Connector-Token` dédiée — un seul connecteur global orchestrant plusieurs `PBXAdapter`), lecture temps réel (`/active-calls`, `/kpis/*`), CRUD connecteurs (ADMIN global) et réglages tenant. `config_state.telephony_configured` dans `GET /api/tenant/features`. 16 nouveaux tests.

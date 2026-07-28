@@ -1,7 +1,7 @@
 # PERMATEL — Module Téléphonie : Plan d'intégration
 
-**Statut** : Phases 11 et 11bis implémentées et validées (197/197 tests backend, test de charge Docker réel — §7). **Phase 12 implémentée** (Core Connector ESL, connecteur **tenant-scopé** revu en cours de route — §8.4, Sync temps réel via Redis), **connecté en production** à un FusionPBX réel (`fusion.cloud228.com`) — validation des en-têtes réels contre `normalizer.py` en cours, un écart déjà confirmé (`Hangup-Cause: WRONG_CALL_STATE` non catégorisé), voir §8.3. Tâche 11bis.4 (diffusion WebSocket à l'ingestion) complétée + panneau live filtrable dans `Paramètres > Téléphonie` (`useTelephonySocket`, en avance sur la Phase 13). Phases 13 (reste : vue de supervision dédiée)-14 non démarrées.
-**Date** : 27 juillet 2026
+**Statut** : Phases 11 et 11bis implémentées et validées (199/199 tests backend, test de charge Docker réel — §7). **Phase 12 implémentée** (Core Connector ESL, connecteur **tenant-scopé** revu en cours de route — §8.4, Sync temps réel via Redis), **connectée en production** à un FusionPBX réel (`fusion.cloud228.com`) — deux bugs de production détectés et corrigés en conditions réelles (deadlock de reconnexion concurrente, route Nginx manquante pour le WebSocket) — voir §8.5. Validation des en-têtes ESL réels contre `normalizer.py` toujours en cours (un écart déjà confirmé, `Hangup-Cause: WRONG_CALL_STATE` non catégorisé, capturé sur du trafic de scan, pas encore sur un appel légitime), voir §8.3. Tâche 11bis.4 (diffusion WebSocket à l'ingestion) complétée + panneau live filtrable dans `Paramètres > Téléphonie` (`useTelephonySocket`, en avance sur la Phase 13). Phases 13 (reste : vue de supervision dédiée)-14 non démarrées.
+**Date** : 28 juillet 2026
 **Source** : `docs/cdc/CDC-Module-Telephonie.md` (v1.0, 27 juillet 2026)
 **Suivi des tâches** : `docs/suivi_taches_permatel.xlsx` (Phases 11 à 14)
 
@@ -303,3 +303,65 @@ connecteur PBX, exactement comme `SmtpSetting`/`ImapSetting` :
   Connector à chaque cycle de réconciliation, alimente
   `is_connected`/`last_seen_at`/`last_error` sur `PbxConnector` — c'est ce
   qui peuple la sous-ligne "adapter" de l'UI.
+
+---
+
+### 8.5 Raccordement au FusionPBX réel — deux bugs de production détectés et corrigés
+
+Connecteur mis en service contre `fusion.cloud228.com` (FusionPBX 1.10.8,
+production réelle, ~2,7M sessions depuis 108 jours d'uptime). Deux
+dysfonctionnements distincts sont apparus, chacun corrigé et validé avant
+d'être considérés résolus (pas seulement en test unitaire) :
+
+**a) Deadlock du connecteur sur reconnexion concurrente**
+
+Symptôme en production : deux lignes `Reconnexion forcée (Sync)` loggées
+sans qu'aucune ligne `Connexion à ... (ESL)` n'apparaisse jamais entre les
+deux — le connecteur restait bloqué indéfiniment après un clic sur "Sync".
+
+Cause : `ESLAdapter.force_reconnect()`/`stop()` appelaient
+`ESLProtocol.stop()` (greenswitch) **directement depuis la greenlet
+appelante** (boucle de réconciliation ou listener Redis), alors que la
+propre greenlet `run()` de l'adapter, réveillée par le même signal,
+tentait **aussi** d'appeler `stop()` dans son `finally`. `ESLProtocol.stop()`
+envoie `'exit'` et attend la réponse via `AsyncResult.get()` **sans
+timeout** — un double appel concurrent laisse l'un des deux bloqué pour
+toujours dès que l'unique réponse `'exit'` reçue ne résout qu'un seul des
+deux `AsyncResult` en attente. Le listener Redis traitant les messages
+séquentiellement, un seul blocage suffisait à rendre tous les Sync suivants
+silencieusement inopérants.
+
+Correction : `force_reconnect()`/`stop()` ne touchent plus jamais `_esl`
+directement — ils se contentent de réveiller l'event. Seule la greenlet
+`run()` (jamais concurrente avec elle-même) ferme la connexion, via
+`_hard_disconnect()` qui clôt directement la socket (non bloquant) plutôt
+que de négocier un arrêt propre avec `'exit'`. 5 tests de régression
+(`connector/tests/test_esl_adapter_reconnect.py`), dont un reproduisant
+l'appel concurrent avec un `gevent.Timeout` explicite.
+
+**b) Panneau live bloqué en "Déconnecté" — route Nginx manquante**
+
+Symptôme : le panneau "Événements ESL en temps réel" restait en
+"Déconnecté" en permanence, aucun événement ne remontait, malgré un
+connecteur ESL fonctionnel et des événements bien ingérés côté backend.
+
+Cause : le chemin Engine.IO par défaut (`/socket.io/`) n'était proxifié par
+**aucune** `location` Nginx du frontend (seuls `/api` et `/uploads` le
+sont) — le handshake WebSocket tombait dans le fallback SPA et recevait
+`index.html` au lieu de jamais joindre le backend. Même en le routant,
+`proxy_set_header Upgrade`/`Connection` (requis pour que Nginx propage le
+handshake d'upgrade WebSocket) était absent de la location `/api/`.
+
+Correction : `socketio.init_app(..., path="/api/socket.io")` côté backend
+et `useTelephonySocket.js` aligné sur le même chemin (reste same-origin
+sous `/api`, cohérent avec le reste de l'app — pas de nouvelle `location`
+Nginx dédiée). Ajout d'un `map $http_upgrade $connection_upgrade` (upgrade
+uniquement si le client le demande réellement, pour ne pas casser le
+keep-alive des requêtes REST classiques sur la même location) +
+`proxy_set_header Upgrade`/`Connection` sur `/api/`.
+
+Validé de bout en bout contre une vraie stack Docker (nginx + Gunicorn
+eventlet + Redis), pas seulement au niveau unitaire : connexion WebSocket
+via le proxy Nginx exactement comme le ferait un navigateur, création d'un
+connecteur + domaine via l'API, ingestion d'un événement, réception
+confirmée côté client en moins de 2 secondes.
