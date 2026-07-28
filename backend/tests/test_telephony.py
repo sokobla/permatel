@@ -675,6 +675,25 @@ class TestCdrIngest:
         event = TelephonyEvent.query.filter_by(call_uuid="call-cdr-plus-e164").first()
         assert event.caller_number == "+33612345678"
 
+    def test_ingest_cdr_corps_double_encode(self, client, db, pbx_connector_with_cdr_token):
+        """Une couche intermédiaire (proxy, lib HTTP) ré-encode un corps déjà
+        URL-encodé : un seul passage de unquote ne suffit pas à faire
+        réapparaître les '{'/'}' littéraux."""
+        import json as json_mod
+        from urllib.parse import quote
+        _, raw_token = pbx_connector_with_cdr_token
+        payload = {"variables": {"uuid": "call-cdr-double-encoded", "start_epoch": "1700000000"}}
+        body_json = json_mod.dumps(payload)
+        once = "cdr=" + quote(body_json, safe="")
+        twice = quote(once, safe="")
+        resp = client.post(
+            f"/api/telephony/cdr/ingest/{raw_token}",
+            data=twice,
+            content_type="application/x-www-form-urlencoded",
+        )
+        assert resp.status_code == 201
+        assert TelephonyEvent.query.filter_by(call_uuid="call-cdr-double-encoded").count() >= 1
+
 
 class TestCdrTokenRegenerate:
     def test_refuse_sans_droit_admin_tenant(self, client, auth_headers, pbx_connector):

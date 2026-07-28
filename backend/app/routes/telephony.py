@@ -350,7 +350,14 @@ def cdr_ingest(token):
     #     numéro E.164 ("+33...") en le remplaçant par un espace ;
     #  3. corps réellement application/x-www-form-urlencoded au sens strict
     #     (RFC 1866, '+' = espace) — unquote_plus, en dernier recours.
-    for text in (raw_body, unquote(raw_body), unquote_plus(raw_body)):
+    # 4e hypothèse : double encodage (l'émetteur encode deux fois, ou une
+    # couche intermédiaire — proxy, lib HTTP — ré-encode un corps déjà
+    # encodé). unquote appliqué deux fois ne casse rien si une seule couche
+    # existait (idempotent sur du texte déjà décodé sans '%').
+    candidates_text = (
+        raw_body, unquote(raw_body), unquote_plus(raw_body), unquote(unquote(raw_body)),
+    )
+    for text in candidates_text:
         start, end = text.find("{"), text.rfind("}")
         if start == -1 or end <= start:
             continue
@@ -364,11 +371,19 @@ def cdr_ingest(token):
     if payload is None:
         payload = request.get_json(silent=True, force=True)
     if not isinstance(payload, dict):
+        # Instrumentation temporaire (à retirer une fois le format confirmé) :
+        # les 4 tentatives ci-dessus ont toutes échoué sur du trafic FusionPBX
+        # réel à plusieurs reprises malgré des hypothèses raisonnables —
+        # plutôt que de continuer à deviner à l'aveugle, on journalise un
+        # extrait borné du corps brut pour voir les octets réels au prochain
+        # échec (contenu potentiellement sensible mais interne aux logs
+        # applicatifs, même trust boundary que le reste de ce endpoint).
         logger.warning(
             "CDR webhook : corps illisible pour le connecteur id=%s "
-            "(Content-Type=%r, %d octets, clés formulaire=%r)",
+            "(Content-Type=%r, %d octets, clés formulaire=%r, début=%r, fin=%r)",
             connector.id, request.content_type, request.content_length or 0,
             list(request.form.keys())[:5],
+            raw_body[:300], raw_body[-150:],
         )
         return jsonify({"error": "Corps CDR JSON invalide ou absent."}), 400
 
