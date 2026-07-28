@@ -592,6 +592,24 @@ class TestCdrIngest:
         assert resp.status_code == 201
         assert TelephonyEvent.query.filter_by(call_uuid="call-cdr-raw-body").count() >= 1
 
+    def test_ingest_cdr_corps_urlencoded_sans_champ_nomme(self, client, db, pbx_connector_with_cdr_token):
+        """Reproduit le trafic réel du 28/07 : Content-Type
+        application/x-www-form-urlencoded (défaut libcurl POSTFIELDS) avec le
+        JSON brut comme corps entier — sans '=' dans le JSON, Werkzeug le
+        décode comme une clé de formulaire à valeur vide, pas comme une paire
+        clé=valeur nommée 'cdr'."""
+        import json as json_mod
+        _, raw_token = pbx_connector_with_cdr_token
+        payload = {"variables": {"uuid": "call-cdr-urlencoded-rawbody", "start_epoch": "1700000000"}}
+        body = json_mod.dumps(payload, separators=(",", ":"))
+        resp = client.post(
+            f"/api/telephony/cdr/ingest/{raw_token}",
+            data=body,
+            content_type="application/x-www-form-urlencoded",
+        )
+        assert resp.status_code == 201
+        assert TelephonyEvent.query.filter_by(call_uuid="call-cdr-urlencoded-rawbody").count() >= 1
+
     def test_ingest_cdr_uuid_en_repli_depuis_la_query_string(self, client, db, pbx_connector_with_cdr_token):
         """FusionPBX ajoute `?uuid=<call-uuid>` à l'URL configurée — utilisé
         en repli si le corps ne porte pas l'UUID (observé en prod)."""

@@ -326,17 +326,26 @@ def cdr_ingest(token):
             )
             return jsonify({"error": "Adresse IP non autorisée."}), 403
 
-    # Confirmé sur trafic FusionPBX réel (28/07) : mod_json_cdr POSTe le JSON
-    # brut mais sans Content-Type exploitable par request.get_json() par
-    # défaut (silent=True refusait de parser) — d'où force=True. Il ajoute
-    # aussi `?uuid=<call-uuid>` à l'URL configurée, utilisé en repli si le
-    # corps ne le porte pas.
+    # Confirmé sur trafic FusionPBX réel (28/07) : le corps est POSTé en
+    # Content-Type application/x-www-form-urlencoded (comportement par
+    # défaut de libcurl avec POSTFIELDS, pas une vraie soumission de
+    # formulaire) — le JSON brut se retrouve décodé par Werkzeug comme une
+    # clé ou une valeur du formulaire, selon que le JSON contient ou non un
+    # '=' littéral (s'il n'y en a aucun, tout le corps devient une clé
+    # unique à valeur vide plutôt qu'une paire clé=valeur). On scanne donc
+    # les clés ET les valeurs du formulaire décodé à la recherche d'un objet
+    # JSON valide, en plus des tentatives corps-JSON-brut (au cas où un
+    # autre PBX/config poste vraiment du JSON avec le bon Content-Type).
     payload = request.get_json(silent=True, force=True)
-    if payload is None and request.form.get("cdr"):
-        try:
-            payload = json.loads(request.form["cdr"])
-        except (TypeError, ValueError):
-            payload = None
+    if payload is None:
+        for candidate_str in (*request.form.keys(), *request.form.values()):
+            try:
+                candidate = json.loads(candidate_str)
+            except (TypeError, ValueError):
+                continue
+            if isinstance(candidate, dict):
+                payload = candidate
+                break
     if payload is None:
         try:
             payload = json.loads(request.get_data(as_text=True) or "")
@@ -344,8 +353,10 @@ def cdr_ingest(token):
             payload = None
     if not isinstance(payload, dict):
         logger.warning(
-            "CDR webhook : corps illisible pour le connecteur id=%s (Content-Type=%r, %d octets)",
+            "CDR webhook : corps illisible pour le connecteur id=%s "
+            "(Content-Type=%r, %d octets, clés formulaire=%r)",
             connector.id, request.content_type, request.content_length or 0,
+            list(request.form.keys())[:5],
         )
         return jsonify({"error": "Corps CDR JSON invalide ou absent."}), 400
 
