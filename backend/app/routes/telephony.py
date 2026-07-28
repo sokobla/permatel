@@ -301,11 +301,13 @@ def _trace_cdr_payload(connector_id: int, payload: dict) -> None:
     Diagnostic activable via TELEPHONY_CDR_TRACE=true — journalise
     l'inventaire complet des variables reçues (clé, type, aperçu de valeur)
     et écrit le payload intégral dans un fichier, pour confirmer quelles
-    variables un PBX réel envoie effectivement (au-delà de celles déjà
-    exploitées : uuid, start/answer/end_epoch, billsec, caller_id_number,
-    destination_number, direction, hangup_cause, record_file_path,
-    cc_queue/cc_agent). Ne doit jamais faire échouer l'ingestion : toute
-    erreur ici est journalisée puis ignorée.
+    variables un PBX réel envoie effectivement. A déjà permis de corriger
+    deux hypothèses fausses : caller_id_number/destination_number ne sont
+    pas systématiquement sous 'variables' (vivent sous
+    callflow[0].caller_profile) et cc_agent est un UUID interne FusionPBX,
+    pas un login/une extension (l'agent réel est sous
+    callflow[0].caller_profile.originatee). Ne doit jamais faire échouer
+    l'ingestion : toute erreur ici est journalisée puis ignorée.
     """
     try:
         variables = payload.get("variables") or {}
@@ -367,11 +369,13 @@ def cdr_ingest(token):
     notre propre Core Connector), le jeton ici est PAR CONNECTEUR et résout
     directement le tenant, sans jamais transiter par le Core Connector.
 
-    ⚠️ Non confirmé contre un flux FusionPBX réel avant mise en prod : le
-    format exact du corps (JSON brut vs. `application/x-www-form-urlencoded`
-    avec un champ `cdr=<json>`, comportement historique de mod_xml_cdr) et
-    les noms de variables `cc_queue`/`cc_agent` (files/agents, absents des
-    variables CDR standard, best-effort si présents).
+    Format du corps et variables confirmés contre du trafic FusionPBX réel
+    (29/07, appel direct + appel en file d'attente) : `application/x-
+    www-form-urlencoded` (`cdr=<json>`), caller/callee sous
+    `callflow[0].caller_profile`, `cc_queue` fiable mais `cc_agent` = UUID
+    interne FusionPBX (voir extraction `agent_login` ci-dessous). Toujours
+    non confirmé : exposition des enregistrements (`recording_url` — aucun
+    appel de test avec enregistrement actif à ce jour).
     """
     connector = PbxConnector.query.filter_by(
         cdr_webhook_token_hash=_hash_webhook_token(token)
@@ -519,11 +523,23 @@ def cdr_ingest(token):
         or variables.get("sip_to_user")
     )
     direction = variables.get("direction")
-    # cc_queue/cc_agent : confirmé absents sur un appel direct (hors file
-    # d'attente) — toujours non confirmé sur un appel réellement routé via
-    # mod_callcenter, à valider dès qu'un tel appel de test sera disponible.
+    # Confirmé sur trafic FusionPBX réel (appel en file d'attente, 29/07) :
+    # 'cc_queue' est fiable, format "<extension>@<domaine>" (même convention
+    # que le header ESL CC-Queue). 'cc_agent', en revanche, s'est révélé être
+    # un UUID interne FusionPBX (call_center_agents.call_center_agent_uuid),
+    # PAS un login/une extension exploitable pour matcher un User PERMATEL.
+    # L'extension réelle de l'agent qui décroche se trouve dans le profil
+    # "originatee" du callflow (le leg vers lequel mod_callcenter a bridgé),
+    # pas dans une variable 'cc_*' — absent sur un appel hors file d'attente,
+    # d'où le gardé conditionné à la présence de 'cc_queue'.
     queue_id = variables.get("cc_queue")
-    agent_login = variables.get("cc_agent")
+    originatee_profiles = (
+        (caller_profile.get("originatee") or {}).get("originatee_caller_profiles") or []
+    )
+    agent_login = (
+        (originatee_profiles[0].get("destination_number") if originatee_profiles else None)
+        if queue_id else None
+    )
     recording_url = variables.get("record_file_path") or variables.get("recording_follow_transfer")
 
     events = []

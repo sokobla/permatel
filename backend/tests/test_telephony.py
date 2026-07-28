@@ -616,6 +616,79 @@ class TestCdrIngest:
         assert event.callee_number == "50000620047255"
         assert event.tenant_id == default_tenant.id
 
+    def test_ingest_cdr_agent_login_depuis_originatee_pas_cc_agent(
+        self, client, db, pbx_connector_with_cdr_token,
+    ):
+        """Reproduit un appel réel routé en file d'attente (trace du 29/07,
+        mod_callcenter) : 'cc_agent' s'est révélé être un UUID interne
+        FusionPBX (call_center_agents.call_center_agent_uuid), PAS un login/
+        une extension exploitable pour matcher un User PERMATEL. L'extension
+        réelle de l'agent qui décroche ("22101005" dans la trace réelle) vit
+        sous callflow[0].caller_profile.originatee.originatee_caller_profiles[0]
+        .destination_number — c'est CETTE valeur qui doit peupler agent_login,
+        pas le contenu de la variable 'cc_agent'."""
+        _, raw_token = pbx_connector_with_cdr_token
+        payload = {
+            "variables": {
+                "uuid": "call-cdr-queue",
+                "start_epoch": "1785258708",
+                "answer_epoch": "1785258708",
+                "end_epoch": "1785258746",
+                "billsec": "38",
+                "direction": "inbound",
+                "hangup_cause": "NORMAL_CLEARING",
+                "cc_queue": "8004@africallpbx.fusion.cloud228.com",
+                "cc_agent": "9fb3f742-b96f-4b5a-9906-32e5e4cf1ccf",  # UUID interne, PAS l'extension
+            },
+            "callflow": [
+                {
+                    "caller_profile": {
+                        "caller_id_number": "212687851794",
+                        "destination_number": "8004",
+                        "originatee": {
+                            "originatee_caller_profiles": [
+                                {"destination_number": "22101005"},
+                            ],
+                        },
+                    },
+                },
+            ],
+        }
+        resp = client.post(f"/api/telephony/cdr/ingest/{raw_token}", json=payload)
+        assert resp.status_code == 201
+
+        event = TelephonyEvent.query.filter_by(call_uuid="call-cdr-queue", event_type="CDR_RECORD_END").first()
+        assert event.queue_id == "8004@africallpbx.fusion.cloud228.com"
+        assert event.agent_login == "22101005"
+
+    def test_ingest_cdr_agent_login_absent_hors_file_d_attente(self, client, db, pbx_connector_with_cdr_token):
+        """Sans 'cc_queue' (appel hors file d'attente), agent_login doit
+        rester None même si un profil 'originatee' existe pour une autre
+        raison (ex. transfert) — pas de fabrication de donnée agent sans
+        contexte de file d'attente réel."""
+        _, raw_token = pbx_connector_with_cdr_token
+        payload = {
+            "variables": {
+                "uuid": "call-cdr-no-queue",
+                "start_epoch": "1785258708",
+                "end_epoch": "1785258746",
+                "hangup_cause": "NORMAL_CLEARING",
+            },
+            "callflow": [
+                {
+                    "caller_profile": {
+                        "originatee": {
+                            "originatee_caller_profiles": [{"destination_number": "22101005"}],
+                        },
+                    },
+                },
+            ],
+        }
+        resp = client.post(f"/api/telephony/cdr/ingest/{raw_token}", json=payload)
+        assert resp.status_code == 201
+        event = TelephonyEvent.query.filter_by(call_uuid="call-cdr-no-queue", event_type="CDR_RECORD_END").first()
+        assert event.agent_login is None
+
     def test_ingest_cdr_manque_ne_cree_pas_d_evenement_answer(self, client, db, pbx_connector_with_cdr_token):
         _, raw_token = pbx_connector_with_cdr_token
         payload = {
