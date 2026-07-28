@@ -501,11 +501,29 @@ def cdr_ingest(token):
         billsec = None
     was_answered = bool(answer_at) and bool(billsec)
 
-    caller = variables.get("caller_id_number") or variables.get("effective_caller_id_number")
-    callee = variables.get("destination_number")
+    # Confirmé sur trafic FusionPBX réel (28/07) : 'caller_id_number' et
+    # 'destination_number' n'existent PAS sous 'variables' (l'hypothèse
+    # initiale était fausse) — ils vivent sous callflow[0].caller_profile.
+    # Repli sur les en-têtes SIP (sip_from_user/sip_to_user) si callflow est
+    # absent pour une raison quelconque.
+    callflow = payload.get("callflow") or []
+    caller_profile = (callflow[0].get("caller_profile") or {}) if callflow else {}
+    caller = (
+        caller_profile.get("caller_id_number")
+        or variables.get("caller_id_number") or variables.get("effective_caller_id_number")
+        or variables.get("sip_from_user")
+    )
+    callee = (
+        caller_profile.get("destination_number")
+        or variables.get("destination_number")
+        or variables.get("sip_to_user")
+    )
     direction = variables.get("direction")
-    queue_id = variables.get("cc_queue")  # best-effort, non confirmé
-    agent_login = variables.get("cc_agent")  # best-effort, non confirmé
+    # cc_queue/cc_agent : confirmé absents sur un appel direct (hors file
+    # d'attente) — toujours non confirmé sur un appel réellement routé via
+    # mod_callcenter, à valider dès qu'un tel appel de test sera disponible.
+    queue_id = variables.get("cc_queue")
+    agent_login = variables.get("cc_agent")
     recording_url = variables.get("record_file_path") or variables.get("recording_follow_transfer")
 
     events = []

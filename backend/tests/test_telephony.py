@@ -575,6 +575,47 @@ class TestCdrIngest:
         assert events[-1].duration == 60
         assert events[-1].tenant_id == default_tenant.id
 
+    def test_ingest_cdr_extrait_caller_callee_depuis_callflow(
+        self, client, db, pbx_connector_with_cdr_token, default_tenant,
+    ):
+        """Reproduit la structure réelle d'un CDR FusionPBX complet (trace du
+        29/07, appel réel via passerelle SIP) : 'caller_id_number' et
+        'destination_number' n'existent PAS sous 'variables' (contrairement à
+        l'hypothèse initiale) — ils vivent sous callflow[0].caller_profile.
+        Sans ce correctif, caller_number/callee_number restent NULL pour
+        TOUS les appels ingérés via CDR."""
+        _, raw_token = pbx_connector_with_cdr_token
+        payload = {
+            "variables": {
+                "uuid": "call-cdr-callflow",
+                "start_epoch": "1785270347",
+                "answer_epoch": "1785270363",
+                "end_epoch": "1785270386",
+                "billsec": "23",
+                "direction": "outbound",
+                "hangup_cause": "NORMAL_CLEARING",
+                "sip_from_user": "33186569392",
+                "sip_to_user": "50000620047255",
+                # Volontairement absent : caller_id_number / destination_number
+            },
+            "callflow": [
+                {
+                    "caller_profile": {
+                        "caller_id_number": "33186569392",
+                        "destination_number": "50000620047255",
+                        "ani": "22101010",
+                    },
+                },
+            ],
+        }
+        resp = client.post(f"/api/telephony/cdr/ingest/{raw_token}", json=payload)
+        assert resp.status_code == 201
+
+        event = TelephonyEvent.query.filter_by(call_uuid="call-cdr-callflow", event_type="CDR_RECORD_END").first()
+        assert event.caller_number == "33186569392"
+        assert event.callee_number == "50000620047255"
+        assert event.tenant_id == default_tenant.id
+
     def test_ingest_cdr_manque_ne_cree_pas_d_evenement_answer(self, client, db, pbx_connector_with_cdr_token):
         _, raw_token = pbx_connector_with_cdr_token
         payload = {
