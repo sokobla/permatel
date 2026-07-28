@@ -1,8 +1,8 @@
 <template>
   <v-container fluid class="rp-container">
 
-    <!-- ── Filtre global ───────────────────────────────────────────────── -->
-    <v-row>
+    <!-- ── Filtre global (non applicable à l'onglet Téléphonie, qui a ses propres filtres) ─ -->
+    <v-row v-if="activeTab !== 'telephonie'">
       <v-col>
         <v-sheet color="#FFFFFF" class="pa-2 d-flex align-center flex-wrap gap-3"
           style="border: 1px solid rgba(197,198,206,0.15)">
@@ -77,7 +77,7 @@
       <v-col>
         <div class="rp-tabs">
           <button
-            v-for="tab in TABS" :key="tab.key"
+            v-for="tab in visibleTabs" :key="tab.key"
             :class="['rp-tab', activeTab === tab.key && 'rp-tab--active']"
             @click="activeTab = tab.key"
           >
@@ -688,6 +688,15 @@
 
     </template>
 
+    <!-- ══ TÉLÉPHONIE ══════════════════════════════════════════════════════ -->
+    <template v-if="activeTab === 'telephonie'">
+      <v-row class="mt-1">
+        <v-col>
+          <ReportCdr />
+        </v-col>
+      </v-row>
+    </template>
+
   </v-container>
 </template>
 
@@ -788,6 +797,7 @@ import { emailService } from "@/services/emailService";
 import { agentKpiService } from "@/services/agentKpiService";
 import { settingsService } from "@/services/settingsService";
 import { useAuthStore } from "@/store/auth";
+import ReportCdr from "@/components/reports/ReportCdr.vue";
 
 const authStore = useAuthStore();
 
@@ -801,14 +811,23 @@ const PERIODS = [
   { value: "all",  label: "Tout" },
 ];
 
-const TABS = [
+const ALL_TABS = [
   { key: "production",    label: "Production",    icon: "mdi-chart-bar" },
   { key: "vacations",     label: "Prises de service", icon: "mdi-clock-start" },
   { key: "agents",        label: "Agents",        icon: "mdi-shield-account-outline" },
   { key: "permanenciers", label: "Opérateurs",    icon: "mdi-account-key-outline" },
   { key: "sessions",      label: "Sessions",      icon: "mdi-monitor-account" },
   { key: "email",         label: "Email",         icon: "mdi-email-outline" },
+  { key: "telephonie",    label: "Téléphonie",    icon: "mdi-phone-in-talk-outline" },
 ];
+
+// Onglet Téléphonie visible ssi le canal est actif sur le tenant (même
+// pattern de filtrage que WorkspaceView.vue::visibleTabs).
+const visibleTabs = computed(() =>
+  ALL_TABS.filter(
+    (t) => t.key !== "telephonie" || authStore.featureMap.channels?.telephonie === true,
+  ),
+);
 
 const STATUT_META = {
   nouvelle:   { label: "Nouvelle",   color: "#3498db" },
@@ -836,6 +855,10 @@ const filterClientId = ref(null);
 const filterQualification = ref(null);
 const qualificationOptions = ref([]);
 const loading        = ref(false);
+
+watch(visibleTabs, (tabs) => {
+  if (!tabs.some((t) => t.key === activeTab.value)) activeTab.value = "production";
+});
 
 // Période libre (daterange) — prioritaire sur les chips si renseignée
 const customFrom     = ref(null); // 'YYYY-MM-DD'

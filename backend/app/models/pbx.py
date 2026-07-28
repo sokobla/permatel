@@ -47,6 +47,17 @@ class PbxConnector(Base):
     # si le signal Redis (temps réel) est manqué (connecteur en redémarrage).
     sync_requested_at = Column(DateTime, nullable=True)
 
+    # Webhook CDR (Phase 14) — canal d'ingestion complémentaire à l'ESL live :
+    # FusionPBX (mod_json_cdr) POSTe un résumé JSON du call à la fin de
+    # l'appel vers /api/telephony/cdr/ingest/<token>. Le jeton résout
+    # directement le connecteur (pas besoin de connaître son ID). Stocké à
+    # la fois hashé (recherche/comparaison en temps constant) et chiffré
+    # (réaffichage à volonté côté UI, décision utilisateur — cf. bouton
+    # "Copier le token", même mécanisme que `password` ci-dessus).
+    authorized_ip = Column(String(255), nullable=True)  # IP(s) autorisée(s) à poster le CDR, vide = pas de restriction
+    cdr_webhook_token_hash = Column(String(64), nullable=True, unique=True, index=True)
+    cdr_webhook_token = Column(EncryptedText, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -68,6 +79,12 @@ class PbxConnector(Base):
             "last_seen_at": self.last_seen_at.isoformat() if self.last_seen_at else None,
             "last_error": self.last_error,
             "sync_requested_at": self.sync_requested_at.isoformat() if self.sync_requested_at else None,
+            "authorized_ip": self.authorized_ip,
+            # Réaffichable à volonté (pas un secret montré une seule fois comme
+            # les jetons d'invitation) : seul l'admin du tenant propriétaire
+            # peut atteindre cette route (@tenant_admin_required + scoping),
+            # même trust boundary que le mot de passe PBX via include_secrets.
+            "cdr_webhook_token": self.cdr_webhook_token,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

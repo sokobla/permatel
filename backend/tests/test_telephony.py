@@ -477,3 +477,256 @@ class TestSyncConnector:
 
         resp = client.post(f"/api/telephony/connectors/{other_connector.id}/sync", headers=auth_headers_admin)
         assert resp.status_code == 404
+
+
+@pytest.fixture
+def pbx_connector_with_cdr_token(db, pbx_connector):
+    import hashlib
+    raw_token = "test-cdr-webhook-token-raw"
+    pbx_connector.cdr_webhook_token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    pbx_connector.cdr_webhook_token = raw_token
+    db.session.commit()
+    return pbx_connector, raw_token
+
+
+class TestCdrIngest:
+    """POST /api/telephony/cdr/ingest/<token> — webhook FusionPBX mod_json_cdr, jeton par connecteur."""
+
+    def test_jeton_invalide_retourne_404(self, client, db, pbx_connector):
+        resp = client.post("/api/telephony/cdr/ingest/jeton-inconnu", json={"variables": {"uuid": "x"}})
+        assert resp.status_code == 404
+
+    def test_ip_non_autorisee_retourne_403(self, client, db, pbx_connector_with_cdr_token):
+        connector, raw_token = pbx_connector_with_cdr_token
+        connector.authorized_ip = "10.0.0.5"
+        db.session.commit()
+        resp = client.post(
+            f"/api/telephony/cdr/ingest/{raw_token}",
+            json={"variables": {"uuid": "call-cdr-1"}},
+            headers={"X-Forwarded-For": "203.0.113.9"},
+        )
+        assert resp.status_code == 403
+
+    def test_ip_autorisee_est_acceptee(self, client, db, pbx_connector_with_cdr_token):
+        connector, raw_token = pbx_connector_with_cdr_token
+        connector.authorized_ip = "203.0.113.9"
+        db.session.commit()
+        resp = client.post(
+            f"/api/telephony/cdr/ingest/{raw_token}",
+            json={"variables": {"uuid": "call-cdr-ip-ok", "start_epoch": "1000"}},
+            headers={"X-Forwarded-For": "203.0.113.9"},
+        )
+        assert resp.status_code == 201
+
+    def test_corps_sans_uuid_retourne_400(self, client, db, pbx_connector_with_cdr_token):
+        _, raw_token = pbx_connector_with_cdr_token
+        resp = client.post(f"/api/telephony/cdr/ingest/{raw_token}", json={"variables": {}})
+        assert resp.status_code == 400
+
+    def test_ingest_cdr_repondu_cree_trois_evenements(self, client, db, pbx_connector_with_cdr_token, default_tenant):
+        _, raw_token = pbx_connector_with_cdr_token
+        payload = {
+            "variables": {
+                "uuid": "call-cdr-answered",
+                "start_epoch": "1700000000",
+                "answer_epoch": "1700000005",
+                "end_epoch": "1700000065",
+                "billsec": "60",
+                "caller_id_number": "0612345678",
+                "destination_number": "0522456789",
+                "direction": "inbound",
+                "hangup_cause": "NORMAL_CLEARING",
+                "record_file_path": "/var/lib/freeswitch/recordings/call-cdr-answered.wav",
+            }
+        }
+        resp = client.post(f"/api/telephony/cdr/ingest/{raw_token}", json=payload)
+        assert resp.status_code == 201
+        assert resp.get_json()["events"] == 3
+
+        events = TelephonyEvent.query.filter_by(call_uuid="call-cdr-answered").order_by(TelephonyEvent.created_at).all()
+        assert [e.call_status for e in events] == ["ringing", "answered", "ended"]
+        assert events[-1].duration == 60
+        assert events[-1].tenant_id == default_tenant.id
+
+    def test_ingest_cdr_manque_ne_cree_pas_d_evenement_answer(self, client, db, pbx_connector_with_cdr_token):
+        _, raw_token = pbx_connector_with_cdr_token
+        payload = {
+            "variables": {
+                "uuid": "call-cdr-missed",
+                "start_epoch": "1700000000",
+                "end_epoch": "1700000010",
+                "hangup_cause": "NO_ANSWER",
+            }
+        }
+        resp = client.post(f"/api/telephony/cdr/ingest/{raw_token}", json=payload)
+        assert resp.status_code == 201
+        events = TelephonyEvent.query.filter_by(call_uuid="call-cdr-missed").all()
+        statuses = {e.call_status for e in events}
+        assert "answered" not in statuses
+        assert "missed" in statuses
+
+    def test_ingest_cdr_forme_urlencodee(self, client, db, pbx_connector_with_cdr_token):
+        """mod_xml_cdr historique poste parfois un champ 'cdr' urlencodé plutôt que du JSON brut."""
+        import json as json_mod
+        _, raw_token = pbx_connector_with_cdr_token
+        payload = {"variables": {"uuid": "call-cdr-form", "start_epoch": "1700000000"}}
+        resp = client.post(
+            f"/api/telephony/cdr/ingest/{raw_token}",
+            data={"cdr": json_mod.dumps(payload)},
+        )
+        assert resp.status_code == 201
+        assert TelephonyEvent.query.filter_by(call_uuid="call-cdr-form").count() >= 1
+
+
+class TestCdrTokenRegenerate:
+    def test_refuse_sans_droit_admin_tenant(self, client, auth_headers, pbx_connector):
+        resp = client.post(f"/api/telephony/connectors/{pbx_connector.id}/cdr-token/regenerate", headers=auth_headers)
+        assert resp.status_code == 403
+
+    def test_regenere_le_token(self, client, db, auth_headers_admin, pbx_connector_with_cdr_token):
+        connector, old_raw_token = pbx_connector_with_cdr_token
+        old_hash = connector.cdr_webhook_token_hash
+
+        resp = client.post(
+            f"/api/telephony/connectors/{connector.id}/cdr-token/regenerate", headers=auth_headers_admin,
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["cdr_webhook_token"] is not None
+        assert data["cdr_webhook_token"] != old_raw_token
+
+        db.session.refresh(connector)
+        assert connector.cdr_webhook_token_hash != old_hash
+
+        # L'ancien jeton n'est plus valide.
+        resp2 = client.post(f"/api/telephony/cdr/ingest/{old_raw_token}", json={"variables": {"uuid": "x"}})
+        assert resp2.status_code == 404
+
+
+class TestCallsHistory:
+    """GET /api/telephony/calls — historique paginé/filtrable (Rapports > Téléphonie)."""
+
+    def _seed_completed_call(self, db, tenant_id, call_uuid, status="ended", agent_login="agent01",
+                              queue_id="queue-support", recording_url=None, base=None):
+        base = base or (datetime.utcnow() - timedelta(minutes=10))
+        db.session.add(TelephonyEvent(
+            tenant_id=tenant_id, event_type="CHANNEL_CREATE", call_status="ringing",
+            call_uuid=call_uuid, caller_number="0611111111", callee_number="0622222222",
+            call_direction="inbound", created_at=base,
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=tenant_id, event_type="CHANNEL_ANSWER", call_status="answered",
+            call_uuid=call_uuid, agent_login=agent_login, queue_id=queue_id, created_at=base + timedelta(seconds=5),
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=tenant_id, event_type="CHANNEL_HANGUP_COMPLETE", call_status=status,
+            call_uuid=call_uuid, agent_login=agent_login, queue_id=queue_id, duration=42,
+            recording_url=recording_url, created_at=base + timedelta(seconds=50),
+        ))
+        db.session.commit()
+
+    def test_liste_les_appels_termines(self, client, db, auth_headers, default_tenant):
+        self._seed_completed_call(db, default_tenant.id, "hist-1")
+        resp = client.get("/api/telephony/calls", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["total"] == 1
+        assert data["calls"][0]["call_uuid"] == "hist-1"
+        assert data["calls"][0]["call_status"] == "ended"
+
+    def test_exclut_les_appels_en_cours(self, client, db, auth_headers, default_tenant):
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CHANNEL_CREATE", call_status="ringing",
+            call_uuid="hist-en-cours", created_at=datetime.utcnow(),
+        ))
+        db.session.commit()
+        resp = client.get("/api/telephony/calls", headers=auth_headers)
+        assert resp.get_json()["total"] == 0
+
+    def test_filtre_par_statut(self, client, db, auth_headers, default_tenant):
+        self._seed_completed_call(db, default_tenant.id, "hist-answered", status="ended")
+        self._seed_completed_call(db, default_tenant.id, "hist-missed", status="missed")
+        resp = client.get("/api/telephony/calls?call_status=missed", headers=auth_headers)
+        data = resp.get_json()
+        assert data["total"] == 1
+        assert data["calls"][0]["call_uuid"] == "hist-missed"
+
+    def test_pagination(self, client, db, auth_headers, default_tenant):
+        for i in range(5):
+            self._seed_completed_call(
+                db, default_tenant.id, f"hist-page-{i}", base=datetime.utcnow() - timedelta(minutes=i + 10),
+            )
+        resp = client.get("/api/telephony/calls?page=1&per_page=2", headers=auth_headers)
+        data = resp.get_json()
+        assert data["total"] == 5
+        assert len(data["calls"]) == 2
+
+    def test_isolation_cross_tenant(self, client, db, auth_headers, default_tenant):
+        other_tenant = Tenant(code="OTHER3", nom="Autre Tenant 3", slug="other3")
+        db.session.add(other_tenant)
+        db.session.commit()
+        self._seed_completed_call(db, other_tenant.id, "hist-autre-tenant")
+
+        resp = client.get("/api/telephony/calls", headers=auth_headers)
+        uuids = [c["call_uuid"] for c in resp.get_json()["calls"]]
+        assert "hist-autre-tenant" not in uuids
+
+
+class TestCallsExport:
+    def test_export_csv_retourne_un_fichier_csv(self, client, db, auth_headers, default_tenant):
+        TestCallsHistory()._seed_completed_call(db, default_tenant.id, "export-1")
+        resp = client.get("/api/telephony/calls/export", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.mimetype == "text/csv"
+        body = resp.get_data(as_text=True)
+        assert "call_uuid" in body.splitlines()[0]
+        assert "export-1" in body
+
+
+class TestRecordings:
+    def test_liste_uniquement_les_appels_avec_enregistrement(self, client, db, auth_headers, default_tenant):
+        TestCallsHistory()._seed_completed_call(db, default_tenant.id, "rec-none")
+        TestCallsHistory()._seed_completed_call(
+            db, default_tenant.id, "rec-1", recording_url="https://pbx.example.com/rec/rec-1.wav",
+        )
+        resp = client.get("/api/telephony/recordings", headers=auth_headers)
+        data = resp.get_json()
+        assert data["total"] == 1
+        assert data["recordings"][0]["call_uuid"] == "rec-1"
+        assert data["recordings"][0]["recording_available"] is True
+
+    def test_chemin_local_marque_indisponible(self, client, db, auth_headers, default_tenant):
+        TestCallsHistory()._seed_completed_call(
+            db, default_tenant.id, "rec-local", recording_url="/var/lib/freeswitch/recordings/rec-local.wav",
+        )
+        resp = client.get("/api/telephony/recordings", headers=auth_headers)
+        data = resp.get_json()
+        assert data["recordings"][0]["recording_available"] is False
+
+    def test_download_chemin_local_retourne_422(self, client, db, auth_headers, default_tenant):
+        TestCallsHistory()._seed_completed_call(
+            db, default_tenant.id, "rec-dl-local", recording_url="/var/lib/freeswitch/recordings/x.wav",
+        )
+        resp = client.get("/api/telephony/recordings/rec-dl-local/download", headers=auth_headers)
+        assert resp.status_code == 422
+
+    def test_download_introuvable_retourne_404(self, client, db, auth_headers):
+        resp = client.get("/api/telephony/recordings/inconnu/download", headers=auth_headers)
+        assert resp.status_code == 404
+
+    def test_bulk_export_sans_enregistrement_disponible_retourne_zip_avec_manifeste(
+        self, client, db, auth_headers, default_tenant,
+    ):
+        import zipfile, io as io_mod
+        TestCallsHistory()._seed_completed_call(
+            db, default_tenant.id, "rec-bulk-local", recording_url="/local/path/x.wav",
+        )
+        resp = client.post("/api/telephony/recordings/export", json={}, headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.mimetype == "application/zip"
+        zf = zipfile.ZipFile(io_mod.BytesIO(resp.get_data()))
+        assert "_indisponibles.txt" in zf.namelist()
+
+    def test_bulk_export_aucune_correspondance_retourne_404(self, client, db, auth_headers):
+        resp = client.post("/api/telephony/recordings/export", json={}, headers=auth_headers)
+        assert resp.status_code == 404

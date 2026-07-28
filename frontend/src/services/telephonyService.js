@@ -21,4 +21,38 @@ export const telephonyService = {
   getAgentsStatus(params = {}) {
     return apiClient.get("/telephony/agents/status", { params });
   },
+
+  // ── Rapports > Téléphonie (historique, export, enregistrements) ─────────
+
+  /** Historique paginé/filtrable des appels terminés. */
+  getCalls(params = {}) {
+    return apiClient.get("/telephony/calls", { params });
+  },
+  /** Export CSV du même historique (mêmes filtres) — réponse blob. */
+  exportCallsCsv(params = {}) {
+    return apiClient.get("/telephony/calls/export", { params, responseType: "blob" });
+  },
+  /** Enregistrements paginés/filtrables (sous-ensemble des appels avec `recording_url`). */
+  getRecordings(params = {}) {
+    return apiClient.get("/telephony/recordings", { params });
+  },
+  /** Téléchargement d'un enregistrement (proxy backend) — réponse blob. */
+  downloadRecording(callUuid) {
+    return apiClient.get(`/telephony/recordings/${callUuid}/download`, { responseType: "blob" });
+  },
+  /** Export groupé en ZIP — `callUuids` optionnel (sélection explicite), sinon filtres. */
+  exportRecordingsBulk(callUuids, params = {}) {
+    return apiClient.post(
+      "/telephony/recordings/export",
+      { call_uuids: callUuids && callUuids.length ? callUuids : undefined },
+      { params, responseType: "blob" },
+    );
+  },
+
+  // ── Webhook CDR (connecteur) ─────────────────────────────────────────────
+
+  /** (Re)génère le jeton webhook CDR d'un connecteur — invalide l'ancienne URL. */
+  regenerateCdrToken(connectorId) {
+    return apiClient.post(`/telephony/connectors/${connectorId}/cdr-token/regenerate`);
+  },
 };

@@ -182,6 +182,52 @@
 
             <v-divider class="my-3" />
 
+            <div class="tel-domains-head">
+              <span class="tel-domains-head__title">WEBHOOK CDR (FusionPBX mod_json_cdr)</span>
+            </div>
+            <p class="tel-cdr-hint">
+              Canal complémentaire à l'ESL live : un résumé arrive à la fin de chaque appel (pas
+              d'événement "en cours"). Collez l'URL ci-dessous dans la configuration CDR de FusionPBX.
+            </p>
+            <div class="tel-cdr-row">
+              <v-text-field
+                :model-value="cdrWebhookUrl(item)"
+                label="URL du webhook"
+                variant="outlined"
+                density="comfortable"
+                readonly
+                hide-details
+              />
+              <v-btn
+                icon="mdi-content-copy"
+                variant="outlined"
+                size="small"
+                title="Copier l'URL"
+                @click="copyToClipboard(cdrWebhookUrl(item))"
+              />
+              <v-btn
+                icon="mdi-refresh"
+                variant="outlined"
+                size="small"
+                color="#e74c3c"
+                title="Régénérer le token (invalide l'URL actuelle)"
+                :loading="regeneratingTokenId === item.id"
+                @click="regenerateCdrToken(item)"
+              />
+            </div>
+            <v-text-field
+              v-model="ipDrafts[item.id]"
+              label="IP(s) autorisée(s) (optionnel)"
+              hint="Adresse IP du serveur FusionPBX, séparées par des virgules. Vide = aucune restriction."
+              persistent-hint
+              variant="outlined"
+              density="comfortable"
+              class="mt-3"
+              @blur="saveAuthorizedIp(item)"
+            />
+
+            <v-divider class="my-3" />
+
             <!-- Panneau événements ESL en temps réel (masquable, filtrable) -->
             <div class="live-head" @click="toggleLivePanel(item.id)">
               <v-icon
@@ -507,6 +553,74 @@ const expanded = ref([]);
 const loading = ref(false);
 const feedback = reactive({ text: "", type: "success" });
 
+// ── Webhook CDR (FusionPBX mod_json_cdr) ───────────────────────────────────
+const ipDrafts = reactive({}); // connector.id -> valeur éditée localement (sauvegarde au blur)
+const regeneratingTokenId = ref(null);
+
+// Même dérivation que useTelephonySocket.js (BACKEND_ORIGIN) pour rester
+// cohérent : l'URL publique de l'API, pas l'origine du frontend seul.
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api"
+).replace(/\/$/, "");
+
+function cdrWebhookUrl(connector) {
+  if (!connector.cdr_webhook_token) return "";
+  return `${API_BASE_URL}/telephony/cdr/ingest/${connector.cdr_webhook_token}`;
+}
+
+async function copyToClipboard(text) {
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    feedback.type = "success";
+    feedback.text = "Copié dans le presse-papiers.";
+  } catch {
+    feedback.type = "error";
+    feedback.text = "La copie a échoué — copiez manuellement.";
+  }
+}
+
+async function regenerateCdrToken(connector) {
+  if (
+    !window.confirm(
+      "Régénérer le token invalide immédiatement l'URL actuelle : FusionPBX devra être reconfiguré avec la nouvelle URL. Continuer ?",
+    )
+  ) {
+    return;
+  }
+  regeneratingTokenId.value = connector.id;
+  try {
+    const { data } = await apiClient.post(
+      `/telephony/connectors/${connector.id}/cdr-token/regenerate`,
+    );
+    const idx = connectors.value.findIndex((c) => c.id === connector.id);
+    if (idx !== -1) connectors.value[idx] = data;
+    feedback.type = "success";
+    feedback.text = "Token régénéré — mettez à jour l'URL dans FusionPBX.";
+  } catch (err) {
+    feedback.type = "error";
+    feedback.text = err?.response?.data?.error || "La régénération a échoué.";
+  } finally {
+    regeneratingTokenId.value = null;
+  }
+}
+
+async function saveAuthorizedIp(connector) {
+  const value = (ipDrafts[connector.id] || "").trim() || null;
+  if (value === (connector.authorized_ip || null)) return;
+  try {
+    const { data } = await apiClient.put(`/telephony/connectors/${connector.id}`, {
+      authorized_ip: value,
+    });
+    const idx = connectors.value.findIndex((c) => c.id === connector.id);
+    if (idx !== -1) connectors.value[idx] = data;
+    ipDrafts[connector.id] = data.authorized_ip || "";
+  } catch (err) {
+    feedback.type = "error";
+    feedback.text = err?.response?.data?.error || "L'enregistrement de l'IP autorisée a échoué.";
+  }
+}
+
 // ── Événements ESL en temps réel (namespace /telephony, room = tenant) ────
 const telephonySocket = useTelephonySocket();
 const socketConnected = telephonySocket.connected;
@@ -616,6 +730,9 @@ async function fetchConnectors() {
   try {
     const { data } = await apiClient.get("/telephony/connectors");
     connectors.value = Array.isArray(data) ? data : [];
+    connectors.value.forEach((c) => {
+      ipDrafts[c.id] = c.authorized_ip || "";
+    });
     await Promise.all(connectors.value.map((c) => fetchDomains(c.id)));
   } catch (err) {
     feedback.type = "error";
@@ -720,6 +837,7 @@ async function saveConnector() {
       const { data } = await apiClient.post("/telephony/connectors", payload);
       connectors.value.push(data);
       domainsByConnector[data.id] = [];
+      ipDrafts[data.id] = data.authorized_ip || "";
     }
     connectorDialog.value = false;
   } catch (err) {
@@ -974,6 +1092,23 @@ onUnmounted(() => {
 .tel-domains-table__actions {
   white-space: nowrap;
   text-align: right;
+}
+
+/* ── Webhook CDR ── */
+.tel-cdr-hint {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 4px 0 10px;
+  line-height: 1.5;
+  max-width: 560px;
+}
+.tel-cdr-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tel-cdr-row > .v-text-field {
+  flex: 1;
 }
 
 /* ── Événements ESL en temps réel ── */
