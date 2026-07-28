@@ -357,10 +357,12 @@ def cdr_ingest(token):
     candidates_text = (
         raw_body, unquote(raw_body), unquote_plus(raw_body), unquote(unquote(raw_body)),
     )
-    for text in candidates_text:
+    last_error = None  # (label, JSONDecodeError, sliced_text) — pour diagnostic si tout échoue
+    for label, text in zip(("brut", "unquote", "unquote_plus", "unquote x2"), candidates_text):
         start, end = text.find("{"), text.rfind("}")
         if start == -1 or end <= start:
             continue
+        sliced = text[start:end + 1]
         try:
             # strict=False : confirmé sur trafic FusionPBX réel (28/07) — le
             # dump complet des variables de canal (SIP headers multi-lignes,
@@ -368,7 +370,10 @@ def cdr_ingest(token):
             # échappés dans des valeurs de chaîne, invalides au sens strict
             # RFC 8259 mais tolérés ici plutôt que de rejeter tout le CDR
             # pour un champ secondaire mal échappé.
-            candidate = json.loads(text[start:end + 1], strict=False)
+            candidate = json.loads(sliced, strict=False)
+        except json.JSONDecodeError as exc:
+            last_error = (label, exc, sliced)
+            continue
         except (TypeError, ValueError):
             continue
         if isinstance(candidate, dict):
@@ -378,18 +383,25 @@ def cdr_ingest(token):
         payload = request.get_json(silent=True, force=True)
     if not isinstance(payload, dict):
         # Instrumentation temporaire (à retirer une fois le format confirmé) :
-        # les 4 tentatives ci-dessus ont toutes échoué sur du trafic FusionPBX
-        # réel à plusieurs reprises malgré des hypothèses raisonnables —
-        # plutôt que de continuer à deviner à l'aveugle, on journalise un
-        # extrait borné du corps brut pour voir les octets réels au prochain
-        # échec (contenu potentiellement sensible mais interne aux logs
-        # applicatifs, même trust boundary que le reste de ce endpoint).
+        # les tentatives ci-dessus échouent encore sur du trafic FusionPBX
+        # réel malgré plusieurs hypothèses déjà corrigées — plutôt que de
+        # deviner encore, on journalise la position EXACTE où json.loads
+        # échoue (sur le candidat 'unquote', le plus plausible d'après les
+        # logs précédents) avec un extrait centré sur ce point précis.
+        error_detail = "aucune erreur JSON capturée (aucun '{'/'}' trouvé dans les 4 candidats)"
+        if last_error is not None:
+            label, exc, sliced = last_error
+            window_start = max(0, exc.pos - 120)
+            window_end = min(len(sliced), exc.pos + 120)
+            error_detail = (
+                f"candidat={label!r} erreur={exc.msg!r} ligne={exc.lineno} colonne={exc.colno} "
+                f"position={exc.pos} autour_de={sliced[window_start:window_end]!r}"
+            )
         logger.warning(
             "CDR webhook : corps illisible pour le connecteur id=%s "
-            "(Content-Type=%r, %d octets, clés formulaire=%r, début=%r, fin=%r)",
+            "(Content-Type=%r, %d octets, clés formulaire=%r) — %s",
             connector.id, request.content_type, request.content_length or 0,
-            list(request.form.keys())[:5],
-            raw_body[:300], raw_body[-150:],
+            list(request.form.keys())[:5], error_detail,
         )
         return jsonify({"error": "Corps CDR JSON invalide ou absent."}), 400
 

@@ -523,6 +523,33 @@ class TestCdrIngest:
         resp = client.post(f"/api/telephony/cdr/ingest/{raw_token}", json={"variables": {}})
         assert resp.status_code == 400
 
+    def test_corps_json_tronque_retourne_400_sans_crash(self, client, db, pbx_connector_with_cdr_token):
+        """Corps réellement invalide (tronqué, aucune accolade fermante) :
+        le diagnostic détaillé ajouté pour instrumenter les échecs réels ne
+        doit pas lui-même planter sur un cas simplement invalide."""
+        _, raw_token = pbx_connector_with_cdr_token
+        resp = client.post(
+            f"/api/telephony/cdr/ingest/{raw_token}",
+            data='cdr={"variables":{"uuid":"call-tronque"',  # accolade jamais fermée
+            content_type="application/x-www-form-urlencoded",
+        )
+        assert resp.status_code == 400
+
+    def test_corps_json_syntaxiquement_invalide_retourne_400_sans_crash(
+        self, client, db, pbx_connector_with_cdr_token,
+    ):
+        """Accolades présentes (bornage réussi) mais JSON syntaxiquement
+        invalide à l'intérieur : exerce le chemin de diagnostic
+        JSONDecodeError (position/ligne/colonne) ajouté pour instrumenter
+        les échecs réels — ne doit pas planter."""
+        _, raw_token = pbx_connector_with_cdr_token
+        resp = client.post(
+            f"/api/telephony/cdr/ingest/{raw_token}",
+            data='cdr={"variables":{"uuid":,}}',  # valeur manquante après ':'
+            content_type="application/x-www-form-urlencoded",
+        )
+        assert resp.status_code == 400
+
     def test_ingest_cdr_repondu_cree_trois_evenements(self, client, db, pbx_connector_with_cdr_token, default_tenant):
         _, raw_token = pbx_connector_with_cdr_token
         payload = {
