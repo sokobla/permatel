@@ -13,7 +13,7 @@ fabriquer une). Ce correctif capte la valeur brute et l'expose telle quelle
 
 Colonne nullable, aucune donnée existante à migrer.
 
-Revision ID: f1a2b3c4d5e6
+Revision ID: 2f54e418e600
 Revises: e7f8a9b0c1d2
 Create Date: 2026-07-28 09:00:00.000000
 
@@ -23,7 +23,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'f1a2b3c4d5e6'
+revision = '2f54e418e600'
 down_revision = 'e7f8a9b0c1d2'
 branch_labels = None
 depends_on = None
