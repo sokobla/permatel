@@ -326,17 +326,34 @@ def cdr_ingest(token):
             )
             return jsonify({"error": "Adresse IP non autorisée."}), 403
 
-    payload = request.get_json(silent=True)
+    # Confirmé sur trafic FusionPBX réel (28/07) : mod_json_cdr POSTe le JSON
+    # brut mais sans Content-Type exploitable par request.get_json() par
+    # défaut (silent=True refusait de parser) — d'où force=True. Il ajoute
+    # aussi `?uuid=<call-uuid>` à l'URL configurée, utilisé en repli si le
+    # corps ne le porte pas.
+    payload = request.get_json(silent=True, force=True)
     if payload is None and request.form.get("cdr"):
         try:
             payload = json.loads(request.form["cdr"])
         except (TypeError, ValueError):
             payload = None
+    if payload is None:
+        try:
+            payload = json.loads(request.get_data(as_text=True) or "")
+        except (TypeError, ValueError):
+            payload = None
     if not isinstance(payload, dict):
+        logger.warning(
+            "CDR webhook : corps illisible pour le connecteur id=%s (Content-Type=%r, %d octets)",
+            connector.id, request.content_type, request.content_length or 0,
+        )
         return jsonify({"error": "Corps CDR JSON invalide ou absent."}), 400
 
     variables = payload.get("variables") or {}
-    call_uuid = variables.get("uuid") or variables.get("call_uuid") or payload.get("uuid")
+    call_uuid = (
+        variables.get("uuid") or variables.get("call_uuid") or payload.get("uuid")
+        or request.args.get("uuid")
+    )
     if not call_uuid:
         return jsonify({"error": "UUID d'appel introuvable dans le CDR."}), 400
 

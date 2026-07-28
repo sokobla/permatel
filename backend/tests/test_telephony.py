@@ -577,6 +577,33 @@ class TestCdrIngest:
         assert resp.status_code == 201
         assert TelephonyEvent.query.filter_by(call_uuid="call-cdr-form").count() >= 1
 
+    def test_ingest_cdr_corps_json_brut_sans_content_type(self, client, db, pbx_connector_with_cdr_token):
+        """Reproduit le trafic FusionPBX réel observé le 28/07 : mod_json_cdr
+        poste du JSON brut avec un Content-Type non reconnu par
+        request.get_json() par défaut — le endpoint doit forcer le parsing."""
+        import json as json_mod
+        _, raw_token = pbx_connector_with_cdr_token
+        payload = {"variables": {"uuid": "call-cdr-raw-body", "start_epoch": "1700000000"}}
+        resp = client.post(
+            f"/api/telephony/cdr/ingest/{raw_token}",
+            data=json_mod.dumps(payload),
+            content_type="text/plain",
+        )
+        assert resp.status_code == 201
+        assert TelephonyEvent.query.filter_by(call_uuid="call-cdr-raw-body").count() >= 1
+
+    def test_ingest_cdr_uuid_en_repli_depuis_la_query_string(self, client, db, pbx_connector_with_cdr_token):
+        """FusionPBX ajoute `?uuid=<call-uuid>` à l'URL configurée — utilisé
+        en repli si le corps ne porte pas l'UUID (observé en prod)."""
+        _, raw_token = pbx_connector_with_cdr_token
+        payload = {"variables": {"start_epoch": "1700000000"}}
+        resp = client.post(
+            f"/api/telephony/cdr/ingest/{raw_token}?uuid=call-cdr-query-uuid",
+            json=payload,
+        )
+        assert resp.status_code == 201
+        assert TelephonyEvent.query.filter_by(call_uuid="call-cdr-query-uuid").count() >= 1
+
 
 class TestCdrTokenRegenerate:
     def test_refuse_sans_droit_admin_tenant(self, client, auth_headers, pbx_connector):
