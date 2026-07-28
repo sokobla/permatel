@@ -747,6 +747,35 @@ class TestCdrIngest:
         assert resp.status_code == 201
         assert TelephonyEvent.query.filter_by(call_uuid="call-cdr-ctrl-char").count() >= 1
 
+    def test_ingest_cdr_repare_les_guillemets_non_echappes_dans_un_en_tete_sip(
+        self, client, db, pbx_connector_with_cdr_token,
+    ):
+        """Reproduit le trafic réel du 28/07 (6e round, root cause enfin
+        identifiée via le diagnostic position/ligne/colonne) : FusionPBX
+        interpole l'en-tête SIP `From` brut (`"Display Name" <sip:...>;tag=...`)
+        dans le JSON sans échapper les guillemets internes du nom
+        d'affichage — JSON syntaxiquement invalide, indépendant de tout
+        problème de décodage/encodage. _repair_unescaped_quotes doit
+        récupérer un JSON exploitable plutôt que de tout rejeter."""
+        from urllib.parse import quote
+        _, raw_token = pbx_connector_with_cdr_token
+        # Guillemets internes non échappés, exactement comme observé en
+        # prod : json.dumps() échapperait proprement, donc construit à la
+        # main pour reproduire fidèlement la non-conformité réelle.
+        raw_json = (
+            '{"variables":{"uuid":"call-cdr-sip-quotes","start_epoch":"1700000000",'
+            '"sip_full_from":""33186569392" <sip:33186569392@146.190.232.155>;tag=QmD7B1caeNDBa",'
+            '"sip_full_to":"<sip:50000767728320@sbc.maniterm.com:5080>"}}'
+        )
+        body = "cdr=" + quote(raw_json, safe="")
+        resp = client.post(
+            f"/api/telephony/cdr/ingest/{raw_token}",
+            data=body,
+            content_type="application/x-www-form-urlencoded",
+        )
+        assert resp.status_code == 201
+        assert TelephonyEvent.query.filter_by(call_uuid="call-cdr-sip-quotes").count() >= 1
+
 
 class TestCdrTokenRegenerate:
     def test_refuse_sans_droit_admin_tenant(self, client, auth_headers, pbx_connector):

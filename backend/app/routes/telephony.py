@@ -29,6 +29,7 @@ import hmac
 import io
 import json
 import logging
+import re
 import secrets
 import zipfile
 from datetime import datetime, timedelta
@@ -295,6 +296,28 @@ def _cdr_epoch_to_dt(raw):
     return datetime.utcfromtimestamp(value) if value else None
 
 
+# Confirmé sur trafic FusionPBX réel (28/07) : certains champs (en-têtes SIP
+# bruts type `sip_full_from`/`sip_full_to`, ex. `"33186569392" <sip:...>;tag=...`)
+# sont interpolés par FusionPBX dans le JSON SANS échapper les guillemets
+# internes (nom d'affichage SIP entre guillemets) — JSON syntaxiquement
+# invalide, indépendant de tout problème de décodage/encodage. Répare en
+# repérant la VRAIE fin de chaque valeur-chaîne (le prochain '"' suivi de
+# ',' '}' ou ']', espaces autorisés) et en échappant tout guillemet interne
+# non déjà échappé trouvé avant ce point. Heuristique, pas un vrai parseur —
+# mais strictement meilleure que l'échec total actuel, et sans effet sur les
+# champs déjà bien formés (aucun guillemet interne à échapper).
+_CDR_STRING_VALUE_RE = re.compile(r'"([a-zA-Z0-9_\-]+)"\s*:\s*"(.*?)"(?=\s*[,}\]])', re.DOTALL)
+
+
+def _repair_unescaped_quotes(text: str) -> str:
+    def _escape_inner_quotes(match):
+        key, value = match.group(1), match.group(2)
+        fixed_value = re.sub(r'(?<!\\)"', r'\"', value)
+        return f'"{key}":"{fixed_value}"'
+
+    return _CDR_STRING_VALUE_RE.sub(_escape_inner_quotes, text)
+
+
 @telephony_bp.post("/cdr/ingest/<token>")
 def cdr_ingest(token):
     """
@@ -379,6 +402,18 @@ def cdr_ingest(token):
         if isinstance(candidate, dict):
             payload = candidate
             break
+    if payload is None and last_error is not None:
+        # Dernier recours : JSON structurellement invalide (guillemets non
+        # échappés dans une valeur, cf. _repair_unescaped_quotes) plutôt
+        # qu'un problème d'encodage — tenté uniquement sur le texte qui a
+        # atteint le stade JSONDecodeError (bornage '{'/'}' déjà correct).
+        _, _, sliced = last_error
+        try:
+            candidate = json.loads(_repair_unescaped_quotes(sliced), strict=False)
+        except (TypeError, ValueError):
+            candidate = None
+        if isinstance(candidate, dict):
+            payload = candidate
     if payload is None:
         payload = request.get_json(silent=True, force=True)
     if not isinstance(payload, dict):
