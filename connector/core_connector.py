@@ -157,6 +157,11 @@ class CoreConnector:
                     logger.info("Connecteur id=%s : sync_requested_at modifié — reconnexion forcée.", connector_id)
                     self._on_sync_requested(connector_id)
                 self._last_sync_requested_at[connector_id] = sync_requested_at
+                # Roster PERMATEL (User.agent_login) rafraîchi à chaque cycle
+                # même sans Sync — un adapter déjà en cours n'est jamais
+                # redémarré pour ça (no-op par défaut sur PBXAdapter, cf. base.py).
+                adapter, _greenlet = self._running_adapters[connector_id]
+                adapter.update_known_agent_logins(connector_cfg.get("known_agent_logins") or [])
                 continue  # déjà en cours — pas de redémarrage sur simple refresh
 
             adapter_cls = ADAPTER_CLASSES.get(connector_cfg["type"])

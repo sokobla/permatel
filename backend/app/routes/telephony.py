@@ -40,7 +40,7 @@ from flask import Blueprint, Response, current_app, g, jsonify, request
 from flask_cors import CORS
 
 from app import db, socketio
-from app.models import PbxConnector, PbxConnectorDomain, TelephonyEvent
+from app.models import PbxConnector, PbxConnectorDomain, TelephonyEvent, TenantUser, User
 from app.utils.decorators import tenant_admin_required, tenant_required
 
 telephony_bp = Blueprint("telephony", __name__, url_prefix="/api/telephony")
@@ -122,6 +122,30 @@ def _publish_sync_signal(connector_id: int):
 #  Bootstrap config + heartbeat (Core Connector — jeton technique, pas de JWT)
 # ═════════════════════════════════════════════════════════════════════════
 
+def _known_agent_logins_for_tenant(tenant_id) -> list:
+    """
+    Roster d'agents faisant autorité côté PERMATEL — un `agent_login`
+    résolu depuis FusionPBX (annuaire ESL, cf. `ESLAdapter._fetch_agent_list`)
+    n'est retenu par le connecteur que s'il correspond à un `User` réel de ce
+    tenant. Évite d'attribuer de la présence/des KPI à une extension PBX qui
+    ne correspond à aucun agent PERMATEL configuré (poste de test, ancien
+    agent jamais nettoyé côté PBX, etc.).
+    """
+    rows = (
+        db.session.query(User.agent_login)
+        .join(TenantUser, TenantUser.user_id == User.id)
+        .filter(
+            TenantUser.tenant_id == tenant_id,
+            TenantUser.is_active.is_(True),
+            User.is_active.is_(True),
+            User.agent_login.isnot(None),
+        )
+        .distinct()
+        .all()
+    )
+    return [login for (login,) in rows if login]
+
+
 @telephony_bp.get("/connectors/config")
 def connectors_bootstrap_config():
     """
@@ -130,7 +154,10 @@ def connectors_bootstrap_config():
     confondus — vue globale côté connecteur, même si la ressource est
     tenant-scopée côté administration), identifiants déchiffrés inclus,
     avec leurs domaines rattachés. `sync_requested_at` sert de filet de
-    secours au signal Redis temps réel (§ ci-dessus).
+    secours au signal Redis temps réel (§ ci-dessus). `known_agent_logins`
+    (Phase 13, présence agent) : roster des `User.agent_login` connus pour
+    le tenant, utilisé par le connecteur pour valider les extensions
+    résolues depuis FusionPBX avant de les retenir dans son annuaire.
     """
     if (err := _require_connector_token()) is not None:
         return err
@@ -143,6 +170,7 @@ def connectors_bootstrap_config():
             {"pbx_domain": d.pbx_domain, "queue_ids": d.queue_ids or []}
             for d in c.domains
         ]
+        data["known_agent_logins"] = _known_agent_logins_for_tenant(c.tenant_id)
         result.append(data)
     return jsonify({"connectors": result}), 200
 
@@ -1168,6 +1196,32 @@ def _connector_or_404(connector_id):
     )
 
 
+def _normalize_queue_ids(raw):
+    """
+    `queue_ids` : liste de `{"id": "8001", "alias": "Support"}` — un alias
+    est un libellé d'affichage PERMATEL, jamais transmis à FreeSWITCH
+    (seul `id` sert dans `api callcenter_config agent list <id>@<domaine>`,
+    cf. ESLAdapter). Compatible avec l'ancien format (liste de chaînes) pour
+    les domaines déjà enregistrés avant ce champ.
+
+    Retourne `None` si `raw` n'est pas une liste (erreur 400 à lever par
+    l'appelant), sinon une liste nettoyée (entrées sans `id` écartées).
+    """
+    if not isinstance(raw, list):
+        return None
+    cleaned = []
+    for item in raw:
+        if isinstance(item, dict):
+            queue_id = str(item.get("id") or "").strip()
+            alias = str(item.get("alias") or "").strip()
+        else:
+            queue_id = str(item or "").strip()
+            alias = ""
+        if queue_id:
+            cleaned.append({"id": queue_id, "alias": alias})
+    return cleaned
+
+
 @telephony_bp.get("/connectors")
 @tenant_required
 def list_connectors():
@@ -1310,14 +1364,14 @@ def create_connector_domain(connector_id):
     if PbxConnectorDomain.query.filter_by(pbx_connector_id=connector_id, pbx_domain=pbx_domain).first():
         return jsonify({"error": "Ce domaine est déjà rattaché à ce connecteur."}), 409
 
-    queue_ids = data.get("queue_ids")
-    if queue_ids is not None and not isinstance(queue_ids, list):
+    queue_ids = _normalize_queue_ids(data.get("queue_ids") or [])
+    if queue_ids is None:
         return jsonify({"error": "'queue_ids' doit être une liste."}), 400
 
     domain = PbxConnectorDomain(
         pbx_connector_id=connector_id,
         pbx_domain=pbx_domain,
-        queue_ids=queue_ids or [],
+        queue_ids=queue_ids,
     )
     db.session.add(domain)
     db.session.commit()
@@ -1333,8 +1387,8 @@ def update_connector_domain(connector_id, domain_id):
         description="Domaine PBX introuvable"
     )
     data = request.get_json(silent=True) or {}
-    queue_ids = data.get("queue_ids")
-    if not isinstance(queue_ids, list):
+    queue_ids = _normalize_queue_ids(data.get("queue_ids"))
+    if queue_ids is None:
         return jsonify({"error": "'queue_ids' doit être une liste."}), 400
 
     domain.queue_ids = queue_ids

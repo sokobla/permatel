@@ -22,10 +22,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from adapters.esl_adapter import ESLAdapter  # noqa: E402
 
 
-def _fake_connector_config(domains=None):
+def _fake_connector_config(domains=None, known_agent_logins=None):
     return {
         "name": "Test PBX", "host": "pbx.local", "port": 8021, "password": "x",
-        "domains": domains or [],
+        "domains": domains or [], "known_agent_logins": known_agent_logins or [],
     }
 
 
@@ -188,7 +188,9 @@ def test_refresh_agent_directory_emet_un_appel_par_file_apres_scission():
 
 def test_refresh_agent_directory_parse_une_ligne_valide():
     domains = [{"pbx_domain": "d1", "queue_ids": ["queue-support"]}]
-    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=MagicMock())
+    adapter = ESLAdapter(
+        _fake_connector_config(domains, known_agent_logins=["22101005"]), ingest_client=MagicMock(),
+    )
     fake_esl = MagicMock()
     fake_esl.send.return_value = _FakeResponse(
         "e8a58298-87e7-4960-a222-d05763866b15|callback|user/22101005@d1|Available|Waiting|"
@@ -202,6 +204,46 @@ def test_refresh_agent_directory_parse_une_ligne_valide():
         "domain": "d1", "extension": "22101005", "queue": "queue-support",
     }
     fake_esl.send.assert_called_once_with("api callcenter_config agent list queue-support@d1")
+
+
+def test_refresh_agent_directory_extension_inconnue_de_permatel_est_ignoree(caplog):
+    """Extension résolue côté FreeSWITCH mais sans User.agent_login
+    correspondant pour ce tenant : écartée de l'annuaire, pas fabriquée."""
+    domains = [{"pbx_domain": "d1", "queue_ids": ["queue-support"]}]
+    adapter = ESLAdapter(
+        _fake_connector_config(domains, known_agent_logins=["99999999"]), ingest_client=MagicMock(),
+    )
+    fake_esl = MagicMock()
+    fake_esl.send.return_value = _FakeResponse(
+        "e8a58298-87e7-4960-a222-d05763866b15|callback|user/22101005@d1|Available|Waiting|"
+        "5|10|3|3|10|0|0|0|0|0|0|0|0|0"
+    )
+    adapter._esl = fake_esl
+
+    with caplog.at_level(logging.WARNING, logger="connector.esl"):
+        adapter._refresh_agent_directory()
+
+    assert adapter._agent_directory == {}
+    assert any("22101005" in r.message and "ignorée" in r.message for r in caplog.records)
+
+
+def test_refresh_agent_directory_avertit_si_aucun_agent_login_connu(caplog):
+    domains = [{"pbx_domain": "d1", "queue_ids": ["queue-support"]}]
+    adapter = ESLAdapter(_fake_connector_config(domains, known_agent_logins=[]), ingest_client=MagicMock())
+    fake_esl = MagicMock()
+    fake_esl.send.return_value = _FakeResponse("")
+    adapter._esl = fake_esl
+
+    with caplog.at_level(logging.WARNING, logger="connector.esl"):
+        adapter._refresh_agent_directory()
+
+    assert any("Aucun agent_login connu" in r.message for r in caplog.records)
+
+
+def test_update_known_agent_logins_remplace_le_roster():
+    adapter = ESLAdapter(_fake_connector_config(known_agent_logins=["1"]), ingest_client=MagicMock())
+    adapter.update_known_agent_logins(["2", "3"])
+    assert adapter._known_agent_logins == {"2", "3"}
 
 
 def test_refresh_agent_directory_domaine_sans_file_est_journalise_et_ignore(caplog):

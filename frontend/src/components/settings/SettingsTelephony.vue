@@ -140,12 +140,13 @@
                   <td>
                     <v-chip
                       v-for="q in d.queue_ids"
-                      :key="q"
+                      :key="queueId(q)"
                       size="x-small"
                       variant="tonal"
                       class="mr-1 mb-1"
+                      :title="queueId(q)"
                     >
-                      {{ q }}
+                      {{ queueAlias(q) }}
                     </v-chip>
                     <span v-if="!d.queue_ids?.length" class="tel-muted"
                       >Aucune</span
@@ -509,18 +510,49 @@
             variant="outlined"
             density="comfortable"
           />
-          <v-combobox
-            v-model="domainForm.queue_ids"
-            label="Files d'attente supervisées (Entrée pour ajouter)"
-            variant="outlined"
-            density="comfortable"
-            class="mt-3"
-            multiple
-            chips
-            closable-chips
-            hint="Identifiant tel que défini côté PBX (ex. queue-support)."
-            persistent-hint
-          />
+          <div class="tel-queue-head mt-3">
+            <span class="tel-domains-head__title">FILES D'ATTENTE SUPERVISÉES</span>
+          </div>
+          <div v-if="!domainForm.queue_ids.length" class="tel-muted mb-2">
+            Aucune file — utilisez "Ajouter une file" ci-dessous.
+          </div>
+          <div
+            v-for="(q, idx) in domainForm.queue_ids"
+            :key="idx"
+            class="tel-queue-row"
+          >
+            <v-text-field
+              v-model="q.id"
+              label="Identifiant (côté PBX)"
+              hint="Tel que défini côté PBX (ex. 8001, queue-support)."
+              variant="outlined"
+              density="comfortable"
+              hide-details
+            />
+            <v-text-field
+              v-model="q.alias"
+              label="Alias (affichage PERMATEL)"
+              variant="outlined"
+              density="comfortable"
+              hide-details
+            />
+            <v-btn
+              icon="mdi-close"
+              variant="text"
+              size="small"
+              title="Retirer cette file"
+              @click="domainForm.queue_ids.splice(idx, 1)"
+            />
+          </div>
+          <v-btn
+            variant="text"
+            size="small"
+            class="text-none mt-1"
+            prepend-icon="mdi-plus"
+            @click="domainForm.queue_ids.push({ id: '', alias: '' })"
+          >
+            Ajouter une file
+          </v-btn>
         </v-card-text>
         <v-divider />
         <v-card-actions>
@@ -894,6 +926,22 @@ const savingDomain = ref(false);
 const domainFormError = ref("");
 const domainForm = reactive({ pbx_domain: "", queue_ids: [] });
 
+// Compat ancien format (liste de chaînes nues) en plus du nouveau
+// {"id", "alias"} — un alias est un libellé d'affichage PERMATEL, jamais
+// transmis à FreeSWITCH (seul l'id sert côté connecteur).
+function queueId(q) {
+  return typeof q === "string" ? q : q?.id || "";
+}
+function queueAlias(q) {
+  if (typeof q === "string") return q;
+  return q?.alias || q?.id || "";
+}
+function toQueueFormRows(queueIds) {
+  return (queueIds || []).map((q) =>
+    typeof q === "string" ? { id: q, alias: "" } : { id: q.id || "", alias: q.alias || "" },
+  );
+}
+
 function openCreateDomain(connector) {
   editingDomain.value = null;
   editingDomainConnectorId.value = connector.id;
@@ -907,7 +955,7 @@ function openEditDomain(connector, domain) {
   editingDomainConnectorId.value = connector.id;
   Object.assign(domainForm, {
     pbx_domain: domain.pbx_domain,
-    queue_ids: [...(domain.queue_ids || [])],
+    queue_ids: toQueueFormRows(domain.queue_ids),
   });
   domainFormError.value = "";
   domainDialog.value = true;
@@ -916,13 +964,18 @@ function openEditDomain(connector, domain) {
 async function saveDomain() {
   domainFormError.value = "";
   const connectorId = editingDomainConnectorId.value;
+  // Lignes vides (id non renseigné) écartées — laissées par l'utilisateur
+  // après un "Ajouter une file" non rempli, ou une suppression partielle.
+  const queueIds = domainForm.queue_ids
+    .map((q) => ({ id: (q.id || "").trim(), alias: (q.alias || "").trim() }))
+    .filter((q) => q.id);
 
   savingDomain.value = true;
   try {
     if (editingDomain.value) {
       const { data } = await apiClient.put(
         `/telephony/connectors/${connectorId}/domains/${editingDomain.value.id}`,
-        { queue_ids: domainForm.queue_ids },
+        { queue_ids: queueIds },
       );
       const idx = domainsByConnector[connectorId].findIndex(
         (d) => d.id === editingDomain.value.id,
@@ -938,7 +991,7 @@ async function saveDomain() {
         `/telephony/connectors/${connectorId}/domains`,
         {
           pbx_domain: domainForm.pbx_domain.trim(),
-          queue_ids: domainForm.queue_ids,
+          queue_ids: queueIds,
         },
       );
       domainsByConnector[connectorId].push(data);
@@ -1070,6 +1123,18 @@ onUnmounted(() => {
   font-weight: 700;
   letter-spacing: 0.06em;
   color: #9aa0aa;
+}
+.tel-queue-head {
+  margin-bottom: 6px;
+}
+.tel-queue-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.tel-queue-row > .v-text-field {
+  flex: 1;
 }
 .tel-domains-table {
   width: 100%;

@@ -32,6 +32,13 @@ class PBXAdapter:
         de connexion persistante)."""
         pass
 
+    def update_known_agent_logins(self, logins):
+        """Roster PERMATEL faisant autorité (User.agent_login), rafraîchi
+        par CoreConnector à chaque sondage périodique sans redémarrer
+        l'adapter. Implémentation par défaut : no-op (adapter ne résolvant
+        pas d'identité agent, ex. futur AMIAdapter avant implémentation)."""
+        pass
+
     @property
     def is_connected(self) -> bool:
         """État live rapporté au heartbeat (POST /connectors/status)."""

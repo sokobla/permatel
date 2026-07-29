@@ -160,9 +160,9 @@
               <span class="mono-text cell-email">{{ item.email }}</span>
             </template>
 
-            <!-- ── Colonne EXTENSION ── -->
-            <template v-slot:[`item.station_extension`]="{ item }">
-              <span class="mono-tag">{{ item.station_extension || "—" }}</span>
+            <!-- ── Colonne LOGIN AGENT CC ── -->
+            <template v-slot:[`item.agent_login`]="{ item }">
+              <span class="mono-tag">{{ item.agent_login || "—" }}</span>
             </template>
 
             <!-- ── Colonne RÔLE ── -->
@@ -407,12 +407,12 @@
               }}</span>
             </div>
 
-            <!-- EXTENSION / RÔLE -->
+            <!-- LOGIN AGENT CC / RÔLE -->
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label">EXTENSION</label>
+                <label class="form-label">LOGIN AGENT CC</label>
                 <input
-                  v-model="form.station_extension"
+                  v-model="form.agent_login"
                   class="form-input mono-text"
                   placeholder="1234"
                   :readonly="panelMode === 'reset_password'"
@@ -689,18 +689,11 @@ const tableHeaders = [
   },
   { title: "EMAIL", key: "email", align: "start", sortable: true },
   {
-    title: "EXTENSION",
-    key: "station_extension",
-    align: "center",
-    sortable: false,
-    width: "100px",
-  },
-  {
-    title: "LOGIN ID",
+    title: "LOGIN AGENT CC",
     key: "agent_login",
     align: "center",
     sortable: false,
-    width: "100px",
+    width: "120px",
   },
   {
     title: "RÔLE",
@@ -866,7 +859,7 @@ const form = reactive({
   nom: "",
   prenom: "",
   email: "",
-  station_extension: "",
+  agent_login: "",
   role: "",
   tenant_ids: [],
   password: "",
@@ -1010,7 +1003,7 @@ async function onEditUser(user) {
   form.nom = user.nom || "";
   form.prenom = user.prenom || "";
   form.email = user.email || "";
-  form.station_extension = user.station_extension || "";
+  form.agent_login = user.agent_login || "";
   form.role = user.role || "";
   // Pré-remplir avec TOUS les tenants de l'utilisateur (multi-affectation).
   form.tenant_ids = (user.tenants || []).map((t) => t.id);
@@ -1029,7 +1022,7 @@ async function onResetPassword(user) {
   form.nom = user.nom || "";
   form.prenom = user.prenom || "";
   form.email = user.email || "";
-  form.station_extension = user.station_extension || "";
+  form.agent_login = user.agent_login || "";
   form.role = user.role || "";
   form.tenant_ids = (user.tenants || []).map((t) => t.id);
   if (user.avatar_url) {

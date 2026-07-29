@@ -168,6 +168,53 @@ class TestBootstrapConfig:
         assert c["domains"][0]["pbx_domain"] == pbx_domain.pbx_domain
         assert c["domains"][0]["queue_ids"] == ["queue-support"]
 
+    def test_known_agent_logins_liste_les_users_avec_agent_login_du_tenant(
+        self, client, db, pbx_connector, default_tenant,
+    ):
+        """Roster faisant autorité pour l'annuaire agents du connecteur
+        (ESLAdapter) : uniquement les User du tenant avec agent_login
+        renseigné, actifs, avec une adhésion tenant active."""
+        from app.models.user import User, UserRole
+        from app.models.tenant import Tenant
+
+        u1 = User(
+            username="agent1", email="agent1@permatel.ma", nom="A", prenom="Gent",
+            role=UserRole.PERMANENCIER, is_active=True, agent_login="22101005",
+        )
+        u1.set_password("Password123!")
+        u1.tenants.append(default_tenant)
+        u2 = User(
+            username="noagent", email="noagent@permatel.ma", nom="B", prenom="No",
+            role=UserRole.PERMANENCIER, is_active=True, agent_login=None,
+        )
+        u2.set_password("Password123!")
+        u2.tenants.append(default_tenant)
+        u3_inactive = User(
+            username="agentinactive", email="inactive@permatel.ma", nom="C", prenom="Inactive",
+            role=UserRole.PERMANENCIER, is_active=False, agent_login="22101099",
+        )
+        u3_inactive.set_password("Password123!")
+        u3_inactive.tenants.append(default_tenant)
+        db.session.add_all([u1, u2, u3_inactive])
+        db.session.commit()
+
+        other_tenant = Tenant(code="OTHERKAL", nom="Autre Tenant Kal", slug="otherkal")
+        db.session.add(other_tenant)
+        db.session.commit()
+        u_other = User(
+            username="agentother", email="agentother@permatel.ma", nom="D", prenom="Other",
+            role=UserRole.PERMANENCIER, is_active=True, agent_login="99999999",
+        )
+        u_other.set_password("Password123!")
+        u_other.tenants.append(other_tenant)
+        db.session.add(u_other)
+        db.session.commit()
+
+        resp = client.get("/api/telephony/connectors/config", headers=CONNECTOR_TOKEN_HEADERS)
+        assert resp.status_code == 200
+        c = resp.get_json()["connectors"][0]
+        assert c["known_agent_logins"] == ["22101005"]
+
     def test_exclut_les_connecteurs_inactifs(self, client, db, pbx_connector):
         pbx_connector.is_active = False
         db.session.commit()
@@ -427,14 +474,34 @@ class TestConnectorsCrud:
         assert resp.status_code == 201
         domain_id = resp.get_json()["id"]
         assert resp.get_json()["pbx_domain"] == "new.permatel.local"
+        # Compat ancien format (liste de chaînes) : normalisé en {"id", "alias"}.
+        assert resp.get_json()["queue_ids"] == [{"id": "q1", "alias": ""}]
 
         resp2 = client.put(
             f"/api/telephony/connectors/{pbx_connector.id}/domains/{domain_id}",
-            json={"queue_ids": ["a", "b"]},
+            json={"queue_ids": [{"id": "a", "alias": "Support"}, {"id": "b", "alias": ""}]},
             headers=auth_headers_admin,
         )
         assert resp2.status_code == 200
-        assert resp2.get_json()["queue_ids"] == ["a", "b"]
+        assert resp2.get_json()["queue_ids"] == [{"id": "a", "alias": "Support"}, {"id": "b", "alias": ""}]
+
+    def test_create_domain_queue_ids_saisis_avec_alias_vide_ou_manquant(
+        self, client, auth_headers_admin, pbx_connector,
+    ):
+        """Entrées sans alias (chaîne nue, ou dict sans 'alias') acceptées,
+        entrées sans 'id' écartées silencieusement."""
+        payload = {
+            "pbx_domain": "aliases.permatel.local",
+            "queue_ids": ["8001", {"id": "8002"}, {"alias": "sans id, écarté"}, {"id": "  ", "alias": "vide"}],
+        }
+        resp = client.post(
+            f"/api/telephony/connectors/{pbx_connector.id}/domains", json=payload, headers=auth_headers_admin,
+        )
+        assert resp.status_code == 201
+        assert resp.get_json()["queue_ids"] == [
+            {"id": "8001", "alias": ""},
+            {"id": "8002", "alias": ""},
+        ]
 
     def test_create_domain_duplique_retourne_409(self, client, auth_headers_admin, pbx_domain):
         payload = {"pbx_domain": pbx_domain.pbx_domain}

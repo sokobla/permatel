@@ -52,23 +52,28 @@ class ESLAdapter(PBXAdapter):
         self.last_error = None
         # domaine -> ensemble des queue_id supervisées ; liste vide = pas de
         # filtre (toutes les queues du domaine sont transmises). Chaque
-        # entrée est re-scindée sur ',' : confirmé en prod (29/07) qu'une
-        # saisie de plusieurs files en une fois dans le champ "Entrée pour
-        # ajouter" du formulaire (`queue_ids` combobox) peut produire UNE
-        # entrée "8001, 8002, 8003, 8004, 8005" au lieu de 5 entrées
-        # distinctes — `agent list <ceci>@<domaine>` est alors rejeté par
-        # FreeSWITCH ('-ERR Invalid!') puisqu'il n'accepte qu'une seule file
-        # à la fois. Tolérant à cette saisie plutôt que de forcer une
-        # correction manuelle préalable dans Paramètres > Téléphonie.
+        # entrée `queue_ids` est `{"id": "8001", "alias": "Support"}` — seul
+        # `id` intéresse le connecteur (l'alias est un libellé d'affichage
+        # PERMATEL, jamais transmis à FreeSWITCH) ; compat ancien format
+        # (chaîne nue) pour les domaines pas encore ré-enregistrés. Chaque
+        # `id` est en plus re-scindé sur ',' : confirmé en prod (29/07)
+        # qu'une saisie de plusieurs files en une fois dans l'ancien champ
+        # combobox pouvait produire UNE entrée "8001, 8002, ..." au lieu de
+        # plusieurs entrées distinctes — `agent list <ceci>@<domaine>` est
+        # alors rejeté par FreeSWITCH ('-ERR Invalid!').
         self._supervised_queues = {}
         for d in connector_config.get("domains", []):
             queues = set()
-            for raw_queue_id in (d.get("queue_ids") or []):
-                for part in str(raw_queue_id).split(","):
+            for raw in (d.get("queue_ids") or []):
+                raw_id = raw.get("id") if isinstance(raw, dict) else raw
+                if not raw_id:
+                    continue
+                for part in str(raw_id).split(","):
                     part = part.strip()
                     if part:
                         queues.add(part)
             self._supervised_queues[d["pbx_domain"]] = queues
+
         # uuid FreeSWITCH (CC-Agent) -> {"domain":..., "extension":..., "queue":...}
         # — construit via _refresh_agent_directory(), nécessaire car les
         # événements agent-status-change ne portent ni domaine ni extension
@@ -76,6 +81,21 @@ class ESLAdapter(PBXAdapter):
         # _on_callcenter_info).
         self._agent_directory = {}
         self._agent_directory_greenlet = None
+        # Roster faisant autorité côté PERMATEL (User.agent_login peuplé,
+        # cf. GET /connectors/config) — une extension résolue depuis
+        # FreeSWITCH n'est retenue dans l'annuaire QUE si elle y figure,
+        # pour ne jamais attribuer de présence à une extension PBX sans
+        # agent PERMATEL réel derrière (poste de test, agent non nettoyé
+        # côté PBX, etc.).
+        self._known_agent_logins = set(connector_config.get("known_agent_logins") or [])
+
+    def update_known_agent_logins(self, logins) -> None:
+        """Rafraîchi par CoreConnector à chaque sondage périodique (le
+        roster PERMATEL peut changer sans redémarrage de l'adapter, ex.
+        ajout d'un nouvel agent) — n'affecte que les futures résolutions,
+        l'annuaire lui-même n'est pas recalculé immédiatement (attend le
+        prochain cycle de _refresh_agent_directory)."""
+        self._known_agent_logins = set(logins or [])
 
     @property
     def is_connected(self) -> bool:
@@ -196,6 +216,14 @@ class ESLAdapter(PBXAdapter):
         leurs noms au préalable. Se contente de le journaliser plutôt que
         de deviner.
         """
+        if not self._known_agent_logins:
+            logger.warning(
+                "[%s] Aucun agent_login connu côté PERMATEL pour ce tenant — l'annuaire "
+                "restera vide quel que soit le contenu réel de FusionPBX (configurer "
+                "le champ Login Agent CC des utilisateurs concernés).",
+                self.connector_config["name"],
+            )
+
         directory = {}
         for domain, queues in self._supervised_queues.items():
             if not queues:
@@ -250,7 +278,15 @@ class ESLAdapter(PBXAdapter):
                     self.connector_config["name"], line,
                 )
                 continue
-            directory[agent_uuid] = {"domain": domain, "extension": match.group(1), "queue": queue}
+            extension = match.group(1)
+            if extension not in self._known_agent_logins:
+                logger.warning(
+                    "[%s] Extension '%s' (agent PBX uuid=%s) ignorée : aucun User PERMATEL "
+                    "avec ce Login Agent CC pour ce tenant.",
+                    self.connector_config["name"], extension, agent_uuid,
+                )
+                continue
+            directory[agent_uuid] = {"domain": domain, "extension": extension, "queue": queue}
 
     def _on_disconnect(self, _event):
         logger.warning("[%s] Déconnecté de FreeSWITCH.", self.connector_config["name"])
