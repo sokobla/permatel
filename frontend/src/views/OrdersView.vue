@@ -144,20 +144,11 @@
       <table class="ov-table">
         <thead>
           <tr>
-            <th class="ov-th" style="width:120px">Client</th>
-            <th class="ov-th" style="width:120px">Site</th>
-            <th class="ov-th">Intitulé de la commande</th>
-            <th class="ov-th" style="width:115px">Type</th>
-            <th class="ov-th" style="width:90px">Commande</th>
-            <th class="ov-th" style="width:110px">Début prestation</th>
-            <th class="ov-th" style="width:80px; text-align:right">Montant</th>
-            <th class="ov-th" style="width:108px">Statut</th>
-            <th class="ov-th" style="width:108px">Responsable</th>
-            <th class="ov-th" style="width:108px">Demandeur</th>
-            <th class="ov-th" style="width:108px">Créé par</th>
-            <th class="ov-th" style="width:108px">Dernier éditeur</th>
-            <th class="ov-th" style="width:110px">MàJ le</th>
-            <th class="ov-th" style="width:38px"></th>
+            <th class="ov-th">Commande</th>
+            <th class="ov-th" style="width:130px">Type / Montant</th>
+            <th class="ov-th" style="width:150px">Créée le</th>
+            <th class="ov-th" style="width:130px">Impliqués</th>
+            <th class="ov-th" style="width:50px; text-align:right">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -166,7 +157,7 @@
 
               <!-- Ligne accordéon groupe -->
               <tr class="ov-group-row" @click="toggleGroup(group.client)">
-                <td colspan="14" class="ov-group-row__cell">
+                <td colspan="5" class="ov-group-row__cell">
                   <div class="ov-group-row__inner">
                     <v-icon
                       size="12"
@@ -196,72 +187,55 @@
                   style="cursor:pointer"
                   @click="selectRow(row)"
                 >
-                  <td class="ov-td">
-                    <div class="ov-cell-flex">
-                      <span class="ov-client-dot" :style="{ background: group.color }"></span>
-                      <span class="ov-client-name">{{ row.client_nom ?? `Client #${row.client_id}` }}</span>
+                  <td class="ov-td ov-td--commande">
+                    <div class="ov-name-cell">
+                      <span class="ov-type-icon" :style="typeStyle(row.type_commande)">
+                        <v-icon size="14" :color="typeStyle(row.type_commande).color">mdi-clipboard-text-outline</v-icon>
+                      </span>
+                      <div class="ov-name-text-block">
+                        <span class="ov-titre">{{ row.titre }}</span>
+                        <span class="ov-name-sub">
+                          <span class="ov-client-dot" :style="{ background: group.color }"></span>
+                          {{ row.client_nom ?? `Client #${row.client_id}` }}
+                          <template v-if="row.site_nom"> · {{ row.site_nom }}</template>
+                        </span>
+                        <div class="ov-cell-flex ov-name-status">
+                          <span :class="['ov-statut-chip', `ov-statut-chip--${row.statut}`]">
+                            <span class="ov-statut-chip__dot"></span>
+                            {{ statutLabels[row.statut] }}
+                          </span>
+                          <button v-if="row.statut === 'planifiee'" class="ov-schedule-btn" @click.stop>
+                            Planifié {{ formatShortDate(row.date_livraison_souhaitee) }}
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </td>
-                  <td class="ov-td">
-                    <span class="ov-site-name">
-                      <v-icon size="11" color="#9aa0aa">mdi-map-marker-outline</v-icon>
-                      {{ row.site_nom ?? '—' }}
-                    </span>
-                  </td>
-                  <td class="ov-td ov-td--titre">
-                    <span class="ov-titre">{{ row.titre }}</span>
                   </td>
                   <td class="ov-td">
                     <span class="ov-type-badge" :style="typeStyle(row.type_commande)">
                       {{ typeLabels[row.type_commande] ?? row.type_commande }}
                     </span>
+                    <div class="ov-montant">{{ formatMontant(row.budget_estime) }}</div>
                   </td>
-                  <td class="ov-td ov-td--date">{{ formatShortDate(row.created_at) }}</td>
+                  <td class="ov-td ov-td--date">
+                    {{ formatShortDate(row.created_at) }}
+                    <div class="ov-date-sub">début {{ formatShortDate(row.date_livraison_souhaitee) }}</div>
+                  </td>
                   <td class="ov-td">
-                    <button
-                      v-if="row.statut === 'planifiee'"
-                      class="ov-schedule-btn"
-                    >Planifié {{ formatShortDate(row.date_livraison_souhaitee) }}</button>
-                    <span v-else class="ov-td--date">{{ formatShortDate(row.date_livraison_souhaitee) }}</span>
+                    <div class="ov-avatar-stack">
+                      <span
+                        v-for="a in involvedAvatars(row).slice(0, 3)"
+                        :key="a.name"
+                        :class="['ov-avatar', 'ov-avatar--stack', a.cls]"
+                        :title="a.name"
+                      >{{ initials(a.name) }}</span>
+                      <span v-if="involvedAvatars(row).length > 3" class="ov-avatar ov-avatar--stack ov-avatar--more">
+                        +{{ involvedAvatars(row).length - 3 }}
+                      </span>
+                      <span v-if="!involvedAvatars(row).length" class="ov-muted">—</span>
+                    </div>
                   </td>
                   <td class="ov-td" style="text-align:right">
-                    <span class="ov-montant">{{ formatMontant(row.budget_estime) }}</span>
-                  </td>
-                  <td class="ov-td">
-                    <div class="ov-cell-flex">
-                      <span :class="['ov-statut-chip', `ov-statut-chip--${row.statut}`]">
-                        <span class="ov-statut-chip__dot"></span>
-                        {{ statutLabels[row.statut] }}
-                      </span>
-                      <v-icon size="10" color="#ccc">mdi-chevron-down</v-icon>
-                    </div>
-                  </td>
-                  <td class="ov-td">
-                    <div class="ov-cell-flex">
-                      <span class="ov-avatar">{{ initials(row.permanencier_nom) }}</span>
-                      <span class="ov-resp-name">{{ row.permanencier_nom }}</span>
-                    </div>
-                  </td>
-                  <td class="ov-td">
-                    <div class="ov-cell-flex">
-                      <span class="ov-avatar ov-avatar--blue">{{ initials(row.contact_nom) }}</span>
-                      <span class="ov-resp-name">{{ row.contact_nom ?? '—' }}</span>
-                    </div>
-                  </td>
-                  <td class="ov-td">
-                    <div class="ov-cell-flex">
-                      <span class="ov-avatar ov-avatar--teal">{{ initials(row.created_by_nom) }}</span>
-                      <span class="ov-resp-name">{{ row.created_by_nom ?? '—' }}</span>
-                    </div>
-                  </td>
-                  <td class="ov-td">
-                    <div class="ov-cell-flex">
-                      <span class="ov-avatar ov-avatar--amber">{{ initials(row.updated_by_nom) }}</span>
-                      <span class="ov-resp-name">{{ row.updated_by_nom ?? '—' }}</span>
-                    </div>
-                  </td>
-                  <td class="ov-td ov-td--date">{{ formatShortDate(row.updated_at) }}</td>
-                  <td class="ov-td" style="text-align:center">
                     <button class="ov-action-btn" @click.stop="selectRow(row)">
                       <v-icon size="15">mdi-dots-vertical</v-icon>
                     </button>
@@ -281,65 +255,55 @@
               style="cursor:pointer"
               @click="selectRow(row)"
             >
-              <td class="ov-td">
-                <div class="ov-cell-flex">
-                  <span class="ov-client-dot" :style="{ background: clientColor(row.client_id) }"></span>
-                  <span class="ov-client-name">{{ row.client_nom ?? `Client #${row.client_id}` }}</span>
+              <td class="ov-td ov-td--commande">
+                <div class="ov-name-cell">
+                  <span class="ov-type-icon" :style="typeStyle(row.type_commande)">
+                    <v-icon size="14" :color="typeStyle(row.type_commande).color">mdi-clipboard-text-outline</v-icon>
+                  </span>
+                  <div class="ov-name-text-block">
+                    <span class="ov-titre">{{ row.titre }}</span>
+                    <span class="ov-name-sub">
+                      <span class="ov-client-dot" :style="{ background: clientColor(row.client_id) }"></span>
+                      {{ row.client_nom ?? `Client #${row.client_id}` }}
+                      <template v-if="row.site_nom"> · {{ row.site_nom }}</template>
+                    </span>
+                    <div class="ov-cell-flex ov-name-status">
+                      <span :class="['ov-statut-chip', `ov-statut-chip--${row.statut}`]">
+                        <span class="ov-statut-chip__dot"></span>
+                        {{ statutLabels[row.statut] }}
+                      </span>
+                      <button v-if="row.statut === 'planifiee'" class="ov-schedule-btn" @click.stop>
+                        Planifié {{ formatShortDate(row.date_livraison_souhaitee) }}
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </td>
-              <td class="ov-td">
-                <span class="ov-site-name">
-                  <v-icon size="11" color="#9aa0aa">mdi-map-marker-outline</v-icon>
-                  {{ row.site_nom ?? '—' }}
-                </span>
-              </td>
-              <td class="ov-td ov-td--titre">
-                <span class="ov-titre">{{ row.titre }}</span>
               </td>
               <td class="ov-td">
                 <span class="ov-type-badge" :style="typeStyle(row.type_commande)">
                   {{ typeLabels[row.type_commande] ?? row.type_commande }}
                 </span>
+                <div class="ov-montant">{{ formatMontant(row.budget_estime) }}</div>
               </td>
-              <td class="ov-td ov-td--date">{{ formatShortDate(row.created_at) }}</td>
+              <td class="ov-td ov-td--date">
+                {{ formatShortDate(row.created_at) }}
+                <div class="ov-date-sub">début {{ formatShortDate(row.date_livraison_souhaitee) }}</div>
+              </td>
               <td class="ov-td">
-                <button v-if="row.statut === 'planifiee'" class="ov-schedule-btn">
-                  Planifié {{ formatShortDate(row.date_livraison_souhaitee) }}
-                </button>
-                <span v-else class="ov-td--date">{{ formatShortDate(row.date_livraison_souhaitee) }}</span>
+                <div class="ov-avatar-stack">
+                  <span
+                    v-for="a in involvedAvatars(row).slice(0, 3)"
+                    :key="a.name"
+                    :class="['ov-avatar', 'ov-avatar--stack', a.cls]"
+                    :title="a.name"
+                  >{{ initials(a.name) }}</span>
+                  <span v-if="involvedAvatars(row).length > 3" class="ov-avatar ov-avatar--stack ov-avatar--more">
+                    +{{ involvedAvatars(row).length - 3 }}
+                  </span>
+                  <span v-if="!involvedAvatars(row).length" class="ov-muted">—</span>
+                </div>
               </td>
               <td class="ov-td" style="text-align:right">
-                <span class="ov-montant">{{ formatMontant(row.budget_estime) }}</span>
-              </td>
-              <td class="ov-td">
-                <div class="ov-cell-flex">
-                  <span :class="['ov-statut-chip', `ov-statut-chip--${row.statut}`]">
-                    <span class="ov-statut-chip__dot"></span>
-                    {{ statutLabels[row.statut] }}
-                  </span>
-                  <v-icon size="10" color="#ccc">mdi-chevron-down</v-icon>
-                </div>
-              </td>
-              <td class="ov-td">
-                <div class="ov-cell-flex">
-                  <span class="ov-avatar">{{ initials(row.permanencier_nom) }}</span>
-                  <span class="ov-resp-name">{{ row.permanencier_nom }}</span>
-                </div>
-              </td>
-              <td class="ov-td">
-                <div class="ov-cell-flex">
-                  <span class="ov-avatar ov-avatar--blue">{{ initials(row.created_by_nom) }}</span>
-                  <span class="ov-resp-name">{{ row.created_by_nom ?? '—' }}</span>
-                </div>
-              </td>
-              <td class="ov-td">
-                <div class="ov-cell-flex">
-                  <span class="ov-avatar ov-avatar--amber">{{ initials(row.updated_by_nom) }}</span>
-                  <span class="ov-resp-name">{{ row.updated_by_nom ?? '—' }}</span>
-                </div>
-              </td>
-              <td class="ov-td ov-td--date">{{ formatShortDate(row.updated_at) }}</td>
-              <td class="ov-td" style="text-align:center">
                 <button class="ov-action-btn" @click.stop="selectRow(row)">
                   <v-icon size="15">mdi-dots-vertical</v-icon>
                 </button>
@@ -349,7 +313,7 @@
 
           <!-- Chargement -->
           <tr v-if="loading">
-            <td colspan="14">
+            <td colspan="5">
               <div class="ov-empty">
                 <v-icon size="28" color="#e0e0e0" class="ov-spin">mdi-loading</v-icon>
                 <span>Chargement des commandes…</span>
@@ -359,7 +323,7 @@
 
           <!-- Erreur API -->
           <tr v-else-if="loadError">
-            <td colspan="14">
+            <td colspan="5">
               <div class="ov-empty" style="color:#e74c3c">
                 <v-icon size="28" color="#e74c3c">mdi-alert-circle-outline</v-icon>
                 <span>{{ loadError }}</span>
@@ -369,7 +333,7 @@
 
           <!-- État vide -->
           <tr v-else-if="(groupEnabled ? groupedRows : filteredRows).length === 0">
-            <td colspan="14">
+            <td colspan="5">
               <div class="ov-empty">
                 <v-icon size="36" color="#e0e0e0">mdi-package-variant-closed-check</v-icon>
                 <span>Aucune commande ne correspond aux critères</span>
@@ -589,6 +553,16 @@ function formatShortDate(iso) {
 function initials(name) {
   if (!name) return "?";
   return name.split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase();
+}
+
+// ─── Pile d'avatars "Impliqués" ────────────────────────────────────────────
+function involvedAvatars(row) {
+  return [
+    { name: row.permanencier_nom, cls: "" },
+    { name: row.contact_nom, cls: "ov-avatar--blue" },
+    { name: row.created_by_nom, cls: "ov-avatar--teal" },
+    { name: row.updated_by_nom, cls: "ov-avatar--amber" },
+  ].filter((a) => a.name);
 }
 </script>
 
@@ -1061,24 +1035,21 @@ function initials(name) {
 .ov-data-row:last-child { border-bottom: none; }
 
 .ov-td {
-  padding: 8px 12px;
+  padding: 10px 12px;
   font-size: 11.5px;
   color: #333;
-  vertical-align: middle;
-  max-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  vertical-align: top;
 }
 
-.ov-td--titre { max-width: 250px; }
+.ov-td--commande { max-width: 0; }
 .ov-td--date {
   font-family: "Fira Code", monospace;
-  font-size: 10.5px;
-  color: #888;
+  font-size: 11px;
+  color: #333;
   white-space: nowrap;
-  display: inline;
 }
+.ov-date-sub { font-family: "Fira Sans", sans-serif; font-size: 10.5px; color: #9aa0aa; margin-top: 2px; }
+.ov-muted { color: #9aa0aa; font-size: 11px; }
 
 .ov-cell-flex {
   display: flex;
@@ -1088,9 +1059,20 @@ function initials(name) {
 }
 
 /* Client */
-.ov-client-dot { width: 7px; height: 7px; border-radius: 1px; flex-shrink: 0; }
-.ov-client-name { font-size: 11px; color: #777; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ov-site-name { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #777; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-client-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+/* Cellule "Commande" (icône + titre + client/site + statut) */
+.ov-name-cell { display: flex; align-items: flex-start; gap: 10px; }
+.ov-type-icon {
+  width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0; margin-top: 1px;
+}
+.ov-name-text-block { min-width: 0; }
+.ov-name-sub {
+  display: flex; align-items: center; gap: 4px; font-size: 11px; color: #9aa0aa;
+  margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ov-name-status { margin-top: 5px; }
 
 /* Titre */
 .ov-titre { font-weight: 600; color: #000b23; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
@@ -1134,6 +1116,7 @@ function initials(name) {
   font-size: 11px;
   font-weight: 700;
   color: #000b23;
+  margin-top: 4px;
 }
 
 /* Statut */
@@ -1173,10 +1156,15 @@ function initials(name) {
   flex-shrink: 0;
 }
 
-.ov-resp-name { font-size: 11px; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ov-avatar--blue  { background: rgba(52,152,219,0.12);  color: #3498db; }
 .ov-avatar--teal  { background: rgba(0,168,168,0.12);   color: #00a8a8; }
 .ov-avatar--amber { background: rgba(243,156,18,0.12);  color: #f39c12; }
+
+/* Pile d'avatars "Impliqués" */
+.ov-avatar-stack { display: flex; align-items: center; }
+.ov-avatar--stack { margin-left: -7px; border: 2px solid #fff; }
+.ov-avatar--stack:first-child { margin-left: 0; }
+.ov-avatar--more { background: rgba(0,11,35,0.06); color: #9aa0aa; }
 
 /* Chip filtre actif demandeur */
 .ov-active-filter-chip {
