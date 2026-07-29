@@ -51,6 +51,7 @@
         <thead>
           <tr>
             <th>Appelant</th>
+            <th>Destination</th>
             <th>Agent</th>
             <th>File</th>
             <th>Statut</th>
@@ -60,6 +61,7 @@
         <tbody>
           <tr v-for="c in activeCalls" :key="c.call_uuid">
             <td class="stl-mono">{{ c.caller || "—" }}</td>
+            <td class="stl-mono">{{ c.callee || "—" }}</td>
             <td>
               <div v-if="c.agent_login" class="stl-agent-cell">
                 <span class="stl-avatar">{{ initials(c.agent_login) }}</span>{{ c.agent_login }}
@@ -79,22 +81,91 @@
       <div v-else class="stl-empty-row">Aucun appel en cours.</div>
     </div>
 
-    <!-- Files d'attente -->
+    <!-- Files d'attente (uniquement celles avec activité, triées par volume décroissant) -->
     <div class="stl-panel">
       <div class="stl-panel__head">
         <span class="stl-panel__title">FILES D'ATTENTE</span>
+        <div class="stl-panel__spacer"></div>
+        <span class="stl-queue-count">{{ queues.length }} active{{ queues.length > 1 ? "s" : "" }}</span>
       </div>
-      <div v-if="queues.length" class="stl-queues-grid">
-        <div v-for="q in queues" :key="q.queue_id" class="stl-queue-card">
-          <div class="stl-queue-card__name">{{ q.queue_id }}</div>
-          <div class="stl-queue-card__row"><span>Appels traités</span><span>{{ q.total_calls }}</span></div>
-          <div class="stl-queue-card__row"><span>Attente moyenne</span><span>{{ q.avg_wait_seconds != null ? Math.round(q.avg_wait_seconds) + "s" : "—" }}</span></div>
-          <div class="stl-queue-card__row" :class="{ 'stl-abandon-warn': q.abandon_rate_pct >= 15 }">
-            <span>Taux d'abandon</span><span>{{ q.abandon_rate_pct }}%</span>
+      <div v-if="queues.length" class="stl-queue-filter-row">
+        <v-text-field
+          v-model="queueFilter"
+          placeholder="Filtrer par nom de file ou identifiant PBX…"
+          density="compact"
+          variant="outlined"
+          hide-details
+          clearable
+          prepend-inner-icon="mdi-magnify"
+        />
+      </div>
+      <div v-if="queues.length" class="stl-queue-list">
+        <div v-for="q in filteredQueues" :key="q.queue_id" class="stl-queue-card">
+          <div class="stl-queue-card__top">
+            <div class="stl-queue-card__id-block">
+              <span class="stl-queue-card__swatch">{{ initials(q.alias) }}</span>
+              <div>
+                <div class="stl-queue-card__alias">{{ q.alias }}</div>
+                <div class="stl-queue-card__raw-id">{{ q.queue_id }}</div>
+              </div>
+            </div>
+            <span class="stl-queue-badge" :class="`stl-queue-badge--${abandonSeverity(q.abandon_rate_pct)}`">
+              <span class="stl-dot"></span>{{ q.abandon_rate_pct }}% abandon
+            </span>
           </div>
+          <div class="stl-queue-card__stats">
+            <div class="stl-queue-stat">
+              <span class="stl-queue-stat__label">Appels traités</span>
+              <span class="stl-queue-stat__value">{{ q.total_calls }}</span>
+            </div>
+            <div class="stl-queue-stat">
+              <span class="stl-queue-stat__label">Attente moyenne</span>
+              <span class="stl-queue-stat__value">{{ q.avg_wait_seconds != null ? Math.round(q.avg_wait_seconds) + "s" : "—" }}</span>
+            </div>
+            <div class="stl-queue-stat">
+              <span class="stl-queue-stat__label">Taux d'abandon</span>
+              <span
+                class="stl-queue-stat__value"
+                :class="{ 'stl-abandon-warn': q.abandon_rate_pct >= 15 }"
+              >{{ q.abandon_rate_pct }}%</span>
+            </div>
+          </div>
+          <details class="stl-queue-details">
+            <summary>
+              <v-icon size="14" class="stl-queue-details__chevron">mdi-chevron-right</v-icon>Détails
+            </summary>
+            <div class="stl-queue-details__body">
+              <div class="stl-queue-gauge">
+                <div class="stl-queue-gauge__label">
+                  <span>Taux d'abandon</span><span class="stl-mono">{{ q.abandon_rate_pct }}%</span>
+                </div>
+                <div class="stl-queue-gauge__track">
+                  <div
+                    class="stl-queue-gauge__fill"
+                    :class="`stl-queue-gauge__fill--${abandonSeverity(q.abandon_rate_pct)}`"
+                    :style="{ width: Math.min(q.abandon_rate_pct, 100) + '%' }"
+                  ></div>
+                  <div class="stl-queue-gauge__threshold" style="left: 15%"></div>
+                </div>
+              </div>
+              <div class="stl-queue-breakdown">
+                <div class="stl-queue-breakdown__item">
+                  <span class="stl-queue-breakdown__label">Décrochés</span>
+                  <span class="stl-queue-breakdown__value stl-queue-breakdown__value--good">
+                    {{ q.total_calls - q.abandoned_calls }}
+                  </span>
+                </div>
+                <div class="stl-queue-breakdown__item">
+                  <span class="stl-queue-breakdown__label">Abandonnés</span>
+                  <span class="stl-queue-breakdown__value stl-queue-breakdown__value--bad">{{ q.abandoned_calls }}</span>
+                </div>
+              </div>
+            </div>
+          </details>
         </div>
+        <div v-if="!filteredQueues.length" class="stl-empty-row">Aucune file ne correspond au filtre.</div>
       </div>
-      <div v-else class="stl-empty-row">Aucune donnée de file sur la période.</div>
+      <div v-else class="stl-empty-row">Aucune file d'attente active sur la période.</div>
     </div>
 
     <!-- Agents -->
@@ -176,6 +247,19 @@ const PRESENCE_LABEL = { online: "Disponible", away: "En pause", offline: "Déco
 const periodLabel = "aujourd'hui";
 const summary = ref(null);
 const queues = ref([]);
+const queueFilter = ref("");
+const filteredQueues = computed(() => {
+  const term = (queueFilter.value || "").trim().toLowerCase();
+  if (!term) return queues.value;
+  return queues.value.filter(
+    (q) => (q.alias || "").toLowerCase().includes(term) || (q.queue_id || "").toLowerCase().includes(term),
+  );
+});
+function abandonSeverity(pct) {
+  if (pct >= 15) return "bad";
+  if (pct >= 10) return "warn";
+  return "good";
+}
 const agents = ref([]);
 const activeCallsMap = reactive(new Map()); // call_uuid -> call dict, ordre d'insertion préservé
 const activeCalls = computed(() => Array.from(activeCallsMap.values()));
@@ -361,13 +445,72 @@ onUnmounted(() => {
 .stl-status-on_hold .stl-dot { background: #9aa0aa; }
 .stl-empty-row { text-align: center; padding: 28px 16px; color: #9aa0aa; font-size: 12px; }
 
-.stl-queues-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0; }
-.stl-queue-card { padding: 14px 16px; border-right: 1px solid #e5e7eb; }
-.stl-queue-card:last-child { border-right: none; }
-.stl-queue-card__name { font-size: 12px; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
-.stl-queue-card__row { display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 4px; color: #6b7280; }
-.stl-queue-card__row span:last-child { font-family: "Fira Code", monospace; font-weight: 600; color: #1a1a2e; }
-.stl-abandon-warn span { color: #e74c3c !important; }
+.stl-queue-count { font-size: 10.5px; color: #9aa0aa; font-family: "Fira Code", monospace; }
+.stl-queue-filter-row { padding: 10px 16px 0; }
+.stl-queue-list { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 16px; }
+.stl-queue-card {
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px;
+}
+.stl-queue-card:has(.stl-queue-details[open]) { border-color: #00a8a8; }
+.stl-queue-card__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.stl-queue-card__id-block { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.stl-queue-card__swatch {
+  width: 32px; height: 32px; border-radius: 8px; background: rgba(0,168,168,0.1); color: #00a8a8;
+  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; flex-shrink: 0;
+}
+.stl-queue-card__alias { font-size: 13px; font-weight: 700; color: #1a1a2e; }
+.stl-queue-card__raw-id { font-family: "Fira Code", monospace; font-size: 10.5px; color: #9aa0aa; margin-top: 1px; }
+
+.stl-queue-badge {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700;
+  padding: 3px 9px; border-radius: 12px; white-space: nowrap; flex-shrink: 0;
+}
+.stl-queue-badge .stl-dot { width: 6px; height: 6px; border-radius: 50%; }
+.stl-queue-badge--good { background: rgba(34,197,94,0.12); color: #15803d; }
+.stl-queue-badge--good .stl-dot { background: #22c55e; }
+.stl-queue-badge--warn { background: rgba(245,158,11,0.14); color: #b45309; }
+.stl-queue-badge--warn .stl-dot { background: #f59e0b; }
+.stl-queue-badge--bad { background: rgba(231,76,60,0.12); color: #b91c1c; }
+.stl-queue-badge--bad .stl-dot { background: #e74c3c; }
+
+.stl-queue-card__stats {
+  display: flex; gap: 24px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #eceef1; flex-wrap: wrap;
+}
+.stl-queue-stat { display: flex; flex-direction: column; gap: 2px; }
+.stl-queue-stat__label { font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; color: #9aa0aa; text-transform: uppercase; }
+.stl-queue-stat__value { font-family: "Fira Code", monospace; font-size: 13px; font-weight: 600; color: #1a1a2e; }
+.stl-abandon-warn { color: #e74c3c !important; }
+
+.stl-queue-details summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; gap: 2px;
+  font-size: 11px; font-weight: 600; color: #00a8a8; margin-top: 8px; user-select: none; width: fit-content;
+}
+.stl-queue-details summary::-webkit-details-marker { display: none; }
+.stl-queue-details__chevron { transition: transform 0.15s ease; }
+.stl-queue-details[open] .stl-queue-details__chevron { transform: rotate(90deg); }
+.stl-queue-details__body {
+  margin-top: 10px; padding-top: 10px; border-top: 1px dashed #eceef1;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.stl-queue-gauge { display: flex; flex-direction: column; gap: 5px; }
+.stl-queue-gauge__label { display: flex; justify-content: space-between; font-size: 10.5px; color: #6b7280; }
+.stl-queue-gauge__track {
+  height: 6px; border-radius: 4px; background: #f2f2f2; border: 1px solid #eceef1; overflow: hidden; position: relative;
+}
+.stl-queue-gauge__fill { height: 100%; border-radius: 4px; }
+.stl-queue-gauge__fill--good { background: #22c55e; }
+.stl-queue-gauge__fill--warn { background: #f59e0b; }
+.stl-queue-gauge__fill--bad { background: #e74c3c; }
+.stl-queue-gauge__threshold { position: absolute; top: -2px; bottom: -2px; width: 1px; background: #9aa0aa; }
+.stl-queue-breakdown { display: flex; gap: 16px; }
+.stl-queue-breakdown__item {
+  flex: 1; background: #fafafa; border: 1px solid #eceef1; border-radius: 8px; padding: 8px 12px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.stl-queue-breakdown__label { font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; color: #9aa0aa; text-transform: uppercase; }
+.stl-queue-breakdown__value { font-family: "Fira Code", monospace; font-size: 14px; font-weight: 700; }
+.stl-queue-breakdown__value--good { color: #22c55e; }
+.stl-queue-breakdown__value--bad { color: #e74c3c; }
 
 .stl-view-toggle { display: flex; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; }
 .stl-view-toggle__btn {

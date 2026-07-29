@@ -48,6 +48,12 @@ CORS(telephony_bp, supports_credentials=True)
 
 TERMINAL_STATUSES = {"ended", "missed", "abandoned", "technical_failure"}
 SYNC_CHANNEL = "telephony:sync"
+# Un appel dont le dernier événement connu n'est pas terminal reste "en
+# cours" indéfiniment si l'événement de raccroché a été perdu (redémarrage
+# du connecteur en plein appel, coupure ESL, etc. — vu en prod le 29/07).
+# Passé ce délai sans nouvel événement, on cesse de le considérer actif
+# plutôt que d'afficher un appel fantôme.
+ACTIVE_CALL_STALE_AFTER = timedelta(minutes=30)
 
 logger = logging.getLogger(__name__)
 
@@ -658,7 +664,11 @@ def active_calls():
         .filter(TelephonyEvent.tenant_id == g.tenant_id)
         .all()
     )
-    active = [e.to_dict() for e in latest_events if e.call_status not in TERMINAL_STATUSES]
+    stale_cutoff = datetime.utcnow() - ACTIVE_CALL_STALE_AFTER
+    active = [
+        e.to_dict() for e in latest_events
+        if e.call_status not in TERMINAL_STATUSES and e.created_at >= stale_cutoff
+    ]
     return jsonify({"active_calls": active, "total": len(active)}), 200
 
 
@@ -707,10 +717,39 @@ def kpis_summary():
     }), 200
 
 
+def _queue_alias_lookup(tenant_id) -> dict:
+    """`"{queue_id}@{pbx_domain}"` -> alias configuré (Paramètres >
+    Intégrations > Téléphonie), pour habiller les identifiants bruts
+    PBX (même clé que `CC-Queue`/`cc_queue`, cf. normalizer/routes CDR).
+    Compat ancien format `queue_ids` (liste de chaînes nues, alias absent :
+    l'id sert alors de son propre alias)."""
+    domains = (
+        db.session.query(PbxConnectorDomain)
+        .join(PbxConnector, PbxConnector.id == PbxConnectorDomain.pbx_connector_id)
+        .filter(PbxConnector.tenant_id == tenant_id)
+        .all()
+    )
+    lookup = {}
+    for d in domains:
+        for item in (d.queue_ids or []):
+            if isinstance(item, dict):
+                queue_id = str(item.get("id") or "").strip()
+                alias = str(item.get("alias") or "").strip()
+            else:
+                queue_id = str(item or "").strip()
+                alias = ""
+            if queue_id:
+                lookup[f"{queue_id}@{d.pbx_domain}"] = alias or queue_id
+    return lookup
+
+
 @telephony_bp.get("/kpis/queues")
 @tenant_required
 def kpis_queues():
-    """Appels par file d'attente, temps d'attente moyen, taux d'abandon."""
+    """Appels par file d'attente, temps d'attente moyen, taux d'abandon —
+    uniquement les files avec activité sur la période (pas de file "sans
+    file" : un appel sans `queue_id` n'est pas du trafic de file d'attente),
+    triées par volume décroissant (file la plus active en premier)."""
     dt_from, dt_to = _parse_period()
     events = (
         TelephonyEvent.query.filter(
@@ -731,7 +770,9 @@ def kpis_queues():
         terminal = next((e for e in call_events if e.call_status in TERMINAL_STATUSES), None)
         if terminal is None:
             continue
-        queue_id = next((e.queue_id for e in call_events if e.queue_id), None) or "sans_file"
+        queue_id = next((e.queue_id for e in call_events if e.queue_id), None)
+        if not queue_id:
+            continue  # pas de file d'attente associée à cet appel
         bucket = per_queue.setdefault(queue_id, {"total": 0, "abandoned": 0, "wait_times": []})
         bucket["total"] += 1
         if terminal.call_status == "abandoned":
@@ -740,16 +781,19 @@ def kpis_queues():
         if answered:
             bucket["wait_times"].append((answered.created_at - call_events[0].created_at).total_seconds())
 
+    alias_lookup = _queue_alias_lookup(g.tenant_id)
     result = []
     for queue_id, bucket in per_queue.items():
         wait_times = bucket["wait_times"]
         result.append({
             "queue_id": queue_id,
+            "alias": alias_lookup.get(queue_id, queue_id),
             "total_calls": bucket["total"],
             "abandoned_calls": bucket["abandoned"],
             "abandon_rate_pct": round(bucket["abandoned"] / bucket["total"] * 100, 1) if bucket["total"] else 0,
             "avg_wait_seconds": round(sum(wait_times) / len(wait_times), 1) if wait_times else None,
         })
+    result.sort(key=lambda q: q["total_calls"], reverse=True)
 
     return jsonify({
         "period": {"from": dt_from.isoformat(), "to": dt_to.isoformat()},

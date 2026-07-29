@@ -282,6 +282,29 @@ class TestActiveCalls:
         assert data["total"] == 1
         assert data["active_calls"][0]["call_uuid"] == "call-active"
 
+    def test_active_calls_exclut_les_appels_trop_anciens(self, client, db, auth_headers, pbx_domain, default_tenant):
+        """Reproduit le cas réel du 29/07 : un appel dont l'événement de
+        raccroché a été perdu (redémarrage connecteur en plein appel) reste
+        'ringing' indéfiniment — ne doit plus apparaître comme actif passé
+        le délai de fraîcheur (ACTIVE_CALL_STALE_AFTER)."""
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, pbx_connector_id=pbx_domain.pbx_connector_id,
+            event_type="CHANNEL_CREATE", call_status="ringing", call_uuid="call-fantome",
+            created_at=datetime.utcnow() - timedelta(hours=10),
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, pbx_connector_id=pbx_domain.pbx_connector_id,
+            event_type="CHANNEL_CREATE", call_status="ringing", call_uuid="call-recent",
+            created_at=datetime.utcnow() - timedelta(minutes=2),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/active-calls", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["total"] == 1
+        assert data["active_calls"][0]["call_uuid"] == "call-recent"
+
 
 class TestKpis:
     def test_kpis_summary_calcule_taux_decroche(self, client, db, auth_headers, pbx_domain, default_tenant):
@@ -326,6 +349,61 @@ class TestKpis:
         resp2 = client.get("/api/telephony/kpis/agents", headers=auth_headers)
         assert resp2.status_code == 200
         assert resp2.get_json()["agents"] == []
+
+    def test_kpis_queues_habille_l_alias_exclut_sans_file_et_trie_par_volume(
+        self, client, db, auth_headers, pbx_connector, default_tenant,
+    ):
+        """Reproduit le cas réel du 29/07 : le panneau Supervision ne doit
+        montrer que les files avec activité (pas de bucket 'sans_file' pour
+        les appels hors file d'attente), habillées de leur alias PERMATEL
+        configuré, triées par volume décroissant (file la plus active en
+        premier)."""
+        domain = PbxConnectorDomain(
+            pbx_connector_id=pbx_connector.id,
+            pbx_domain="africallpbx.fusion.cloud228.com",
+            queue_ids=[{"id": "8004", "alias": "Centre d'appels"}],
+        )
+        db.session.add(domain)
+        db.session.commit()
+        base = datetime.utcnow() - timedelta(minutes=10)
+
+        def _call(uuid, queue_id, final_status, offset=0):
+            db.session.add(TelephonyEvent(
+                tenant_id=default_tenant.id, event_type="CHANNEL_CREATE", call_status="ringing",
+                call_uuid=uuid, queue_id=queue_id, created_at=base + timedelta(seconds=offset),
+            ))
+            db.session.add(TelephonyEvent(
+                tenant_id=default_tenant.id, event_type="CHANNEL_HANGUP_COMPLETE", call_status=final_status,
+                call_uuid=uuid, queue_id=queue_id, created_at=base + timedelta(seconds=offset + 5),
+            ))
+
+        # File déclarée avec alias, 2 appels (la plus active)
+        _call("call-q1-a", "8004@africallpbx.fusion.cloud228.com", "ended", offset=0)
+        _call("call-q1-b", "8004@africallpbx.fusion.cloud228.com", "abandoned", offset=10)
+        # File non déclarée (alias absent du config), 1 appel
+        _call("call-q2-a", "9001@africallpbx.fusion.cloud228.com", "ended", offset=20)
+        # Appel hors file d'attente : ne doit PAS apparaître comme "sans_file"
+        _call("call-no-queue", None, "ended", offset=30)
+        db.session.commit()
+
+        resp = client.get("/api/telephony/kpis/queues", headers=auth_headers)
+        assert resp.status_code == 200
+        queues = resp.get_json()["queues"]
+
+        assert [q["queue_id"] for q in queues] == [
+            "8004@africallpbx.fusion.cloud228.com",
+            "9001@africallpbx.fusion.cloud228.com",
+        ]
+        assert all(q["queue_id"] != "sans_file" for q in queues)
+
+        declared = queues[0]
+        assert declared["alias"] == "Centre d'appels"
+        assert declared["total_calls"] == 2
+        assert declared["abandoned_calls"] == 1
+
+        undeclared = queues[1]
+        assert undeclared["alias"] == "9001@africallpbx.fusion.cloud228.com"
+        assert undeclared["total_calls"] == 1
 
 
 class TestAgentsStatus:
