@@ -165,6 +165,14 @@
                   <span v-if="item.ville" class="user-cell__seen">{{
                     item.ville
                   }}</span>
+                  <div v-if="item.telephone || item.email" class="user-cell__meta">
+                    <span v-if="item.telephone" class="user-cell__meta-item">
+                      <v-icon size="10">mdi-phone-outline</v-icon>{{ item.telephone }}
+                    </span>
+                    <span v-if="item.email" class="user-cell__meta-item">
+                      <v-icon size="10">mdi-email-outline</v-icon>{{ item.email }}
+                    </span>
+                  </div>
                 </div>
               </div>
             </template>

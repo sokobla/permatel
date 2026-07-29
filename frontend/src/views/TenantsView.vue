@@ -82,7 +82,13 @@
               <div class="tn-name-cell">
                 <img v-if="t.logo_url" :src="fileUrl(t.logo_url)" class="tn-logo" alt="" />
                 <span v-else class="tn-logo tn-logo--ph">{{ initials(t.nom) }}</span>
-                <span>{{ t.nom }}</span>
+                <div class="tn-name-cell__info">
+                  <span>{{ t.nom }}</span>
+                  <div class="tn-name-cell__meta">
+                    <span v-if="t.code">{{ t.code }}</span>
+                    <span v-if="t.created_at">créé le {{ formatDate(t.created_at) }}</span>
+                  </div>
+                </div>
               </div>
             </td>
             <td class="tn-td tn-mono">{{ t.code }}</td>
@@ -940,8 +946,8 @@ onMounted(fetchTenants);
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 9px;
-  border-radius: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -975,7 +981,7 @@ onMounted(fetchTenants);
   height: 30px;
   margin-left: 4px;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: 8px;
   background: transparent;
   color: var(--color-muted);
   cursor: pointer;
@@ -997,13 +1003,27 @@ onMounted(fetchTenants);
 /* === LOGO (miniature tableau + aperçu) === */
 .tn-name-cell {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
+}
+.tn-name-cell__info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.tn-name-cell__meta {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 2px;
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+  color: var(--color-muted);
 }
 .tn-logo {
   width: 28px;
   height: 28px;
-  border-radius: 4px;
+  border-radius: 8px;
   object-fit: cover;
   background: #f2f2f2;
   border: 1px solid var(--color-border);

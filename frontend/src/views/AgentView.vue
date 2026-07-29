@@ -113,6 +113,12 @@
                     style="font-family: &quot;Fira Sans, sans-serif&quot;"
                     >{{ item.nom }} {{ item.prenom }}</span
                   >
+                  <div v-if="item.telephone || item.type_agent" class="user-cell__meta">
+                    <span v-if="item.telephone" class="user-cell__meta-item">
+                      <v-icon size="10">mdi-phone-outline</v-icon>{{ item.telephone }}
+                    </span>
+                    <span v-if="item.type_agent" class="user-cell__meta-item">{{ item.type_agent }}</span>
+                  </div>
                 </div>
               </div>
             </template>

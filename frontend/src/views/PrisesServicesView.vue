@@ -78,7 +78,12 @@
             <td class="psv-td">
               <div class="psv-cell-flex">
                 <span class="psv-avatar">{{ initials(row.agent_nom) }}</span>
-                <span class="psv-agent-name">{{ row.agent_nom ?? '—' }}</span>
+                <div>
+                  <div class="psv-agent-name">{{ row.agent_nom ?? '—' }}</div>
+                  <div v-if="row.client_nom || row.site_nom" class="psv-agent-meta">
+                    {{ [row.client_nom, row.site_nom].filter(Boolean).join(" · ") }}
+                  </div>
+                </div>
               </div>
             </td>
             <td class="psv-td">{{ row.client_nom ?? `Client #${row.client_id}` }}</td>
@@ -315,10 +320,11 @@ onMounted(loadData);
 .psv-td--date { font-family: "Fira Code", monospace; font-size: 10.5px; color: #888; }
 .psv-cell-flex { display: flex; align-items: center; gap: 6px; }
 .psv-avatar {
-  display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 8px;
   background: rgba(0,168,168,0.12); font-family: "Fira Code", monospace; font-size: 8px; font-weight: 700; color: #00a8a8; flex-shrink: 0;
 }
 .psv-agent-name { font-weight: 600; color: #000b23; }
+.psv-agent-meta { font-size: 10px; color: #9aa0aa; margin-top: 1px; }
 .psv-site { display: inline-flex; align-items: center; gap: 4px; color: #777; }
 
 .psv-statut-chip { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
@@ -327,7 +333,7 @@ onMounted(loadData);
 .psv-statut-chip--terminee { background: rgba(39,174,96,0.1); color: #27ae60; }
 
 .psv-end-btn {
-  display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px; border-radius: 3px;
+  display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 10px; border-radius: 999px;
   border: 1px solid rgba(0,11,35,0.15); background: #fff; font-size: 10px; font-weight: 600; color: #000b23; cursor: pointer; transition: all .12s;
 }
 .psv-end-btn:hover:not(:disabled) { background: #000b23; color: #fff; border-color: #000b23; }

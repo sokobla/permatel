@@ -385,7 +385,7 @@
 .user-cell__avatar {
   width: 26px;
   height: 26px;
-  border-radius: 3px;
+  border-radius: 8px;
   flex-shrink: 0;
   overflow: hidden;
   background-color: #f0f0f0;
@@ -424,6 +424,30 @@
   color: #aaa;
   font-family: var(--ff-sans);
   letter-spacing: 0.04em;
+}
+
+/* Ligne d'enrichissement sous le nom (tel/email/adresse — toujours précédés
+   d'une icône, jamais d'un libellé texte ; le tel précède toujours l'email
+   quand les deux sont présents) */
+.user-cell__meta {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-top: 1px;
+}
+.user-cell__meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: #9aa0aa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-cell__meta-item .v-icon {
+  opacity: 0.75;
 }
 
 /* Tag extension */
@@ -479,8 +503,8 @@
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.1em;
-  border-radius: 2px;
-  padding: 3px 8px;
+  border-radius: 999px;
+  padding: 3px 9px;
   white-space: nowrap;
 }
 .status-badge__dot {
@@ -491,32 +515,28 @@
 }
 .status-badge--active {
   color: #00838f;
-  background: rgba(0, 168, 168, 0.08);
-  border: 1px solid rgba(0, 168, 168, 0.2);
+  background: rgba(0, 168, 168, 0.1);
 }
 .status-badge--active .status-badge__dot {
   background: var(--dn-teal);
 }
 .status-badge--inactive {
   color: #888;
-  background: rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.06);
 }
 .status-badge--inactive .status-badge__dot {
   background: #bbb;
 }
 .status-badge--suspended {
   color: #c0392b;
-  background: rgba(231, 76, 60, 0.07);
-  border: 1px solid rgba(231, 76, 60, 0.2);
+  background: rgba(231, 76, 60, 0.1);
 }
 .status-badge--suspended .status-badge__dot {
   background: #e74c3c;
 }
 .status-badge--pending {
   color: #b37400;
-  background: rgba(245, 184, 0, 0.08);
-  border: 1px solid rgba(245, 184, 0, 0.25);
+  background: rgba(245, 184, 0, 0.12);
 }
 .status-badge--pending .status-badge__dot {
   background: #f5a623;
@@ -531,8 +551,8 @@
 .act-btn {
   width: 26px;
   height: 26px;
-  border-radius: 3px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  border: none;
   background: transparent;
   cursor: pointer;
   display: flex;
@@ -540,10 +560,10 @@
   justify-content: center;
   transition:
     background 0.12s,
-    border-color 0.12s;
+    color 0.12s;
 }
 .act-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(0, 0, 0, 0.06);
 }
 .act-btn--edit:hover {
   border-color: var(--dn-teal);

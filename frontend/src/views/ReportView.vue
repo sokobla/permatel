@@ -1753,7 +1753,7 @@ const permanenciersKpis = computed(() => {
 .rp-cell-person { display: flex; align-items: center; gap: 8px; }
 .rp-avatar {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; border-radius: 4px; flex-shrink: 0;
+  width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
   font-family: "Fira Code", monospace; font-size: 10px; font-weight: 700;
 }
 .rp-avatar--teal   { background: rgba(0,168,168,0.12);  color: #00a8a8; }
@@ -1784,8 +1784,8 @@ const permanenciersKpis = computed(() => {
 
 /* ── Role badge ────────────────────────────────────────────────────── */
 .rp-role-badge {
-  display: inline-flex; align-items: center; height: 20px; padding: 0 6px;
-  border-radius: 3px; background: rgba(0,11,35,0.06);
+  display: inline-flex; align-items: center; height: 20px; padding: 0 8px;
+  border-radius: 999px; background: rgba(0,11,35,0.06);
   font-family: "Fira Code", monospace; font-size: 9px; font-weight: 700;
   color: #555; text-transform: uppercase; letter-spacing: 0.06em;
 }

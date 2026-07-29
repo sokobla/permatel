@@ -25,7 +25,10 @@
         items-per-page="25"
       >
         <template #[`item.name`]="{ item }">
-          {{ item.prenom }} {{ item.nom }}
+          <div class="tm-member-cell">
+            <span class="tm-avatar" :style="{ background: avatarColor(item.nom) }">{{ initials(item.prenom, item.nom) }}</span>
+            <span>{{ item.prenom }} {{ item.nom }}</span>
+          </div>
         </template>
         <template #[`item.membership_role`]="{ item }">
           <v-chip size="small" :color="item.membership_role === 'admin' ? '#00a8a8' : undefined" variant="tonal">
@@ -151,6 +154,16 @@ const inviting = ref(false);
 const inviteError = ref("");
 const inviteForm = reactive({ email: "", role: "PERMANENCIER", membership_role: "member" });
 
+function initials(prenom, nom) {
+  const p = (prenom || "")[0] || "";
+  const n = (nom || "")[0] || "";
+  return (p + n).toUpperCase() || "?";
+}
+function avatarColor(name) {
+  let hash = 0;
+  for (let i = 0; i < (name || "").length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return `hsl(${hash % 360}, 40%, 45%)`;
+}
 function formatDate(iso) {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
@@ -280,5 +293,23 @@ onMounted(() => {
   font-size: 14px;
   font-weight: 700;
   color: #000b23;
+}
+.tm-member-cell {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.tm-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Fira Code", monospace;
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
 }
 </style>
