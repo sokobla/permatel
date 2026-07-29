@@ -8,20 +8,22 @@
 
     <!-- Filtres -->
     <div class="wod-filters">
-      <div class="wod-filter-field">
-        <v-icon size="12" color="#9aa0aa">mdi-calendar-outline</v-icon>
-        <input v-model="fDate" type="date" class="wod-filter-input" title="À partir du" />
-      </div>
-      <div class="wod-filter-field">
-        <v-icon size="12" color="#9aa0aa">mdi-shape-outline</v-icon>
-        <select v-model="fType" class="wod-filter-input">
+      <label
+        class="wod-date-btn"
+        :class="{ 'wod-date-btn--active': fDate }"
+        :title="fDate ? `À partir du ${fDate}` : 'Filtrer à partir d\'une date'"
+      >
+        <v-icon size="14" :color="fDate ? '#00a8a8' : '#9aa0aa'">mdi-calendar-outline</v-icon>
+        <input v-model="fDate" type="date" />
+      </label>
+      <div class="wod-filter-pill">
+        <select v-model="fType" title="Type de demande">
           <option value="">Tous types</option>
           <option v-for="t in TYPES" :key="t.value" :value="t.value">{{ t.label }}</option>
         </select>
       </div>
-      <div class="wod-filter-field">
-        <v-icon size="12" color="#9aa0aa">mdi-account-outline</v-icon>
-        <select v-model="fDemandeur" class="wod-filter-input">
+      <div class="wod-filter-pill">
+        <select v-model="fDemandeur" title="Demandeur">
           <option value="">Tous demandeurs</option>
           <option v-for="d in demandeurs" :key="d" :value="d">{{ d }}</option>
         </select>
@@ -194,22 +196,35 @@ onMounted(load);
 }
 
 /* Filtres */
-.wod-filters { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 0; }
-.wod-filter-field {
-  display: flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px;
-  border: 1px solid #e5e7eb; border-radius: 999px; background: #fff; max-width: 118px;
+.wod-filters { display: flex; align-items: center; gap: 6px; padding: 10px 14px 0; }
+
+.wod-date-btn {
+  display: flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+  border: 1px solid #e5e7eb; border-radius: 999px; background: #fff; cursor: pointer;
+  flex-shrink: 0; position: relative;
 }
-.wod-filter-field:focus-within { border-color: #00a8a8; }
-.wod-filter-input {
+.wod-date-btn--active { border-color: #00a8a8; background: rgba(0,168,168,0.08); }
+.wod-date-btn input[type="date"] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; border: none;
+}
+
+.wod-filter-pill {
+  display: flex; align-items: center; height: 28px; padding: 0 8px;
+  border: 1px solid #e5e7eb; border-radius: 999px; background: #fff; flex: 1; min-width: 0;
+}
+.wod-filter-pill:focus-within { border-color: #00a8a8; }
+.wod-filter-pill select {
   border: none; outline: none; background: transparent; font-size: 10.5px; color: #1a1a2e;
-  max-width: 90px;
+  width: 100%; text-overflow: ellipsis;
 }
+
 .wod-reset {
   display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
   border: none; border-radius: 50%; background: rgba(231,76,60,0.08); color: #e74c3c; cursor: pointer;
+  flex-shrink: 0;
 }
 
-.wod-body { overflow-y: auto; min-height: 0; flex: 1; }
+.wod-body { overflow-y: auto; min-height: 0; flex: 1; padding: 10px 14px 14px; }
 .wod-state { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 24px; color: #9aa0aa; font-size: 12.5px; }
 
 .wod-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
