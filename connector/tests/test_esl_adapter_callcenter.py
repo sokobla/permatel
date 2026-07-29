@@ -147,6 +147,43 @@ def test_agent_status_change_agent_absent_de_l_annuaire_est_journalise(caplog):
     assert any("uuid-inconnu" in r.message for r in caplog.records)
 
 
+# ── Saisie multi-files en une entrée ("8001, 8002, ...") ──────────────────
+
+def test_queue_ids_avec_plusieurs_files_dans_une_seule_entree_est_scindee():
+    """Reproduit le cas réel du 29/07 : 5 files saisies en une fois dans le
+    combobox produisent UNE entrée "8001, 8002, 8003, 8004, 8005" plutôt que
+    5 entrées distinctes — FreeSWITCH rejette ('-ERR Invalid!') un tel
+    argument multi-files pour 'agent list'. Doit être scindée en amont."""
+    domains = [{"pbx_domain": "d1", "queue_ids": ["8001, 8002, 8003, 8004, 8005"]}]
+    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=MagicMock())
+
+    assert adapter._supervised_queues["d1"] == {"8001", "8002", "8003", "8004", "8005"}
+
+
+def test_queue_ids_normalement_scindes_restent_inchanges():
+    domains = [{"pbx_domain": "d1", "queue_ids": ["8001", "8002"]}]
+    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=MagicMock())
+
+    assert adapter._supervised_queues["d1"] == {"8001", "8002"}
+
+
+def test_refresh_agent_directory_emet_un_appel_par_file_apres_scission():
+    domains = [{"pbx_domain": "d1", "queue_ids": ["8001, 8002, 8003"]}]
+    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=MagicMock())
+    fake_esl = MagicMock()
+    fake_esl.send.return_value = _FakeResponse("")
+    adapter._esl = fake_esl
+
+    adapter._refresh_agent_directory()
+
+    called_commands = {call.args[0] for call in fake_esl.send.call_args_list}
+    assert called_commands == {
+        "api callcenter_config agent list 8001@d1",
+        "api callcenter_config agent list 8002@d1",
+        "api callcenter_config agent list 8003@d1",
+    }
+
+
 # ── _refresh_agent_directory / _fetch_agent_list ──────────────────────────
 
 def test_refresh_agent_directory_parse_une_ligne_valide():

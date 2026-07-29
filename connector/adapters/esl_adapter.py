@@ -51,11 +51,24 @@ class ESLAdapter(PBXAdapter):
         self._disconnect_event = Event()
         self.last_error = None
         # domaine -> ensemble des queue_id supervisées ; liste vide = pas de
-        # filtre (toutes les queues du domaine sont transmises).
-        self._supervised_queues = {
-            d["pbx_domain"]: set(d.get("queue_ids") or [])
-            for d in connector_config.get("domains", [])
-        }
+        # filtre (toutes les queues du domaine sont transmises). Chaque
+        # entrée est re-scindée sur ',' : confirmé en prod (29/07) qu'une
+        # saisie de plusieurs files en une fois dans le champ "Entrée pour
+        # ajouter" du formulaire (`queue_ids` combobox) peut produire UNE
+        # entrée "8001, 8002, 8003, 8004, 8005" au lieu de 5 entrées
+        # distinctes — `agent list <ceci>@<domaine>` est alors rejeté par
+        # FreeSWITCH ('-ERR Invalid!') puisqu'il n'accepte qu'une seule file
+        # à la fois. Tolérant à cette saisie plutôt que de forcer une
+        # correction manuelle préalable dans Paramètres > Téléphonie.
+        self._supervised_queues = {}
+        for d in connector_config.get("domains", []):
+            queues = set()
+            for raw_queue_id in (d.get("queue_ids") or []):
+                for part in str(raw_queue_id).split(","):
+                    part = part.strip()
+                    if part:
+                        queues.add(part)
+            self._supervised_queues[d["pbx_domain"]] = queues
         # uuid FreeSWITCH (CC-Agent) -> {"domain":..., "extension":..., "queue":...}
         # — construit via _refresh_agent_directory(), nécessaire car les
         # événements agent-status-change ne portent ni domaine ni extension
