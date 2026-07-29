@@ -156,19 +156,11 @@
       <table class="av-table">
         <thead>
           <tr>
-            <th class="av-th" style="width:130px">Client</th>
-            <th class="av-th" style="width:130px">Site</th>
-            <th class="av-th">Intitulé de l'anomalie</th>
-            <th class="av-th" style="width:105px">Catégorie</th>
-            <th class="av-th" style="width:78px; text-align:center">Priorité</th>
-            <th class="av-th" style="width:118px">Créé le</th>
-            <th class="av-th" style="width:110px">Statut</th>
-            <th class="av-th" style="width:112px">Permanencier</th>
-            <th class="av-th" style="width:112px">Demandeur</th>
-            <th class="av-th" style="width:112px">Créé par</th>
-            <th class="av-th" style="width:112px">Dernier éditeur</th>
-            <th class="av-th" style="width:118px">MàJ le</th>
-            <th class="av-th" style="width:38px"></th>
+            <th class="av-th">Anomalie</th>
+            <th class="av-th" style="width:130px">Catégorie</th>
+            <th class="av-th" style="width:150px">Créée le</th>
+            <th class="av-th" style="width:130px">Impliqués</th>
+            <th class="av-th" style="width:70px; text-align:right">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -177,7 +169,7 @@
 
               <!-- Ligne accordéon groupe -->
               <tr class="av-group-row" @click="toggleGroup(group.client)">
-                <td colspan="13" class="av-group-row__cell">
+                <td colspan="5" class="av-group-row__cell">
                   <div class="av-group-row__inner">
                     <v-icon
                       size="12"
@@ -204,69 +196,64 @@
                   style="cursor:pointer"
                   @click="selectRow(row)"
                 >
-                  <td class="av-td">
-                    <div class="av-cell-flex">
-                      <span class="av-client-dot" :style="{ background: group.color }"></span>
-                      <span class="av-client-name">{{ row.client_nom ?? group.client }}</span>
+                  <td class="av-td av-td--anomalie">
+                    <div class="av-name-cell">
+                      <span class="av-type-icon" :style="{ background: prioColor(row.priorite) }">
+                        <v-icon size="14" color="#fff">mdi-alert-octagon-outline</v-icon>
+                      </span>
+                      <div class="av-name-text-block">
+                        <span class="av-titre">{{ row.titre }}</span>
+                        <span class="av-name-sub">
+                          <span class="av-client-dot" :style="{ background: group.color }"></span>
+                          {{ row.client_nom ?? group.client }}
+                          <template v-if="row.site_nom"> · {{ row.site_nom }}</template>
+                        </span>
+                        <div class="av-cell-flex av-name-status">
+                          <span :class="['av-statut-chip', `av-statut-chip--${row.statut}`]">
+                            <span class="av-statut-chip__dot"></span>
+                            {{ statutLabels[row.statut] }}
+                          </span>
+                          <SlaBadge :state="row.sla && row.sla.resolution" />
+                        </div>
+                      </div>
                     </div>
-                  </td>
-                  <td class="av-td">
-                    <span class="av-site-name">
-                      <v-icon size="11" color="#9aa0aa">mdi-map-marker-outline</v-icon>
-                      {{ row.site_nom ?? '—' }}
-                    </span>
-                  </td>
-                  <td class="av-td av-td--titre">
-                    <span class="av-titre">{{ row.titre }}</span>
                   </td>
                   <td class="av-td">
                     <span class="av-nature-badge">{{ natureLabels[row.nature_anomalie] ?? row.nature_anomalie }}</span>
+                    <div class="av-cat-sub" :style="{ color: prioColor(row.priorite) }">Priorité {{ row.priorite }}</div>
                   </td>
-                  <td class="av-td" style="text-align:center">
-                    <span :class="['av-prio-chip', `av-prio-chip--${row.priorite}`]">
-                      {{ row.priorite }}
-                    </span>
+                  <td class="av-td av-td--date">
+                    {{ formatDate(row.created_at) }}
+                    <div class="av-date-sub">par {{ row.created_by_nom ?? '—' }}</div>
                   </td>
-                  <td class="av-td av-td--date">{{ formatDate(row.created_at) }}</td>
                   <td class="av-td">
-                    <div class="av-cell-flex">
-                      <span :class="['av-statut-chip', `av-statut-chip--${row.statut}`]">
-                        <span class="av-statut-chip__dot"></span>
-                        {{ statutLabels[row.statut] }}
+                    <div class="av-avatar-stack">
+                      <span
+                        v-for="a in involvedAvatars(row).slice(0, 3)"
+                        :key="a.name"
+                        :class="['av-avatar', 'av-avatar--stack', a.cls]"
+                        :title="a.name"
+                      >{{ initials(a.name) }}</span>
+                      <span v-if="involvedAvatars(row).length > 3" class="av-avatar av-avatar--stack av-avatar--more">
+                        +{{ involvedAvatars(row).length - 3 }}
                       </span>
-                      <SlaBadge :state="row.sla && row.sla.resolution" />
-                      <v-icon size="10" color="#ccc">mdi-chevron-down</v-icon>
+                      <span v-if="!involvedAvatars(row).length" class="av-muted">—</span>
                     </div>
                   </td>
-                  <td class="av-td">
-                    <div class="av-cell-flex">
-                      <span class="av-avatar">{{ initials(row.permanencier_nom) }}</span>
-                      <span class="av-perm-name">{{ row.permanencier_nom }}</span>
+                  <td class="av-td" style="text-align:right">
+                    <div class="av-row-actions">
+                      <button
+                        :class="['av-alert-btn', row.priorite === 'urgente' ? 'av-alert-btn--active' : '']"
+                        :title="row.priorite === 'urgente' ? 'Retirer la priorité urgente' : 'Marquer priorité urgente'"
+                        :disabled="togglingUrgenceId === row.id"
+                        @click.stop="toggleUrgence(row)"
+                      >
+                        <v-icon size="15">mdi-alert-outline</v-icon>
+                      </button>
+                      <button class="av-action-btn">
+                        <v-icon size="15">mdi-dots-vertical</v-icon>
+                      </button>
                     </div>
-                  </td>
-                  <td class="av-td">
-                    <div class="av-cell-flex">
-                      <span class="av-avatar av-avatar--blue">{{ initials(row.contact_nom) }}</span>
-                      <span class="av-perm-name">{{ row.contact_nom ?? '—' }}</span>
-                    </div>
-                  </td>
-                  <td class="av-td">
-                    <div class="av-cell-flex">
-                      <span class="av-avatar av-avatar--teal">{{ initials(row.created_by_nom) }}</span>
-                      <span class="av-perm-name">{{ row.created_by_nom ?? '—' }}</span>
-                    </div>
-                  </td>
-                  <td class="av-td">
-                    <div class="av-cell-flex">
-                      <span class="av-avatar av-avatar--amber">{{ initials(row.updated_by_nom) }}</span>
-                      <span class="av-perm-name">{{ row.updated_by_nom ?? '—' }}</span>
-                    </div>
-                  </td>
-                  <td class="av-td av-td--date">{{ formatDate(row.updated_at) }}</td>
-                  <td class="av-td" style="text-align:center">
-                    <button class="av-action-btn">
-                      <v-icon size="15">mdi-dots-vertical</v-icon>
-                    </button>
                   </td>
                 </tr>
               </template>
@@ -283,70 +270,71 @@
               style="cursor:pointer"
               @click="selectRow(row)"
             >
-              <td class="av-td">
-                <div class="av-cell-flex">
-                  <span class="av-client-dot" :style="{ background: clientColor(row.client_id) }"></span>
-                  <span class="av-client-name">{{ row.client_nom ?? `Client #${row.client_id}` }}</span>
+              <td class="av-td av-td--anomalie">
+                <div class="av-name-cell">
+                  <span class="av-type-icon" :style="{ background: prioColor(row.priorite) }">
+                    <v-icon size="14" color="#fff">mdi-alert-octagon-outline</v-icon>
+                  </span>
+                  <div class="av-name-text-block">
+                    <span class="av-titre">{{ row.titre }}</span>
+                    <span class="av-name-sub">
+                      <span class="av-client-dot" :style="{ background: clientColor(row.client_id) }"></span>
+                      {{ row.client_nom ?? `Client #${row.client_id}` }}
+                      <template v-if="row.site_nom"> · {{ row.site_nom }}</template>
+                    </span>
+                    <div class="av-cell-flex av-name-status">
+                      <span :class="['av-statut-chip', `av-statut-chip--${row.statut}`]">
+                        <span class="av-statut-chip__dot"></span>
+                        {{ statutLabels[row.statut] }}
+                      </span>
+                      <SlaBadge :state="row.sla && row.sla.resolution" />
+                    </div>
+                  </div>
                 </div>
-              </td>
-              <td class="av-td">
-                <span class="av-site-name">
-                  <v-icon size="11" color="#9aa0aa">mdi-map-marker-outline</v-icon>
-                  {{ row.site_nom ?? '—' }}
-                </span>
-              </td>
-              <td class="av-td av-td--titre">
-                <span class="av-titre">{{ row.titre }}</span>
               </td>
               <td class="av-td">
                 <span class="av-nature-badge">{{ natureLabels[row.nature_anomalie] ?? row.nature_anomalie }}</span>
+                <div class="av-cat-sub" :style="{ color: prioColor(row.priorite) }">Priorité {{ row.priorite }}</div>
               </td>
-              <td class="av-td" style="text-align:center">
-                <span :class="['av-prio-chip', `av-prio-chip--${row.priorite}`]">
-                  {{ row.priorite }}
-                </span>
+              <td class="av-td av-td--date">
+                {{ formatDate(row.created_at) }}
+                <div class="av-date-sub">par {{ row.created_by_nom ?? '—' }}</div>
               </td>
-              <td class="av-td av-td--date">{{ formatDate(row.created_at) }}</td>
               <td class="av-td">
-                <div class="av-cell-flex">
-                  <span :class="['av-statut-chip', `av-statut-chip--${row.statut}`]">
-                    <span class="av-statut-chip__dot"></span>
-                    {{ statutLabels[row.statut] }}
+                <div class="av-avatar-stack">
+                  <span
+                    v-for="a in involvedAvatars(row).slice(0, 3)"
+                    :key="a.name"
+                    :class="['av-avatar', 'av-avatar--stack', a.cls]"
+                    :title="a.name"
+                  >{{ initials(a.name) }}</span>
+                  <span v-if="involvedAvatars(row).length > 3" class="av-avatar av-avatar--stack av-avatar--more">
+                    +{{ involvedAvatars(row).length - 3 }}
                   </span>
-                  <SlaBadge :state="row.sla && row.sla.resolution" />
-                  <v-icon size="10" color="#ccc">mdi-chevron-down</v-icon>
+                  <span v-if="!involvedAvatars(row).length" class="av-muted">—</span>
                 </div>
               </td>
-              <td class="av-td">
-                <div class="av-cell-flex">
-                  <span class="av-avatar">{{ initials(row.permanencier_nom) }}</span>
-                  <span class="av-perm-name">{{ row.permanencier_nom }}</span>
+              <td class="av-td" style="text-align:right">
+                <div class="av-row-actions">
+                  <button
+                    :class="['av-alert-btn', row.priorite === 'urgente' ? 'av-alert-btn--active' : '']"
+                    :title="row.priorite === 'urgente' ? 'Retirer la priorité urgente' : 'Marquer priorité urgente'"
+                    :disabled="togglingUrgenceId === row.id"
+                    @click.stop="toggleUrgence(row)"
+                  >
+                    <v-icon size="15">mdi-alert-outline</v-icon>
+                  </button>
+                  <button class="av-action-btn">
+                    <v-icon size="15">mdi-dots-vertical</v-icon>
+                  </button>
                 </div>
-              </td>
-              <td class="av-td">
-                <div class="av-cell-flex">
-                  <span class="av-avatar av-avatar--blue">{{ initials(row.created_by_nom) }}</span>
-                  <span class="av-perm-name">{{ row.created_by_nom ?? '—' }}</span>
-                </div>
-              </td>
-              <td class="av-td">
-                <div class="av-cell-flex">
-                  <span class="av-avatar av-avatar--amber">{{ initials(row.updated_by_nom) }}</span>
-                  <span class="av-perm-name">{{ row.updated_by_nom ?? '—' }}</span>
-                </div>
-              </td>
-              <td class="av-td av-td--date">{{ formatDate(row.updated_at) }}</td>
-              <td class="av-td" style="text-align:center">
-                <button class="av-action-btn">
-                  <v-icon size="15">mdi-dots-vertical</v-icon>
-                </button>
               </td>
             </tr>
           </template>
 
           <!-- Chargement -->
           <tr v-if="loading">
-            <td colspan="13">
+            <td colspan="5">
               <div class="av-empty">
                 <v-icon size="28" color="#e0e0e0" class="av-spin">mdi-loading</v-icon>
                 <span>Chargement des anomalies…</span>
@@ -356,7 +344,7 @@
 
           <!-- Erreur API -->
           <tr v-else-if="loadError">
-            <td colspan="13">
+            <td colspan="5">
               <div class="av-empty" style="color:#e74c3c">
                 <v-icon size="28" color="#e74c3c">mdi-alert-circle-outline</v-icon>
                 <span>{{ loadError }}</span>
@@ -366,7 +354,7 @@
 
           <!-- État vide -->
           <tr v-else-if="(groupEnabled ? groupedRows : filteredRows).length === 0">
-            <td colspan="13">
+            <td colspan="5">
               <div class="av-empty">
                 <v-icon size="36" color="#e0e0e0">mdi-clipboard-check-outline</v-icon>
                 <span>Aucune anomalie ne correspond aux critères</span>
@@ -392,7 +380,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from "vue";
 import { useRoute } from "vue-router";
-import { listDemandes } from "@/services/demandeService";
+import { listDemandes, updateDemande } from "@/services/demandeService";
 import SlaBadge from "@/components/sla/SlaBadge.vue";
 import EditAnomalieDrawer from "@/components/workspace/EditAnomalieDrawer.vue";
 
@@ -575,6 +563,44 @@ function formatDate(iso) {
 function initials(name) {
   if (!name) return "?";
   return name.split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase();
+}
+
+// ─── Icône priorité (colonne Anomalie + bascule urgence) ──────────────────────
+const PRIORITE_COLOR = { urgente: "#e74c3c", haute: "#f39c12", normale: "#00a8a8", basse: "#aaaaaa" };
+function prioColor(priorite) { return PRIORITE_COLOR[priorite] || "#aaaaaa"; }
+
+// ─── Pile d'avatars "Impliqués" (permanencier / demandeur / dernier éditeur —
+// le créateur est déjà affiché en byline de la colonne "Créée le") ────────────
+function involvedAvatars(row) {
+  return [
+    { name: row.permanencier_nom, cls: "" },
+    { name: row.contact_nom, cls: "av-avatar--blue" },
+    { name: row.updated_by_nom, cls: "av-avatar--amber" },
+  ].filter((a) => a.name);
+}
+
+// ─── Bascule priorité urgente (icône alerte, colonne Actions) ─────────────────
+// Disponible pour tous les rôles (même permission que l'édition d'une
+// demande) — confirmation requise avant d'appliquer, la mutation touche une
+// donnée réelle (PUT /demandes/<id>), contrairement à l'ancienne icône
+// étoile purement décorative de la maquette.
+const togglingUrgenceId = ref(null);
+async function toggleUrgence(row) {
+  const next = row.priorite === "urgente" ? "normale" : "urgente";
+  const message = next === "urgente"
+    ? `Marquer « ${row.titre} » en priorité urgente ?`
+    : `Retirer la priorité urgente de « ${row.titre} » (repasse en priorité normale) ?`;
+  if (!window.confirm(message)) return;
+
+  togglingUrgenceId.value = row.id;
+  try {
+    const updated = await updateDemande(row.id, { priorite: next });
+    onUpdated(updated);
+  } catch (err) {
+    loadError.value = err?.response?.data?.error || "La mise à jour de la priorité a échoué.";
+  } finally {
+    togglingUrgenceId.value = null;
+  }
 }
 </script>
 
@@ -1080,23 +1106,51 @@ function initials(name) {
 .av-data-row:last-child { border-bottom: none; }
 
 .av-td {
-  padding: 8px 12px;
+  padding: 10px 12px;
   font-size: 11.5px;
   color: #333;
-  vertical-align: middle;
-  max-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  vertical-align: top;
 }
 
-.av-td--titre { max-width: 260px; }
+.av-td--anomalie { max-width: 0; }
 .av-td--date {
   font-family: "Fira Code", monospace;
-  font-size: 10.5px;
-  color: #888;
+  font-size: 11px;
+  color: #333;
   white-space: nowrap;
 }
+.av-date-sub { font-family: "Fira Sans", sans-serif; font-size: 10.5px; color: #9aa0aa; margin-top: 2px; }
+.av-cat-sub { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; margin-top: 4px; }
+.av-muted { color: #9aa0aa; font-size: 11px; }
+
+/* Cellule "Anomalie" (icône + titre + client/site + statut) */
+.av-name-cell { display: flex; align-items: flex-start; gap: 10px; }
+.av-type-icon {
+  width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0; margin-top: 1px;
+}
+.av-name-text-block { min-width: 0; }
+.av-name-sub {
+  display: flex; align-items: center; gap: 4px; font-size: 11px; color: #9aa0aa;
+  margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.av-name-status { margin-top: 5px; }
+
+/* Pile d'avatars "Impliqués" */
+.av-avatar-stack { display: flex; align-items: center; }
+.av-avatar--stack { margin-left: -7px; border: 2px solid #fff; }
+.av-avatar--stack:first-child { margin-left: 0; }
+.av-avatar--more { background: rgba(0,11,35,0.06); color: #9aa0aa; }
+
+/* Actions de ligne */
+.av-row-actions { display: inline-flex; align-items: center; gap: 4px; }
+.av-alert-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px;
+  border-radius: 6px; border: none; background: none; color: #9aa0aa; cursor: pointer;
+}
+.av-alert-btn:hover { background: rgba(231,76,60,0.08); color: #e74c3c; }
+.av-alert-btn--active { background: rgba(231,76,60,0.1); color: #e74c3c; }
+.av-alert-btn:disabled { opacity: 0.5; cursor: default; }
 
 .av-cell-flex {
   display: flex;
@@ -1106,9 +1160,7 @@ function initials(name) {
 }
 
 /* Client */
-.av-client-dot { width: 7px; height: 7px; border-radius: 1px; flex-shrink: 0; }
-.av-client-name { font-size: 11px; color: #777; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.av-site-name { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #777; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.av-client-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
 /* Titre */
 .av-titre { font-weight: 600; color: #000b23; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
@@ -1128,26 +1180,6 @@ function initials(name) {
   letter-spacing: 0.03em;
   white-space: nowrap;
 }
-
-/* Priorité */
-.av-prio-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 18px;
-  padding: 0 8px;
-  border-radius: 2px;
-  font-family: "Fira Code", monospace;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.av-prio-chip--urgente { background: rgba(231,76,60,0.1);  color: #e74c3c; }
-.av-prio-chip--haute   { background: rgba(243,156,18,0.12); color: #f39c12; }
-.av-prio-chip--normale { background: rgba(0,168,168,0.1);  color: #00a8a8; }
-.av-prio-chip--basse   { background: rgba(0,0,0,0.05);     color: #aaa;    }
 
 /* Statut */
 .av-statut-chip {
@@ -1186,9 +1218,7 @@ function initials(name) {
   flex-shrink: 0;
 }
 
-.av-perm-name { font-size: 11px; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .av-avatar--blue  { background: rgba(52,152,219,0.12);  color: #3498db; }
-.av-avatar--teal  { background: rgba(0,168,168,0.12);   color: #00a8a8; }
 .av-avatar--amber { background: rgba(243,156,18,0.12);  color: #f39c12; }
 
 /* Bouton actions */
