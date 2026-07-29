@@ -44,16 +44,18 @@
         <v-toolbar-title v-else class="app-bar-title">{{ tenantName }}</v-toolbar-title>
 
         <v-spacer></v-spacer>
-        <NotificationBell />
-        <v-avatar :src="profileAvatarUrl" size="32" class="mr-2"></v-avatar>
-        <v-btn
-          color="#000b23"
-          @click="handleLogout"
-          text="Déconnexion"
-          append-icon="mdi-logout"
-          variant="text"
-        >
-        </v-btn>
+        <div class="app-bar-actions">
+          <NotificationBell />
+          <v-avatar :src="profileAvatarUrl" size="32" class="mr-2"></v-avatar>
+          <v-btn
+            color="#000b23"
+            @click="handleLogout"
+            text="Déconnexion"
+            append-icon="mdi-logout"
+            variant="text"
+          >
+          </v-btn>
+        </div>
       </v-app-bar>
     </template>
 
@@ -174,6 +176,13 @@ const handleLogout = async () => {
   letter-spacing: 0.18em;
   color: #000b23;
   text-transform: uppercase;
+  /* Rétrécit et tronque plutôt que de pousser le reste de la barre
+     (notifications/avatar/déconnexion) hors du viewport — nom de tenant
+     imprévisible en longueur. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Sélecteur de tenant (app-bar) */
@@ -187,6 +196,17 @@ const handleLogout = async () => {
   padding: 4px 6px;
   border-radius: 6px;
   transition: background 0.15s;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Bloc actions de droite (notifications, avatar, déconnexion) : jamais
+   compressé — c'est le titre/sélecteur de tenant qui absorbe le
+   rétrécissement via .app-bar-title/.tenant-switch ci-dessus. */
+.app-bar-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 .tenant-switch:hover {
   background: #f0f2f5;
