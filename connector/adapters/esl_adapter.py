@@ -337,6 +337,22 @@ class ESLAdapter(PBXAdapter):
     def _make_handler(self, normalize_fn):
         def _handler(event):
             headers = event.headers
+            # Diagnostic temporaire (à retirer une fois la corrélation de legs
+            # confirmée) : dump inconditionnel pour identifier, sur trafic réel,
+            # le header liant les deux legs d'un appel bridgé (Other-Leg-Unique-ID
+            # ou équivalent) et la variable portant le DNIS/ANI réel sur les
+            # appels entrants — ni l'un ni l'autre n'a jamais été observé à ce
+            # jour, uniquement supposé depuis la doc FreeSWITCH.
+            logger.info(
+                "[%s] %s -> Unique-ID=%s Other-Leg-Unique-ID=%s Call-Direction=%s "
+                "Caller-Caller-ID-Number=%s Caller-Destination-Number=%s "
+                "variable_dnis=%s variable_ani=%s variable_sip_to_user=%s",
+                self.connector_config["name"], headers.get("Event-Name"),
+                headers.get("Unique-ID"), headers.get("Other-Leg-Unique-ID"),
+                headers.get("Call-Direction"), headers.get("Caller-Caller-ID-Number"),
+                headers.get("Caller-Destination-Number"), headers.get("variable_dnis"),
+                headers.get("variable_ani"), headers.get("variable_sip_to_user"),
+            )
             domain = self._resolve_domain(headers)
             if not domain:
                 return  # pas de domaine FusionPBX sur ce canal (config PBX incomplète)
