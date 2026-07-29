@@ -541,3 +541,29 @@ tentative de lecture de `variable_domain_name`.
 >   couvert (pas de moyen de lister les files d'un domaine sans connaître
 >   leurs noms) — journalisé plutôt que deviné, à traiter si un tel besoin
 >   se présente.
+
+**Durcissement suite au premier test réel (29/07)** : la saisie initiale
+des 5 files du domaine test dans le combobox "Entrée pour ajouter" a
+produit UNE entrée `"8001, 8002, 8003, 8004, 8005"` au lieu de 5 entrées
+distinctes — `agent list <ceci>@<domaine>` rejeté par FreeSWITCH
+(`-ERR Invalid!`), annuaire toujours vide. Deux corrections :
+
+- **Formulaire domaine (`Paramètres > Intégrations > Téléphonie`)** :
+  le combobox est remplacé par des champs Identifiant/Alias ajoutables un
+  par un ("Ajouter une file") — corrige structurellement la saisie
+  multi-files en une entrée (plus de virgules à scinder par l'utilisateur).
+  `queue_ids` devient une liste de `{"id", "alias"}` ; l'alias est un
+  libellé d'affichage PERMATEL, jamais transmis à FreeSWITCH. Compat
+  ancien format (chaîne nue) conservée côté backend (`_normalize_queue_ids`)
+  et connecteur pour les domaines pas encore ré-enregistrés.
+- **Roster agents faisant autorité côté PERMATEL** : `GET
+  /telephony/connectors/config` expose désormais `known_agent_logins`
+  (les `User.agent_login` peuplés pour le tenant, actifs, adhésion tenant
+  active) ; l'annuaire construit par `ESLAdapter` ne retient une extension
+  résolue via FusionPBX que si elle y figure — jamais d'attribution de
+  présence à une extension PBX sans agent PERMATEL réel derrière. Rafraîchi
+  à chaque sondage périodique sans redémarrer l'adapter.
+- **`UsersView.vue`** : le champ "Extension" éditait `station_extension`
+  (jamais utilisé côté téléphonie) — remplacé par **"Login Agent CC"**,
+  qui édite directement `agent_login`, le vrai champ de corrélation avec
+  `TelephonyEvent.agent_login`.
