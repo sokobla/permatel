@@ -174,3 +174,16 @@ class ESLAdapter(PBXAdapter):
         payload = normalizer.normalize_callcenter_info(headers, domain)
         if payload:
             self.ingest_client.send(payload)
+        else:
+            # Diagnostic : normalize_callcenter_info() ne reconnaît que
+            # 'queue-enter' et 'agent-state-change' — tout autre CC-Action
+            # (ex. un éventuel 'agent-status-change' distinct pour les
+            # changements de statut manuels Available/On Break/Logged Out,
+            # non confirmé à ce jour) est ici silencieusement abandonné en
+            # amont. On journalise systématiquement les en-têtes complets
+            # d'un événement callcenter::info non reconnu pour repérer une
+            # action manquante plutôt que de perdre l'information sans trace.
+            logger.warning(
+                "[%s] callcenter::info non reconnu — CC-Action=%r, en-têtes=%r",
+                self.connector_config["name"], headers.get("CC-Action"), dict(headers),
+            )
