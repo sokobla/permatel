@@ -8,16 +8,27 @@
 
     <!-- Filtres -->
     <div class="wod-filters">
-      <input v-model="fDate" type="date" class="wod-date" title="À partir du" />
-      <select v-model="fType" class="wod-select">
-        <option value="">Tous types</option>
-        <option v-for="t in TYPES" :key="t.value" :value="t.value">{{ t.label }}</option>
-      </select>
-      <select v-model="fDemandeur" class="wod-select">
-        <option value="">Tous demandeurs</option>
-        <option v-for="d in demandeurs" :key="d" :value="d">{{ d }}</option>
-      </select>
-      <button v-if="fDate || fType || fDemandeur" class="wod-reset" title="Réinitialiser" @click="resetFilters">✕</button>
+      <div class="wod-filter-field">
+        <v-icon size="12" color="#9aa0aa">mdi-calendar-outline</v-icon>
+        <input v-model="fDate" type="date" class="wod-filter-input" title="À partir du" />
+      </div>
+      <div class="wod-filter-field">
+        <v-icon size="12" color="#9aa0aa">mdi-shape-outline</v-icon>
+        <select v-model="fType" class="wod-filter-input">
+          <option value="">Tous types</option>
+          <option v-for="t in TYPES" :key="t.value" :value="t.value">{{ t.label }}</option>
+        </select>
+      </div>
+      <div class="wod-filter-field">
+        <v-icon size="12" color="#9aa0aa">mdi-account-outline</v-icon>
+        <select v-model="fDemandeur" class="wod-filter-input">
+          <option value="">Tous demandeurs</option>
+          <option v-for="d in demandeurs" :key="d" :value="d">{{ d }}</option>
+        </select>
+      </div>
+      <button v-if="fDate || fType || fDemandeur" class="wod-reset" title="Réinitialiser" @click="resetFilters">
+        <v-icon size="12">mdi-close</v-icon>
+      </button>
     </div>
 
     <!-- Liste -->
@@ -29,16 +40,35 @@
       </div>
       <ul v-else class="wod-list">
         <li v-for="d in filtered" :key="d.id" class="wod-item" @click="$emit('select', d)">
-          <div class="wod-item-top">
-            <span class="wod-ticket">{{ d.numero_ticket }}</span>
-            <span :class="['wod-type', `wod-type--${d.type_demande}`]">{{ TYPE_LABELS[d.type_demande] || d.type_demande }}</span>
+          <div class="wod-item__top">
+            <span class="wod-type-icon" :style="{ background: typeMeta(d.type_demande).color }">
+              <v-icon size="13" color="#fff">{{ typeMeta(d.type_demande).icon }}</v-icon>
+            </span>
+            <div class="wod-item__text">
+              <span
+                class="wod-type-chip"
+                :style="{ background: typeMeta(d.type_demande).tint, color: typeMeta(d.type_demande).color }"
+              >{{ typeMeta(d.type_demande).label }}</span>
+              <div class="wod-title">{{ d.titre }}</div>
+            </div>
+            <span v-if="d.contact_nom" class="wod-avatar" :title="d.contact_nom">{{ initials(d.contact_nom) }}</span>
           </div>
-          <div class="wod-title">{{ d.titre }}</div>
+
           <div class="wod-meta">
-            <span v-if="d.contact_nom" class="wod-dem"><v-icon size="11">mdi-account-outline</v-icon> {{ d.contact_nom }}</span>
-            <span class="wod-date">{{ formatDate(d.created_at) }}</span>
+            <span class="wod-ticket">{{ d.numero_ticket }}</span>
+            <span class="sep">·</span>
+            <span>{{ relativeTime(d.created_at) }}</span>
           </div>
-          <SlaBadge :state="d.sla && d.sla.resolution" />
+
+          <div v-if="slaProgress(d)" class="wod-sla-row">
+            <div class="wod-sla-track">
+              <div
+                class="wod-sla-fill"
+                :style="{ width: slaProgress(d).pct + '%', background: slaProgress(d).color }"
+              ></div>
+            </div>
+            <span class="wod-sla-label" :style="{ color: slaProgress(d).color }">{{ slaProgress(d).label }}</span>
+          </div>
         </li>
       </ul>
     </div>
@@ -48,7 +78,6 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { listDemandes } from "@/services/demandeService";
-import SlaBadge from "@/components/sla/SlaBadge.vue";
 
 defineEmits(["select"]);
 
@@ -58,8 +87,44 @@ const TYPES = [
   { value: "planning", label: "Planning" },
   { value: "admin", label: "Admin" },
 ];
-const TYPE_LABELS = Object.fromEntries(TYPES.map((t) => [t.value, t.label]));
 const CLOSED = new Set(["resolue", "cloturee", "annulee"]);
+
+// Couleurs/icônes par type — reprend la palette déjà utilisée ailleurs dans
+// l'app (dashboard, AnomaliesView) pour rester cohérent.
+const TYPE_META = {
+  anomalie: { label: "Anomalie", color: "#e74c3c", tint: "rgba(231,76,60,0.1)", icon: "mdi-alert-octagon-outline" },
+  commande: { label: "Commande", color: "#00a8a8", tint: "rgba(0,168,168,0.1)", icon: "mdi-package-variant-closed" },
+  planning: { label: "Planning", color: "#3498db", tint: "rgba(52,152,219,0.1)", icon: "mdi-calendar-outline" },
+  admin: { label: "Admin", color: "#8e44ad", tint: "rgba(142,68,173,0.1)", icon: "mdi-folder-cog-outline" },
+};
+function typeMeta(type) {
+  return TYPE_META[type] || { label: type || "?", color: "#9aa0aa", tint: "rgba(0,0,0,0.05)", icon: "mdi-file-outline" };
+}
+
+// État SLA -> couleur/libellé pour la barre de progression (mêmes états que
+// SlaBadge, dupliqué ici en local — ce composant n'exporte pas sa palette).
+const SLA_META = {
+  on_time: { label: "Dans les délais", color: "#22c55e" },
+  at_risk: { label: "À risque", color: "#f39c12" },
+  breached: { label: "Hors délai", color: "#e74c3c" },
+  met: { label: "Respecté", color: "#22c55e" },
+  missed: { label: "Non respecté", color: "#e74c3c" },
+  paused: { label: "En pause", color: "#9aa0aa" },
+};
+function slaProgress(d) {
+  const sla = d.sla && d.sla.resolution;
+  if (!sla || !sla.status) return null;
+  const meta = SLA_META[sla.status];
+  if (!meta) return null;
+  let pct = 100;
+  if (sla.deadline && d.created_at) {
+    const start = new Date(d.created_at).getTime();
+    const end = new Date(sla.deadline).getTime();
+    const now = Date.now();
+    pct = end > start ? Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100)) : 100;
+  }
+  return { pct, color: meta.color, label: meta.label };
+}
 
 const rows = ref([]);
 const loading = ref(false);
@@ -101,9 +166,20 @@ function resetFilters() {
   fType.value = "";
   fDemandeur.value = "";
 }
-function formatDate(iso) {
+function initials(name) {
+  if (!name) return "?";
+  return name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
+}
+function relativeTime(iso) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const diffSec = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  if (diffSec < 60) return `il y a ${diffSec}s`;
+  const min = Math.floor(diffSec / 60);
+  if (min < 60) return `il y a ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `il y a ${h} h`;
+  const j = Math.floor(h / 24);
+  return `il y a ${j} j`;
 }
 
 onMounted(load);
@@ -112,25 +188,65 @@ onMounted(load);
 <style scoped>
 .wod { display: flex; flex-direction: column; min-height: 0; }
 .card-hdr { display: flex; align-items: center; justify-content: space-between; }
-.wod-count { font-family: "Fira Code", monospace; font-size: 12px; font-weight: 700; color: #00a8a8; }
-.wod-filters { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 0; }
-.wod-date, .wod-select {
-  height: 28px; border: 1px solid #e5e7eb; border-radius: 5px; background: #fff;
-  font-size: 11.5px; color: #1a1a2e; padding: 0 6px; outline: none; max-width: 120px;
+.wod-count {
+  font-family: "Fira Code", monospace; font-size: 11px; font-weight: 700; color: #00a8a8;
+  background: rgba(0,168,168,0.1); border-radius: 10px; padding: 1px 7px;
 }
-.wod-date:focus, .wod-select:focus { border-color: #00a8a8; }
-.wod-reset { border: none; background: none; color: #9aa0aa; cursor: pointer; font-size: 13px; }
+
+/* Filtres */
+.wod-filters { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 0; }
+.wod-filter-field {
+  display: flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px;
+  border: 1px solid #e5e7eb; border-radius: 999px; background: #fff; max-width: 118px;
+}
+.wod-filter-field:focus-within { border-color: #00a8a8; }
+.wod-filter-input {
+  border: none; outline: none; background: transparent; font-size: 10.5px; color: #1a1a2e;
+  max-width: 90px;
+}
+.wod-reset {
+  display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
+  border: none; border-radius: 50%; background: rgba(231,76,60,0.08); color: #e74c3c; cursor: pointer;
+}
+
 .wod-body { overflow-y: auto; min-height: 0; flex: 1; }
 .wod-state { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 24px; color: #9aa0aa; font-size: 12.5px; }
-.wod-list { list-style: none; margin: 0; padding: 0; }
-.wod-item { padding: 9px 10px; border: 1px solid #eef0f2; border-radius: 8px; margin-bottom: 7px; cursor: pointer; transition: border-color .15s, background .15s; }
+
+.wod-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.wod-item {
+  padding: 10px 10px 9px; border: 1px solid #eef0f2; border-radius: 10px; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
 .wod-item:hover { border-color: #00a8a8; background: #f7fdfd; }
-.wod-item-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.wod-ticket { font-family: "Fira Code", monospace; font-size: 11px; color: #6b7280; }
-.wod-type { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: rgba(0,168,168,.1); color: #00a8a8; text-transform: uppercase; }
-.wod-type--anomalie { background: rgba(231,76,60,.1); color: #e74c3c; }
-.wod-title { font-size: 13px; font-weight: 600; color: #000b23; margin: 3px 0; line-height: 1.3; }
-.wod-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; color: #6b7280; margin-bottom: 5px; }
-.wod-dem { display: inline-flex; align-items: center; gap: 3px; }
-.wod-date { font-family: "Fira Code", monospace; }
+
+.wod-item__top { display: flex; align-items: flex-start; gap: 8px; }
+.wod-type-icon {
+  width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.wod-item__text { min-width: 0; flex: 1; }
+.wod-type-chip {
+  display: inline-block; font-size: 8.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  padding: 1px 6px; border-radius: 999px; margin-bottom: 3px;
+}
+.wod-title {
+  font-size: 12.5px; font-weight: 600; color: #000b23; line-height: 1.3;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.wod-avatar {
+  width: 24px; height: 24px; border-radius: 50%; background: rgba(0,168,168,0.12); color: #00a8a8;
+  display: flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 700;
+  font-family: "Fira Code", monospace; flex-shrink: 0; margin-top: 1px;
+}
+
+.wod-meta { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: #9aa0aa; margin-top: 7px; }
+.wod-ticket { font-family: "Fira Code", monospace; }
+.wod-meta .sep { opacity: 0.5; }
+
+.wod-sla-row { display: flex; align-items: center; gap: 7px; margin-top: 7px; }
+.wod-sla-track {
+  flex: 1; height: 4px; border-radius: 3px; background: #f2f2f2; overflow: hidden; border: 1px solid #eef0f2;
+}
+.wod-sla-fill { height: 100%; border-radius: 3px; }
+.wod-sla-label { font-size: 9.5px; font-weight: 700; white-space: nowrap; }
 </style>
