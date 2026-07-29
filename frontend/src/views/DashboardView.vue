@@ -51,8 +51,7 @@
         :key="key"
         cols="12"
         sm="6"
-        md="4"
-        lg="2"
+        lg="4"
       >
         <DashboardDemandesKpiCard :kpi="kpi" />
       </v-col>

@@ -8,6 +8,25 @@ function dayKey(isoStr) {
   return isoStr?.slice(0, 10) ?? null;
 }
 
+// Mini-graphique 7 jours des cartes KPI : nombre de demandes correspondant
+// au prédicat, par jour de `dateField`. Pour les KPI d'état courant
+// (ouvertes/urgentes/SLA dépassés/impact sécurité), c'est une APPROXIMATION
+// du volume ("combien créées ce jour-là correspondent au critère"), pas un
+// relevé historique de l'état réel ce jour-là (on ne conserve pas
+// d'historique de statut) — seule la série "résolues" (sur date_resolution)
+// est un compte exact.
+function buildKpiTrend(demandes, predicate, dateField = "created_at") {
+  const today = new Date();
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - (6 - i));
+    const key = d.toISOString().slice(0, 10);
+    const dayLabel = d.toLocaleDateString("fr-FR", { weekday: "narrow" });
+    const count = demandes.filter((x) => predicate(x) && dayKey(x[dateField]) === key).length;
+    return { date: key, dayLabel, count, isToday: i === 6 };
+  });
+}
+
 function buildTrend(demandes, days) {
   const today = new Date();
   return Array.from({ length: days }, (_, i) => {
@@ -42,39 +61,55 @@ export function useDashboardDemandesData() {
     const today = now.toISOString().slice(0, 10);
     const ouv = ouvertes.value;
 
+    const urgentesValue = ouv.filter((d) => d.priorite === "urgente").length;
+    const slaValue = ouv.filter((d) => d.sla_deadline && new Date(d.sla_deadline) < now).length;
+    const impactValue = ouv.filter((d) => d.type_demande === "anomalie" && d.impact_securite).length;
+
     return {
       ouvertes: {
         label: "DEMANDES OUVERTES",
         value: ouv.length,
         icon: "mdi-text-box-outline",
+        subtitle: "Nouvelle · En cours · En attente",
+        trend: buildKpiTrend(all, (d) => OPEN_STATUTS.includes(d.statut)),
       },
       urgentes: {
         label: "URGENCES ACTIVES",
-        value: ouv.filter((d) => d.priorite === "urgente").length,
+        value: urgentesValue,
         icon: "mdi-alert-octagon-outline",
         threshold: { value: 0, direction: "up" },
+        subtitle: urgentesValue > 0 ? "À traiter en priorité" : "Aucune urgence en cours",
+        trend: buildKpiTrend(all, (d) => d.priorite === "urgente"),
       },
       slaDepassement: {
         label: "SLA DÉPASSÉS",
-        value: ouv.filter((d) => d.sla_deadline && new Date(d.sla_deadline) < now).length,
+        value: slaValue,
         icon: "mdi-timer-alert-outline",
         threshold: { value: 0, direction: "up" },
+        subtitle: slaValue > 0 ? "Dépassement à traiter" : "Aucun dépassement",
+        trend: buildKpiTrend(all, (d) => d.sla_deadline && new Date(d.sla_deadline) < now),
       },
       impactSecurite: {
         label: "IMPACT SÉCURITÉ",
-        value: ouv.filter((d) => d.type_demande === "anomalie" && d.impact_securite).length,
+        value: impactValue,
         icon: "mdi-shield-alert-outline",
         threshold: { value: 0, direction: "up" },
+        subtitle: impactValue > 0 ? "Anomalies à impact sécurité" : "Aucun impact sécurité signalé",
+        trend: buildKpiTrend(all, (d) => d.type_demande === "anomalie" && d.impact_securite),
       },
       nouvelles: {
         label: "NOUVELLES / JOUR",
         value: all.filter((d) => dayKey(d.created_at) === today).length,
         icon: "mdi-plus-circle-outline",
+        subtitle: "Créées aujourd'hui",
+        trend: buildKpiTrend(all, () => true, "created_at"),
       },
       resolues: {
         label: "RÉSOLUES / JOUR",
         value: all.filter((d) => dayKey(d.date_resolution) === today).length,
         icon: "mdi-check-circle-outline",
+        subtitle: "Résolues aujourd'hui",
+        trend: buildKpiTrend(all, () => true, "date_resolution"),
       },
     };
   });
