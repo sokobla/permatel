@@ -539,12 +539,32 @@ puis toutes les `AGENT_DIRECTORY_REFRESH_SECONDS` (300s par défaut).
 `_on_callcenter_info` route `agent-status-change`/`agent-status-get` vers
 ce chemin avant toute tentative de lecture de `variable_domain_name`.
 
-> ⚠️ **Limitation connue, à surveiller au prochain déploiement** : le
-> format des colonnes de `agent list` (`agent_name|agent_type|contact|
-> status|state|...`) suit la convention documentée de mod_callcenter,
-> **non reconfirmée contre une sortie réelle** — la réponse brute est
-> journalisée systématiquement (`"agent list -> "`) pour validation ; à
-> corriger si les colonnes observées ne correspondent pas.
+**Format des colonnes CONFIRMÉ contre une sortie réelle (3e test, 29/07)** :
+`name|instance_id|uuid|type|contact|status|state|max_no_answer|
+wrap_up_time|reject_delay_time|busy_delay_time|no_answer_delay_time|
+last_bridge_start|last_bridge_end|last_offered_call|last_status_change|
+no_answer_count|calls_answered|talk_time|ready_time|external_calls_count`
+— différent de la convention initialement supposée (`agent_name|agent_type|
+contact|status|state|...`). Point notable : la colonne `name` porte en
+réalité l'uuid FusionPBX de l'agent (même valeur que `CC-Agent`), pas un
+nom lisible ; la colonne `uuid` elle-même est vide sur toutes les lignes
+observées. Trois bugs corrigés suite à ce test :
+
+- **La 1ère ligne de la réponse est l'en-tête de colonnes**
+  (`name|instance_id|uuid|...`), pas une ligne d'agent — elle était
+  auparavant traitée comme une ligne "ininterprétable" (uuid/extension
+  absents). Filtrée désormais par son préfixe (`_AGENT_LIST_HEADER_PREFIX`).
+- **L'extraction de l'extension matchait le mauvais nombre** : le motif
+  générique `\d{2,}` capturait la première séquence numérique du champ
+  `contact` (ex. `20` dans `call_timeout=20`), bien avant la vraie
+  extension. Corrigé par un ancrage strict sur le motif `user/<extension>@
+  <domaine>` (`_EXTENSION_RE`), qui extrait aussi le domaine du contact.
+- **`agent list` étant global, il renvoie aussi les agents des AUTRES
+  domaines hébergés sur le même FreeSWITCH** (confirmé : des agents du
+  domaine `pge.fusion.cloud228.com` apparaissaient aux côtés de ceux du
+  domaine configuré `africallpbx.fusion.cloud228.com`). Le domaine extrait
+  du `contact` de chaque ligne est désormais comparé au domaine configuré
+  du connecteur ; les lignes d'un autre domaine sont ignorées silencieusement.
 
 **Durcissement suite aux deux premiers tests réels (29/07)** : le 1er test
 a montré la saisie initiale des 5 files du domaine dans le combobox

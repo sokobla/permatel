@@ -183,8 +183,13 @@ def test_refresh_agent_directory_appelle_agent_list_sans_scope():
     )
     fake_esl = MagicMock()
     fake_esl.send.return_value = _FakeResponse(
-        "e8a58298-87e7-4960-a222-d05763866b15|callback|user/22101005@d1|Available|Waiting|"
-        "5|10|3|3|10|0|0|0|0|0|0|0|0|0"
+        "name|instance_id|uuid|type|contact|status|state|max_no_answer|wrap_up_time|"
+        "reject_delay_time|busy_delay_time|no_answer_delay_time|last_bridge_start|"
+        "last_bridge_end|last_offered_call|last_status_change|no_answer_count|"
+        "calls_answered|talk_time|ready_time|external_calls_count\n"
+        "e8a58298-87e7-4960-a222-d05763866b15|single_box||callback|user/22101005@d1|"
+        "Available|Waiting|5|10|3|3|10|0|0|0|0|0|0|0|0|0\n"
+        "+OK"
     )
     adapter._esl = fake_esl
 
@@ -221,8 +226,8 @@ def test_refresh_agent_directory_extension_inconnue_de_permatel_est_ignoree(capl
     )
     fake_esl = MagicMock()
     fake_esl.send.return_value = _FakeResponse(
-        "e8a58298-87e7-4960-a222-d05763866b15|callback|user/22101005@d1|Available|Waiting|"
-        "5|10|3|3|10|0|0|0|0|0|0|0|0|0"
+        "e8a58298-87e7-4960-a222-d05763866b15|single_box||callback|user/22101005@d1|"
+        "Available|Waiting|5|10|3|3|10|0|0|0|0|0|0|0|0|0"
     )
     adapter._esl = fake_esl
 
@@ -231,6 +236,54 @@ def test_refresh_agent_directory_extension_inconnue_de_permatel_est_ignoree(capl
 
     assert adapter._agent_directory == {}
     assert any("22101005" in r.message and "ignorée" in r.message for r in caplog.records)
+
+
+def test_refresh_agent_directory_ignore_la_ligne_d_en_tete():
+    """Reproduit le cas réel du 29/07 : la 1ère ligne de la réponse est
+    l'en-tête de colonnes ('name|instance_id|uuid|...'), pas un agent — ne
+    doit pas être comptée comme une ligne 'ininterprétable'."""
+    domains = [{"pbx_domain": "d1", "queue_ids": ["queue-support"]}]
+    adapter = ESLAdapter(
+        _fake_connector_config(domains, known_agent_logins=["22101005"]), ingest_client=MagicMock(),
+    )
+    fake_esl = MagicMock()
+    fake_esl.send.return_value = _FakeResponse(
+        "name|instance_id|uuid|type|contact|status|state|max_no_answer|wrap_up_time|"
+        "reject_delay_time|busy_delay_time|no_answer_delay_time|last_bridge_start|"
+        "last_bridge_end|last_offered_call|last_status_change|no_answer_count|"
+        "calls_answered|talk_time|ready_time|external_calls_count\n"
+        "e8a58298-87e7-4960-a222-d05763866b15|single_box||callback|user/22101005@d1|"
+        "Available|Waiting|5|10|3|3|10|0|0|0|0|0|0|0|0|0\n"
+        "+OK"
+    )
+    adapter._esl = fake_esl
+
+    adapter._refresh_agent_directory()
+
+    assert adapter._agent_directory == {
+        "e8a58298-87e7-4960-a222-d05763866b15": {"domain": "d1", "extension": "22101005"},
+    }
+
+
+def test_refresh_agent_directory_ignore_agent_d_un_autre_domaine():
+    """'agent list' est global et renvoie aussi les agents des AUTRES
+    domaines hébergés sur le même FreeSWITCH (confirmé en prod 29/07,
+    domaine 'pge.fusion.cloud228.com' vu aux côtés du domaine configuré) —
+    seuls les agents du domaine réellement configuré sont retenus."""
+    domains = [{"pbx_domain": "d1", "queue_ids": ["queue-support"]}]
+    adapter = ESLAdapter(
+        _fake_connector_config(domains, known_agent_logins=["22101005"]), ingest_client=MagicMock(),
+    )
+    fake_esl = MagicMock()
+    fake_esl.send.return_value = _FakeResponse(
+        "e8a58298-87e7-4960-a222-d05763866b15|single_box||callback|user/22101005@autre-domaine|"
+        "Available|Waiting|5|10|3|3|10|0|0|0|0|0|0|0|0|0"
+    )
+    adapter._esl = fake_esl
+
+    adapter._refresh_agent_directory()
+
+    assert adapter._agent_directory == {}
 
 
 def test_refresh_agent_directory_avertit_si_aucun_agent_login_connu(caplog):

@@ -26,22 +26,34 @@ _SUBSCRIBE_CMD = (
     "CHANNEL_HANGUP_COMPLETE CUSTOM callcenter::info"
 )
 
-# Colonnes de `api callcenter_config agent list <queue>@<domain>`, d'après
-# la convention documentée de mod_callcenter — NON reconfirmée contre une
-# sortie réelle à ce jour (le format exact sera visible dans le log
-# "agent list ... -> " au premier rafraîchissement en production ; à
-# corriger ici si les valeurs ne correspondent pas aux colonnes attendues).
+# Colonnes de `api callcenter_config agent list`, CONFIRMÉES contre une
+# sortie réelle en prod (29/07) — voir le log "agent list ... -> " :
+# "name|instance_id|uuid|type|contact|status|state|max_no_answer|
+#  wrap_up_time|reject_delay_time|busy_delay_time|no_answer_delay_time|
+#  last_bridge_start|last_bridge_end|last_offered_call|last_status_change|
+#  no_answer_count|calls_answered|talk_time|ready_time|external_calls_count"
+# NB : la colonne "name" est en réalité l'uuid FusionPBX de l'agent
+# (call_center_agents.call_center_agent_uuid), pas un nom lisible — c'est
+# la même valeur que le header ESL 'CC-Agent'. La colonne "uuid" elle-même
+# est vide dans toutes les lignes observées.
 _AGENT_LIST_FIELDS = (
-    "agent_name", "agent_type", "contact", "status", "state",
+    "name", "instance_id", "uuid", "type", "contact", "status", "state",
     "max_no_answer", "wrap_up_time", "reject_delay_time", "busy_delay_time",
     "no_answer_delay_time", "last_bridge_start", "last_bridge_end",
-    "last_offered_call", "no_answer_count", "calls_answered",
-    "calls_abandoned", "talk_time", "ready_time", "external_calls_count",
+    "last_offered_call", "last_status_change", "no_answer_count",
+    "calls_answered", "talk_time", "ready_time", "external_calls_count",
 )
-# Extension numérique dans le champ 'contact' (ex. "user/22101005@domaine"
-# ou "sofia/internal/22101005@domaine") — même convention que l'extraction
-# côté CDR (callflow originatee.destination_number).
-_EXTENSION_RE = re.compile(r"(\d{2,})")
+# La première ligne de la réponse est l'en-tête de colonnes (pas une ligne
+# d'agent) — détectée par son préfixe plutôt que sa position, au cas où
+# FreeSWITCH omettrait l'en-tête quand aucun agent n'est configuré.
+_AGENT_LIST_HEADER_PREFIX = "name|instance_id|uuid|type|contact|status|state"
+# Extension + domaine dans le champ 'contact' (ex.
+# "{...}user/22101005@africallpbx.fusion.cloud228.com") — même convention
+# que l'extraction côté CDR (callflow originatee.destination_number).
+# Un simple \d{2,} matcherait à tort des valeurs numériques internes du
+# contact (ex. "call_timeout=20") : confirmé en prod (29/07), d'où l'ancrage
+# strict sur le motif "user/<extension>@<domaine>".
+_EXTENSION_RE = re.compile(r"user/(\d+)@([\w.-]+)")
 
 
 class ESLAdapter(PBXAdapter):
@@ -265,13 +277,13 @@ class ESLAdapter(PBXAdapter):
 
         for line in raw.splitlines():
             line = line.strip()
-            if not line or line == "+OK":
+            if not line or line == "+OK" or line.startswith(_AGENT_LIST_HEADER_PREFIX):
                 continue
             fields = line.split("|")
             if len(fields) < 3:
                 continue
             row = dict(zip(_AGENT_LIST_FIELDS, fields))
-            agent_uuid = row.get("agent_name")
+            agent_uuid = row.get("name")
             contact = row.get("contact") or ""
             match = _EXTENSION_RE.search(contact)
             if not agent_uuid or not match:
@@ -280,7 +292,14 @@ class ESLAdapter(PBXAdapter):
                     self.connector_config["name"], line,
                 )
                 continue
-            extension = match.group(1)
+            extension, contact_domain = match.group(1), match.group(2)
+            if contact_domain != domain:
+                # `agent list` est global : il renvoie aussi les agents des
+                # AUTRES domaines hébergés sur le même FreeSWITCH (confirmé
+                # en prod 29/07, ex. domaine "pge.fusion.cloud228.com" vu
+                # aux côtés du domaine configuré) — on ne garde que ceux du
+                # domaine réellement configuré pour ce connecteur.
+                continue
             if extension not in self._known_agent_logins:
                 logger.warning(
                     "[%s] Extension '%s' (agent PBX uuid=%s) ignorée : aucun User PERMATEL "
