@@ -266,6 +266,7 @@ def ingest_event():
         caller_number=call.get("caller"),
         callee_number=call.get("callee"),
         call_uuid=call.get("id"),
+        linked_call_uuid=call.get("linked_call_uuid"),
         agent_login=agent.get("login"),
         agent_status=agent.get("status"),
         queue_id=queue.get("id"),
@@ -639,9 +640,15 @@ def _parse_period():
 @tenant_required
 def active_calls():
     """
-    Appels en cours : dernier événement connu par `call_uuid`, dont le statut
-    n'est pas terminal. État initial au chargement de la supervision — le
-    WebSocket (Phase 11bis) pousse les deltas ensuite.
+    Appels en cours : un appel physique peut produire plusieurs événements
+    ETALÉS DANS LE TEMPS pour le MÊME call_uuid (ex. CHANNEL_CREATE puis,
+    bien après, un événement callcenter::info qui n'apporte que l'agent/la
+    file/le vrai numéro composé — confirmé en prod 29/07 via
+    'agent-offering', CC-Member-Session-UUID == Unique-ID du leg entrant).
+    On ne peut donc plus se contenter du DERNIER événement : chaque champ
+    (appelant, destination, agent, file, statut) est résolu à sa dernière
+    valeur NON NULLE parmi tous les événements du call_uuid, pas seulement
+    ceux du tout dernier événement reçu.
     """
     latest_ts = (
         db.session.query(
@@ -653,7 +660,7 @@ def active_calls():
         .subquery()
     )
     latest_events = (
-        TelephonyEvent.query
+        db.session.query(TelephonyEvent.call_uuid, TelephonyEvent.call_status, TelephonyEvent.created_at)
         .join(
             latest_ts,
             db.and_(
@@ -665,10 +672,79 @@ def active_calls():
         .all()
     )
     stale_cutoff = datetime.utcnow() - ACTIVE_CALL_STALE_AFTER
-    active = [
-        e.to_dict() for e in latest_events
-        if e.call_status not in TERMINAL_STATUSES and e.created_at >= stale_cutoff
+    candidate_uuids = [
+        row.call_uuid for row in latest_events
+        if row.call_status not in TERMINAL_STATUSES and row.created_at >= stale_cutoff
     ]
+    if not candidate_uuids:
+        return jsonify({"active_calls": [], "total": 0}), 200
+
+    all_events = (
+        TelephonyEvent.query
+        .filter(
+            TelephonyEvent.tenant_id == g.tenant_id,
+            TelephonyEvent.call_uuid.in_(candidate_uuids),
+        )
+        .order_by(TelephonyEvent.created_at.asc())
+        .all()
+    )
+    by_call = {}
+    for e in all_events:
+        by_call.setdefault(e.call_uuid, []).append(e)
+
+    merged = {}
+    for call_uuid, evs in by_call.items():
+        m = {
+            "call_uuid": call_uuid,
+            "pbx_connector_id": None,
+            "call_direction": None,
+            "call_status": None,
+            "caller": None,
+            "callee": None,
+            "agent_login": None,
+            "queue_id": None,
+            "linked_call_uuid": None,
+            "started_at": evs[0].created_at,
+            "created_at": evs[-1].created_at,
+        }
+        for e in evs:
+            m["pbx_connector_id"] = e.pbx_connector_id or m["pbx_connector_id"]
+            if e.call_direction:
+                m["call_direction"] = e.call_direction
+            if e.call_status:
+                m["call_status"] = e.call_status
+            if e.caller_number:
+                m["caller"] = e.caller_number
+            if e.callee_number:
+                m["callee"] = e.callee_number
+            if e.agent_login:
+                m["agent_login"] = e.agent_login
+            if e.queue_id:
+                m["queue_id"] = e.queue_id
+            if e.linked_call_uuid:
+                m["linked_call_uuid"] = e.linked_call_uuid
+        merged[call_uuid] = m
+
+    # Fusion des legs d'un appel bridgé : Other-Leg-Unique-ID (confirmé en
+    # prod, uniquement peuplé une fois le pont établi) relie les deux
+    # call_uuid d'un même appel physique. On ne garde que le leg "inbound" —
+    # dans les deux scénarios réels observés (appel entrant en file, appel
+    # sortant direct d'un agent), c'est systématiquement celui qui porte le
+    # numéro humainement lisible (appelant externe réel, ou poste agent qui
+    # compose), l'autre leg ne portant que le format de routage interne vers
+    # le trunk.
+    for call_uuid, m in list(merged.items()):
+        linked = m.get("linked_call_uuid")
+        if linked and linked in merged and m.get("call_direction") == "outbound":
+            merged.pop(call_uuid, None)
+
+    active = []
+    for m in merged.values():
+        active.append({
+            **m,
+            "started_at": m["started_at"].isoformat() if m["started_at"] else None,
+            "created_at": m["created_at"].isoformat() if m["created_at"] else None,
+        })
     return jsonify({"active_calls": active, "total": len(active)}), 200
 
 

@@ -89,6 +89,49 @@ def test_callcenter_unmapped_action_returns_none():
     assert normalizer.normalize_callcenter_info(headers, "d") is None
 
 
+def test_channel_answer_capte_le_leg_lie_une_fois_le_pont_etabli():
+    """Confirmé en prod (29/07) : Other-Leg-Unique-ID est vide tant que le
+    pont n'est pas établi (jamais peuplé sur un appel jamais décroché), mais
+    fiable sur CHANNEL_ANSWER d'un pont direct agent<->externe."""
+    headers = _headers(**{"Other-Leg-Unique-ID": "chan-uuid-2"})
+    payload = normalizer.normalize_channel_answer(headers, "d")
+    assert payload["call"]["linked_call_uuid"] == "chan-uuid-2"
+
+
+def test_channel_answer_sans_pont_etabli_linked_call_uuid_absent():
+    payload = normalizer.normalize_channel_answer(_headers(), "d")
+    assert payload["call"]["linked_call_uuid"] is None
+
+
+def test_normalize_member_enrichment_utilise_champs_reels_confirmes():
+    """Confirmé en prod (29/07) sur l'événement callcenter::info
+    'agent-offering' : CC-Member-Session-UUID == Unique-ID du leg entrant
+    déjà en base (pas un nouvel appel), CC-Member-DNIS porte le vrai numéro
+    composé (jamais réécrit, contrairement à Caller-Destination-Number)."""
+    headers = _headers(**{
+        "CC-Action": "agent-offering", "CC-Queue": "8004@africallpbx.fusion.cloud228.com",
+        "CC-Agent": "fd18b0f6-47f3-4fe2-8e85-fe36ca077b79",
+        "CC-Member-Session-UUID": "0200801b-3e1f-422c-9335-7fac4f4cc867",
+        "CC-Member-DNIS": "33186569392",
+    })
+    payload = normalizer.normalize_member_enrichment(headers, "africallpbx.fusion.cloud228.com", "22101010")
+    assert payload["event_type"] == "CALLCENTER_MEMBER_ENRICHMENT"
+    assert payload["call"]["id"] == "0200801b-3e1f-422c-9335-7fac4f4cc867"
+    assert payload["call"]["callee"] == "33186569392"
+    assert payload["agent"]["login"] == "22101010"
+    assert payload["queue"]["id"] == "8004@africallpbx.fusion.cloud228.com"
+    assert "status" not in payload["call"]  # ne doit jamais écraser un statut déjà connu
+
+
+def test_normalize_member_enrichment_sans_agent_login_resolu():
+    headers = _headers(**{
+        "CC-Action": "agent-offering", "CC-Queue": "8004@d",
+        "CC-Member-Session-UUID": "member-uuid-1", "CC-Member-DNIS": "0102030405",
+    })
+    payload = normalizer.normalize_member_enrichment(headers, "d", None)
+    assert payload["agent"] == {}
+
+
 def test_normalize_agent_status_change_utilise_domaine_et_login_fournis():
     """Domaine et login ne viennent PAS des en-têtes (confirmé absents sur
     trafic réel) mais des paramètres, résolus en amont par ESLAdapter via

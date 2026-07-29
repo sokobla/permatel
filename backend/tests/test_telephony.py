@@ -305,6 +305,75 @@ class TestActiveCalls:
         assert data["total"] == 1
         assert data["active_calls"][0]["call_uuid"] == "call-recent"
 
+    def test_active_calls_fusionne_les_champs_de_plusieurs_evenements(
+        self, client, db, auth_headers, pbx_domain, default_tenant,
+    ):
+        """Reproduit le cas réel du 29/07 : un événement d'enrichissement
+        (agent-offering) arrive APRÈS le CHANNEL_CREATE et n'apporte que
+        l'agent/la file/le vrai numéro composé, sans statut — ne doit pas
+        écraser le statut déjà connu, et doit être visible dans la ligne
+        fusionnée finale."""
+        base = datetime.utcnow() - timedelta(seconds=10)
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, pbx_connector_id=pbx_domain.pbx_connector_id,
+            event_type="CHANNEL_CREATE", call_status="ringing", call_uuid="call-enrichi",
+            caller_number="212687851794", callee_number="33186569392", created_at=base,
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, pbx_connector_id=pbx_domain.pbx_connector_id,
+            event_type="CHANNEL_ANSWER", call_status="answered", call_uuid="call-enrichi",
+            created_at=base + timedelta(seconds=1),
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, pbx_connector_id=pbx_domain.pbx_connector_id,
+            event_type="CALLCENTER_MEMBER_ENRICHMENT", call_status=None, call_uuid="call-enrichi",
+            agent_login="22101010", queue_id="8004@africallpbx.fusion.cloud228.com",
+            callee_number="33186569392", created_at=base + timedelta(seconds=2),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/active-calls", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["total"] == 1
+        call = data["active_calls"][0]
+        assert call["call_status"] == "answered"  # pas écrasé par l'enrichissement sans statut
+        assert call["caller"] == "212687851794"
+        assert call["callee"] == "33186569392"
+        assert call["agent_login"] == "22101010"
+        assert call["queue_id"] == "8004@africallpbx.fusion.cloud228.com"
+        assert call["started_at"] is not None
+
+    def test_active_calls_fusionne_les_legs_d_un_pont_direct(
+        self, client, db, auth_headers, pbx_connector, default_tenant,
+    ):
+        """Reproduit le cas réel du 29/07 : un appel sortant direct (agent
+        vers externe) produit deux call_uuid distincts, liés par
+        Other-Leg-Unique-ID une fois le pont établi — seul le leg 'inbound'
+        (numéro humainement lisible) doit apparaître dans /active-calls."""
+        base = datetime.utcnow() - timedelta(seconds=5)
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, pbx_connector_id=pbx_connector.id,
+            event_type="CHANNEL_ANSWER", call_status="answered", call_uuid="leg-inbound",
+            call_direction="inbound", caller_number="22101008", callee_number="010615465411",
+            linked_call_uuid="leg-outbound", created_at=base,
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, pbx_connector_id=pbx_connector.id,
+            event_type="CHANNEL_ANSWER", call_status="answered", call_uuid="leg-outbound",
+            call_direction="outbound", caller_number="33186569392", callee_number="50000615465411",
+            linked_call_uuid="leg-inbound", created_at=base,
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/active-calls", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["total"] == 1
+        assert data["active_calls"][0]["call_uuid"] == "leg-inbound"
+        assert data["active_calls"][0]["caller"] == "22101008"
+        assert data["active_calls"][0]["callee"] == "010615465411"
+
 
 class TestKpis:
     def test_kpis_summary_calcule_taux_decroche(self, client, db, auth_headers, pbx_domain, default_tenant):

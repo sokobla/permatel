@@ -41,6 +41,12 @@ class TelephonyEvent(Base):
     queue_id = Column(String(100), nullable=True, index=True)
     duration = Column(Integer, nullable=True)  # en secondes
     call_uuid = Column(String(100), nullable=True, index=True)
+    # Unique-ID FreeSWITCH de l'autre leg d'un appel bridgé (header
+    # Other-Leg-Unique-ID) — confirmé en prod (29/07) : vide tant que le
+    # pont n'est pas établi, peuplé une fois CHANNEL_ANSWER atteint sur un
+    # pont direct agent<->externe. Sert à fusionner les deux call_uuid en
+    # une seule ligne côté /active-calls.
+    linked_call_uuid = Column(String(100), nullable=True, index=True)
     recording_url = Column(String(500), nullable=True)
     raw_payload = Column(JSONB_VARIANT, nullable=True)
 
@@ -69,6 +75,7 @@ class TelephonyEvent(Base):
             "queue_id": self.queue_id,
             "duration": self.duration,
             "call_uuid": self.call_uuid,
+            "linked_call_uuid": self.linked_call_uuid,
             "recording_url": self.recording_url,
             "demande_id": self.demande_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,

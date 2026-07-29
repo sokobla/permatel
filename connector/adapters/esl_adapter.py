@@ -320,6 +320,20 @@ class ESLAdapter(PBXAdapter):
                 continue
             directory[agent_uuid] = {"domain": domain, "extension": extension}
 
+    def _is_supervised_queue(self, domain: str, queue_id: str | None) -> bool:
+        """Confirmé en prod (29/07) : `CC-Queue` est toujours au format
+        `<id>@<domaine>` (ex. "8004@africallpbx.fusion.cloud228.com"), alors
+        que `_supervised_queues` ne stocke que l'id nu ("8004", venant de la
+        config `queue_ids`) — comparer les deux bruts aurait rejeté à tort
+        TOUT événement de file en production (bug latent, jamais détecté car
+        jusqu'ici seul `agent-status-change`, qui ne passe pas par ce
+        filtre, avait été testé contre du trafic réel)."""
+        supervised = self._supervised_queues.get(domain)
+        if not supervised:
+            return True  # pas de filtre configuré pour ce domaine
+        queue_bare = (queue_id or "").split("@", 1)[0]
+        return queue_bare in supervised
+
     def _on_disconnect(self, _event):
         logger.warning("[%s] Déconnecté de FreeSWITCH.", self.connector_config["name"])
         self._disconnect_event.set()
@@ -392,6 +406,16 @@ class ESLAdapter(PBXAdapter):
             self._on_agent_status_event(headers, action)
             return
 
+        # Confirmé sur trafic réel (29/07) : 'agent-offering' ne porte pas
+        # non plus 'variable_domain_name', mais porte en revanche
+        # CC-Member-Session-UUID (== Unique-ID du leg entrant déjà en base),
+        # CC-Member-DNIS (le vrai numéro composé, jamais réécrit contrairement
+        # à Caller-Destination-Number) et CC-Agent — de quoi enrichir l'appel
+        # déjà connu sans avoir besoin d'un contexte de canal.
+        if action == "agent-offering":
+            self._on_member_enrichment_event(headers)
+            return
+
         domain = self._resolve_domain(headers)
         if not domain:
             logger.warning(
@@ -401,8 +425,7 @@ class ESLAdapter(PBXAdapter):
             return
 
         queue_id = headers.get("CC-Queue")
-        supervised = self._supervised_queues.get(domain)
-        if supervised and queue_id not in supervised:
+        if not self._is_supervised_queue(domain, queue_id):
             return  # queue non supervisée pour ce tenant — pas transmis
 
         payload = normalizer.normalize_callcenter_info(headers, domain)
@@ -435,4 +458,41 @@ class ESLAdapter(PBXAdapter):
             return
 
         payload = normalizer.normalize_agent_status_change(headers, entry["domain"], entry["extension"])
+        self.ingest_client.send(payload)
+
+    def _on_member_enrichment_event(self, headers):
+        """'agent-offering' — enrichit l'appel déjà connu (même call_uuid
+        que le leg entrant, via CC-Member-Session-UUID) avec l'agent, la
+        file et le vrai numéro composé. Domaine résolu via l'annuaire agents
+        si l'agent y figure, sinon via l'unique domaine configuré sur ce
+        connecteur (même repli qu'ailleurs) — jamais deviné silencieusement."""
+        agent_uuid = headers.get("CC-Agent")
+        entry = self._agent_directory.get(agent_uuid) if agent_uuid else None
+        domain = entry["domain"] if entry else None
+        agent_login = entry["extension"] if entry else None
+
+        if not domain:
+            domains = list(self._supervised_queues.keys())
+            domain = domains[0] if len(domains) == 1 else None
+
+        if not domain:
+            logger.warning(
+                "[%s] agent-offering abandonné : domaine non résolvable (agent uuid=%r absent de "
+                "l'annuaire, et plusieurs domaines configurés sur ce connecteur).",
+                self.connector_config["name"], agent_uuid,
+            )
+            return
+
+        if not headers.get("CC-Member-Session-UUID"):
+            logger.warning(
+                "[%s] agent-offering sans CC-Member-Session-UUID — abandonné.",
+                self.connector_config["name"],
+            )
+            return
+
+        queue_id = headers.get("CC-Queue")
+        if not self._is_supervised_queue(domain, queue_id):
+            return  # queue non supervisée pour ce tenant — pas transmis
+
+        payload = normalizer.normalize_member_enrichment(headers, domain, agent_login)
         self.ingest_client.send(payload)

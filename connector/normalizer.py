@@ -57,6 +57,11 @@ def _base_payload(headers: dict, pbx_domain: str, event_type: str) -> dict:
             "caller": headers.get("Caller-Caller-ID-Number"),
             "callee": headers.get("Caller-Destination-Number"),
             "created_at": _fs_timestamp_to_iso(headers.get("Event-Date-Timestamp")),
+            # Confirmé en prod (29/07) : vide tant que le pont n'est pas
+            # établi (jamais peuplé sur un appel jamais décroché), mais
+            # fiable sur CHANNEL_ANSWER/HANGUP d'un pont direct agent<->
+            # externe — sert à fusionner les deux legs côté /active-calls.
+            "linked_call_uuid": headers.get("Other-Leg-Unique-ID"),
         },
         "agent": {},
         "queue": {},
@@ -141,6 +146,32 @@ def normalize_callcenter_info(headers: dict, pbx_domain: str) -> dict | None:
     # Autre action mod_callcenter non mappée à ce jour (ex. bridge-agent-start) :
     # ignorée plutôt que forcée dans un type approximatif.
     return None
+
+
+def normalize_member_enrichment(headers: dict, pbx_domain: str, agent_login: str | None) -> dict:
+    """Événement callcenter::info de gestion de file ('agent-offering',
+    'bridge-agent-start'/'bridge-agent-fail') — sans contexte de canal
+    exploitable (pas de 'variable_domain_name'), comme
+    'agent-status-change', mais porte des informations différentes :
+    `CC-Member-Session-UUID` EST l'Unique-ID du leg entrant déjà en base
+    (confirmé en prod 29/07) — pas la peine de le fusionner, il s'agit du
+    MÊME appel. On envoie donc un événement qui n'apporte QUE l'agent, la
+    file et le vrai numéro composé (`CC-Member-DNIS`, disponible ici alors
+    qu'il est réécrit en id de file dès `CHANNEL_PROGRESS_MEDIA`), sans
+    statut — pour ne jamais écraser un statut d'appel déjà mieux connu.
+    `pbx_domain` et `agent_login` sont résolus EN AMONT par ESLAdapter via
+    l'annuaire agents (même mécanisme que `normalize_agent_status_change`).
+    """
+    return {
+        "pbx_domain": pbx_domain,
+        "event_type": "CALLCENTER_MEMBER_ENRICHMENT",
+        "call": {
+            "id": headers.get("CC-Member-Session-UUID"),
+            "callee": headers.get("CC-Member-DNIS"),
+        },
+        "agent": {"login": agent_login} if agent_login else {},
+        "queue": {"id": headers.get("CC-Queue")},
+    }
 
 
 def normalize_agent_status_change(headers: dict, pbx_domain: str, agent_login: str) -> dict:

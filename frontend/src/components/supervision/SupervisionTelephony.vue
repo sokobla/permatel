@@ -56,6 +56,7 @@
             <th>File</th>
             <th>Statut</th>
             <th>Mise à jour</th>
+            <th>Durée</th>
           </tr>
         </thead>
         <tbody>
@@ -75,6 +76,7 @@
               </span>
             </td>
             <td class="stl-mono stl-muted">{{ relativeTime(c.created_at) }}</td>
+            <td class="stl-mono">{{ formatDuration(c.started_at) }}</td>
           </tr>
         </tbody>
       </table>
@@ -297,6 +299,22 @@ function formatLastSeen(iso) {
   return `vu ${relativeTime(iso)}`;
 }
 
+// Horloge de rafraîchissement pour la colonne Durée (tick chaque seconde,
+// simple compteur consommé par formatDuration ci-dessous pour forcer le
+// recalcul — la durée elle-même dérive toujours de started_at, pas d'un
+// état stocké séparément).
+const durationTick = ref(0);
+let durationTimer = null;
+function formatDuration(startedAtIso) {
+  void durationTick.value; // dépendance réactive volontaire
+  if (!startedAtIso) return "—";
+  const elapsed = Math.max(0, Math.floor((Date.now() - new Date(startedAtIso).getTime()) / 1000));
+  const h = String(Math.floor(elapsed / 3600)).padStart(2, "0");
+  const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, "0");
+  const s = String(elapsed % 60).padStart(2, "0");
+  return `${h}:${m}:${s}`;
+}
+
 // ── Chargement ──────────────────────────────────────────────────────────
 async function loadSummary() {
   try {
@@ -353,9 +371,38 @@ function processIncomingEvents() {
     if (!e.call_uuid) continue;
     if (TERMINAL_STATUSES.has(e.call_status)) {
       activeCallsMap.delete(e.call_uuid);
-    } else if (e.call_status) {
-      activeCallsMap.set(e.call_uuid, e);
+      continue;
     }
+    // Fusion par coalescence : un événement d'enrichissement (ex.
+    // CALLCENTER_MEMBER_ENRICHMENT — agent-offering) n'apporte que
+    // l'agent/la file/le vrai numéro composé, sans statut ni appelant — ne
+    // doit jamais écraser un état déjà connu avec du vide.
+    const existing = activeCallsMap.get(e.call_uuid);
+    if (!existing && !e.call_status) continue; // pas assez d'info pour créer une ligne
+    const merged = {
+      call_uuid: e.call_uuid,
+      call_direction: e.call_direction || existing?.call_direction || null,
+      call_status: e.call_status || existing?.call_status || null,
+      caller: e.caller || existing?.caller || null,
+      callee: e.callee || existing?.callee || null,
+      agent_login: e.agent_login || existing?.agent_login || null,
+      queue_id: e.queue_id || existing?.queue_id || null,
+      linked_call_uuid: e.linked_call_uuid || existing?.linked_call_uuid || null,
+      started_at: existing?.started_at || e.created_at || null,
+      created_at: e.created_at || existing?.created_at || null,
+    };
+    // Fusion des legs bridgés — même règle que côté backend (/active-calls) :
+    // Other-Leg-Unique-ID n'est fiable qu'une fois le pont établi, on ne
+    // garde que le leg "inbound" (numéro humainement lisible).
+    if (
+      merged.linked_call_uuid
+      && merged.call_direction === "outbound"
+      && activeCallsMap.has(merged.linked_call_uuid)
+    ) {
+      activeCallsMap.delete(e.call_uuid);
+      continue;
+    }
+    activeCallsMap.set(e.call_uuid, merged);
   }
 }
 let eventsWatcherTimer = null;
@@ -368,10 +415,12 @@ onMounted(() => {
   startPolling();
   telephonySocket.connect();
   eventsWatcherTimer = setInterval(processIncomingEvents, 1000);
+  durationTimer = setInterval(() => { durationTick.value++; }, 1000);
 });
 onUnmounted(() => {
   if (refreshTimer) clearInterval(refreshTimer);
   if (eventsWatcherTimer) clearInterval(eventsWatcherTimer);
+  if (durationTimer) clearInterval(durationTimer);
   telephonySocket.disconnect();
 });
 </script>

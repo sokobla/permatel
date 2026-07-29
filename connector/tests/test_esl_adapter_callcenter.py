@@ -148,6 +148,99 @@ def test_agent_status_change_agent_absent_de_l_annuaire_est_journalise(caplog):
     assert any("uuid-inconnu" in r.message for r in caplog.records)
 
 
+# ── _on_callcenter_info : chemin agent-offering (enrichissement) ──────────
+# Confirmé en prod (29/07) : ne porte pas 'variable_domain_name' non plus,
+# mais porte CC-Member-Session-UUID (== Unique-ID du leg entrant déjà en
+# base), CC-Member-DNIS (vrai numéro composé) et CC-Agent.
+
+def _offering_headers(**overrides):
+    base = {
+        "CC-Action": "agent-offering",
+        "CC-Queue": "8004@africallpbx.fusion.cloud228.com",
+        "CC-Agent": "fd18b0f6-47f3-4fe2-8e85-fe36ca077b79",
+        "CC-Member-Session-UUID": "0200801b-3e1f-422c-9335-7fac4f4cc867",
+        "CC-Member-DNIS": "33186569392",
+    }
+    base.update(overrides)
+    return base
+
+
+def test_agent_offering_resout_domaine_et_agent_via_annuaire():
+    domains = [{"pbx_domain": "africallpbx.fusion.cloud228.com", "queue_ids": ["8004"]}]
+    ingest_client = MagicMock()
+    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=ingest_client)
+    adapter._agent_directory = {
+        "fd18b0f6-47f3-4fe2-8e85-fe36ca077b79": {
+            "domain": "africallpbx.fusion.cloud228.com", "extension": "22101010",
+        },
+    }
+
+    adapter._on_callcenter_info(_FakeEvent(_offering_headers()))
+
+    ingest_client.send.assert_called_once()
+    payload = ingest_client.send.call_args[0][0]
+    assert payload["pbx_domain"] == "africallpbx.fusion.cloud228.com"
+    assert payload["call"]["id"] == "0200801b-3e1f-422c-9335-7fac4f4cc867"
+    assert payload["call"]["callee"] == "33186569392"
+    assert payload["agent"]["login"] == "22101010"
+    assert payload["queue"]["id"] == "8004@africallpbx.fusion.cloud228.com"
+
+
+def test_agent_offering_repli_sur_unique_domaine_configure_si_agent_inconnu():
+    """Agent pas encore dans l'annuaire (pas encore rafraîchi) : repli sur
+    l'unique domaine configuré plutôt que d'abandonner — même logique que
+    pour l'annuaire agents lui-même."""
+    domains = [{"pbx_domain": "africallpbx.fusion.cloud228.com", "queue_ids": ["8004"]}]
+    ingest_client = MagicMock()
+    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=ingest_client)
+
+    adapter._on_callcenter_info(_FakeEvent(_offering_headers()))
+
+    ingest_client.send.assert_called_once()
+    payload = ingest_client.send.call_args[0][0]
+    assert payload["pbx_domain"] == "africallpbx.fusion.cloud228.com"
+    assert payload["agent"] == {}  # agent non résolu, mais l'appel est quand même enrichi
+
+
+def test_agent_offering_abandonne_si_plusieurs_domaines_et_agent_inconnu(caplog):
+    domains = [
+        {"pbx_domain": "d1", "queue_ids": ["8004"]},
+        {"pbx_domain": "d2", "queue_ids": ["8005"]},
+    ]
+    ingest_client = MagicMock()
+    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=ingest_client)
+
+    with caplog.at_level(logging.WARNING, logger="connector.esl"):
+        adapter._on_callcenter_info(_FakeEvent(_offering_headers(**{"CC-Queue": "8004@d1"})))
+
+    ingest_client.send.assert_not_called()
+    assert any("domaine non résolvable" in r.message for r in caplog.records)
+
+
+def test_agent_offering_sans_member_session_uuid_est_abandonne(caplog):
+    domains = [{"pbx_domain": "d1", "queue_ids": ["8004"]}]
+    ingest_client = MagicMock()
+    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=ingest_client)
+    headers = _offering_headers(**{"CC-Queue": "8004@d1"})
+    del headers["CC-Member-Session-UUID"]
+
+    with caplog.at_level(logging.WARNING, logger="connector.esl"):
+        adapter._on_callcenter_info(_FakeEvent(headers))
+
+    ingest_client.send.assert_not_called()
+    assert any("CC-Member-Session-UUID" in r.message for r in caplog.records)
+
+
+def test_agent_offering_queue_non_supervisee_est_ignoree():
+    domains = [{"pbx_domain": "d1", "queue_ids": ["8005"]}]  # 8004 pas supervisée
+    ingest_client = MagicMock()
+    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=ingest_client)
+
+    adapter._on_callcenter_info(_FakeEvent(_offering_headers(**{"CC-Queue": "8004@d1"})))
+
+    ingest_client.send.assert_not_called()
+
+
 # ── Saisie multi-files en une entrée ("8001, 8002, ...") — pour le filtre
 # des événements liés à un canal (_on_callcenter_info), pas pour l'annuaire
 # agents qui n'est plus scopé par file (voir plus bas) ─────────────────────
