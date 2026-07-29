@@ -499,3 +499,45 @@ via passerelle SIP, un appel entrant routé en file d'attente `mod_callcenter`
 Deux correctifs supplémentaires appliqués suite à ces traces (extraction
 caller/callee, extraction agent_login), chacun avec un test de
 non-régression reproduisant la structure réelle exacte.
+
+### 8.8 Présence agent (ESL live) — `agent-status-change` et annuaire uuid → extension
+
+Test réel dédié (29/07, changement de statut manuel Available → Logged Out
+→ Available sur une extension) via l'instrumentation ajoutée à
+`_on_callcenter_info` (journalisation inconditionnelle des en-têtes bruts).
+Deux constats, différents des hypothèses initiales de la Phase 13 :
+
+- **`agent-state-change` (l'action supposée jusqu'ici) ne s'est jamais
+  produite.** La vraie action de transition manuelle est
+  **`agent-status-change`** (`Event-Calling-Function: cc_agent_update`),
+  accompagnée d'une variante passive **`agent-status-get`**
+  (`cc_agent_get`, ex. rafraîchissement d'un écran admin) — pas une
+  transition, ignorée.
+- **Ni l'un ni l'autre ne porte de contexte de canal** : aucun `Unique-ID`,
+  aucun `variable_domain_name`. Logique — contrairement à `queue-enter`
+  (lié à un appel actif dont le dialplan a positionné ces variables), un
+  changement de statut agent est une action administrative sans canal
+  associé. `CC-Agent` y est en plus confirmé être un UUID interne
+  FusionPBX (cohérent avec le `cc_agent` déjà vu côté CDR, §8.7), pas une
+  extension exploitable pour `agent_login`.
+
+**Solution retenue** : un annuaire `uuid FreeSWITCH → {domaine, extension}`
+construit via une requête ESL synchrone `api callcenter_config agent list
+<queue>@<domaine>` (jusque-là le connecteur ne faisait que s'abonner à des
+événements, jamais de requête synchrone) — scopée par domaine+file
+supervisée, ce qui donne le domaine "gratuitement" sans dépendre d'un
+header absent. Rafraîchi à la connexion puis toutes les
+`AGENT_DIRECTORY_REFRESH_SECONDS` (300s par défaut). `_on_callcenter_info`
+route `agent-status-change`/`agent-status-get` vers ce chemin avant toute
+tentative de lecture de `variable_domain_name`.
+
+> ⚠️ **Limitations connues, à surveiller au prochain déploiement** :
+> - Le format des colonnes de `agent list` (`agent_name|agent_type|contact|
+>   status|state|...`) suit la convention documentée de mod_callcenter,
+>   **non reconfirmée contre une sortie réelle** — la réponse brute est
+>   journalisée systématiquement (`"agent list ... -> "`) pour validation ;
+>   à corriger si les colonnes observées ne correspondent pas.
+> - Un domaine sans `queue_ids` explicitement configurés n'est pas
+>   couvert (pas de moyen de lister les files d'un domaine sans connaître
+>   leurs noms) — journalisé plutôt que deviné, à traiter si un tel besoin
+>   se présente.
