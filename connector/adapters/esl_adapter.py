@@ -162,8 +162,22 @@ class ESLAdapter(PBXAdapter):
 
     def _on_callcenter_info(self, event):
         headers = event.headers
+        # Diagnostic : test réel du 29/07 sans aucune trace 'callcenter'/
+        # 'agent'/'CC-Action' dans les logs, alors que _resolve_domain()
+        # aurait normalement dû laisser passer même un domaine non rattaché
+        # (elle ne retourne None que si 'variable_domain_name' est carrément
+        # absent du header). Log inconditionnel dès l'entrée du handler,
+        # AVANT toute logique de filtrage, pour confirmer si l'événement
+        # callcenter::info atteint seulement le socket ESL ou est perdu plus
+        # tôt (jamais souscrit, filtré par FreeSWITCH lui-même, etc.).
+        logger.warning("[%s] callcenter::info reçu — en-têtes=%r", self.connector_config["name"], dict(headers))
+
         domain = self._resolve_domain(headers)
         if not domain:
+            logger.warning(
+                "[%s] callcenter::info abandonné : 'variable_domain_name' absent des en-têtes.",
+                self.connector_config["name"],
+            )
             return
 
         queue_id = headers.get("CC-Queue")

@@ -62,10 +62,12 @@ def test_callcenter_info_action_non_reconnue_est_journalisee_pas_perdue(caplog):
     assert any("agent-status-change" in record.message for record in caplog.records)
 
 
-def test_callcenter_info_sans_domaine_est_ignore(caplog):
-    """Pas de variable_domain_name : ignoré silencieusement en amont, comme
-    pour les autres handlers ESL (config PBX incomplète, pas une action
-    inconnue à diagnostiquer)."""
+def test_callcenter_info_sans_domaine_est_journalise_pas_perdu(caplog):
+    """Pas de variable_domain_name : l'événement est abandonné (comme avant),
+    mais désormais journalisé avant abandon — test réel du 29/07 où AUCUNE
+    trace 'callcenter'/'agent'/'CC-Action' n'apparaissait dans les logs,
+    suggérant un abandon avant même d'atteindre le diagnostic précédent
+    (qui ne loguait qu'après le filtre de domaine)."""
     ingest_client = MagicMock()
     adapter = ESLAdapter(_fake_connector_config(), ingest_client=ingest_client)
     headers = {"CC-Action": "agent-status-change"}
@@ -74,4 +76,5 @@ def test_callcenter_info_sans_domaine_est_ignore(caplog):
         adapter._on_callcenter_info(_FakeEvent(headers))
 
     ingest_client.send.assert_not_called()
-    assert caplog.records == []
+    assert any("callcenter::info reçu" in r.message for r in caplog.records)
+    assert any("variable_domain_name" in r.message for r in caplog.records)
