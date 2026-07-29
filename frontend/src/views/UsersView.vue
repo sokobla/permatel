@@ -151,19 +151,13 @@
                   <span v-if="item.last_seen" class="user-cell__seen">{{
                     item.last_seen
                   }}</span>
-                  <div v-if="item.email || item.role" class="user-cell__meta">
-                    <span v-if="item.email" class="user-cell__meta-item">
+                  <div v-if="item.email" class="user-cell__meta">
+                    <span class="user-cell__meta-item">
                       <v-icon size="10">mdi-email-outline</v-icon>{{ item.email }}
                     </span>
-                    <span v-if="item.role" class="user-cell__meta-item">{{ item.role }}</span>
                   </div>
                 </div>
               </div>
-            </template>
-
-            <!-- ── Colonne EMAIL ── -->
-            <template v-slot:[`item.email`]="{ item }">
-              <span class="mono-text cell-email">{{ item.email }}</span>
             </template>
 
             <!-- ── Colonne LOGIN AGENT CC ── -->
@@ -693,7 +687,6 @@ const tableHeaders = [
     sortable: true,
     width: "170px",
   },
-  { title: "EMAIL", key: "email", align: "start", sortable: true },
   {
     title: "LOGIN AGENT CC",
     key: "agent_login",

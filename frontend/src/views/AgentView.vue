@@ -113,28 +113,18 @@
                     style="font-family: &quot;Fira Sans, sans-serif&quot;"
                     >{{ item.nom }} {{ item.prenom }}</span
                   >
-                  <div v-if="item.telephone || item.type_agent" class="user-cell__meta">
+                  <div v-if="item.telephone || item.email || item.ville" class="user-cell__meta">
                     <span v-if="item.telephone" class="user-cell__meta-item">
                       <v-icon size="10">mdi-phone-outline</v-icon>{{ item.telephone }}
                     </span>
-                    <span v-if="item.type_agent" class="user-cell__meta-item">{{ item.type_agent }}</span>
+                    <span v-if="item.email" class="user-cell__meta-item">
+                      <v-icon size="10">mdi-email-outline</v-icon>{{ item.email }}
+                    </span>
+                    <span v-if="item.ville" class="user-cell__meta-item">
+                      <v-icon size="10">mdi-map-marker-outline</v-icon>{{ [item.code_postal, item.ville].filter(Boolean).join(' ') }}
+                    </span>
                   </div>
                 </div>
-              </div>
-            </template>
-
-            <template #[`item.contact`]="{ item }">
-              <div v-if="item.telephone" class="d-flex align-center">
-                <v-icon start size="x-small">mdi-phone-outline</v-icon>
-                <span class="mono-text">{{ item.telephone }}</span>
-              </div>
-              <div v-if="item.email" class="d-flex align-center mt-1">
-                <v-icon start size="x-small">mdi-email-outline</v-icon>
-                <span class="mono-text cell-email">{{ item.email }}</span>
-              </div>
-              <div v-if="item.ville || item.code_postal" class="d-flex align-center mt-1 text-grey-lighten-1 text-caption">
-                <v-icon start size="x-small">mdi-map-marker-outline</v-icon>
-                <span>{{ [item.code_postal, item.ville].filter(Boolean).join(' ') }}</span>
               </div>
             </template>
 
@@ -680,8 +670,7 @@ async function loadAgentKpis(agentId) {
 }
 
 const headers = [
-  { title: "AGENT", key: "nom", sortable: true, width: "30%" },
-  { title: "CONTACT", key: "contact", sortable: false },
+  { title: "AGENT", key: "nom", sortable: true, width: "34%" },
   { title: "TYPE", key: "type_agent", sortable: true },
   { title: "MOTORISÉ", key: "motorise", align: "center" },
   { title: "ORIGINE", key: "prestataire", sortable: true, align: "center" },

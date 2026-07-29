@@ -64,8 +64,6 @@
         <thead>
           <tr>
             <th class="psv-th">Agent</th>
-            <th class="psv-th">Client</th>
-            <th class="psv-th">Site</th>
             <th class="psv-th" style="width:140px">Début</th>
             <th class="psv-th" style="width:140px">Fin</th>
             <th class="psv-th" style="width:90px">Durée</th>
@@ -85,13 +83,6 @@
                   </div>
                 </div>
               </div>
-            </td>
-            <td class="psv-td">{{ row.client_nom ?? `Client #${row.client_id}` }}</td>
-            <td class="psv-td">
-              <span class="psv-site">
-                <v-icon size="11" color="#9aa0aa">mdi-map-marker-outline</v-icon>
-                {{ row.site_nom ?? '—' }}
-              </span>
             </td>
             <td class="psv-td psv-td--date">{{ formatDate(row.date_debut) }}</td>
             <td class="psv-td psv-td--date">{{ row.date_fin ? formatDate(row.date_fin) : '—' }}</td>
@@ -116,7 +107,7 @@
           </tr>
 
           <tr v-if="loading">
-            <td colspan="8">
+            <td colspan="6">
               <div class="psv-empty">
                 <v-icon size="28" color="#e0e0e0" class="psv-spin">mdi-loading</v-icon>
                 <span>Chargement des prises de service…</span>
@@ -124,7 +115,7 @@
             </td>
           </tr>
           <tr v-else-if="loadError">
-            <td colspan="8">
+            <td colspan="6">
               <div class="psv-empty" style="color:#e74c3c">
                 <v-icon size="28" color="#e74c3c">mdi-alert-circle-outline</v-icon>
                 <span>{{ loadError }}</span>
@@ -132,7 +123,7 @@
             </td>
           </tr>
           <tr v-else-if="filteredRows.length === 0">
-            <td colspan="8">
+            <td colspan="6">
               <div class="psv-empty">
                 <v-icon size="36" color="#e0e0e0">mdi-clipboard-text-clock-outline</v-icon>
                 <span>Aucune prise de service ne correspond aux critères</span>

@@ -177,15 +177,6 @@
               </div>
             </template>
 
-            <!-- Colonne Email -->
-            <template v-slot:[`item.email`]="{ item }">
-              <span class="mono-text cell-email">{{ item.email || "—" }}</span>
-            </template>
-
-            <!-- Colonne Téléphone -->
-            <template v-slot:[`item.telephone`]="{ item }">
-              <span class="mono-text">{{ item.telephone || "—" }}</span>
-            </template>
 
             <!-- Colonne Type -->
             <template v-slot:[`item.type`]="{ item }">
@@ -659,14 +650,6 @@ const headers = [
     align: "start",
     sortable: true,
     width: "250px",
-  },
-  { title: "EMAIL", key: "email", align: "start", sortable: true },
-  {
-    title: "TÉLÉPHONE",
-    key: "telephone",
-    align: "start",
-    sortable: false,
-    width: "140px",
   },
   {
     title: "TYPE",

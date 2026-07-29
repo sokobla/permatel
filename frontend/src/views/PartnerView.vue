@@ -131,14 +131,6 @@
               <span>{{ item.ville || "—" }}</span>
             </template>
 
-            <template v-slot:[`item.telephone`]="{ item }">
-              <span class="mono-text">{{ item.telephone || "—" }}</span>
-            </template>
-
-            <template v-slot:[`item.email`]="{ item }">
-              <span class="mono-text cell-email">{{ item.email || "—" }}</span>
-            </template>
-
             <template v-slot:[`item.is_active`]="{ item }">
               <span
                 :class="[
@@ -526,8 +518,6 @@ const tableHeaders = [
   { title: "RAISON SOCIALE", key: "nom", sortable: true },
   { title: "ADRESSE", key: "adresse", sortable: false },
   { title: "VILLE", key: "ville", sortable: false },
-  { title: "TÉLÉPHONE", key: "telephone", sortable: false },
-  { title: "EMAIL", key: "email", sortable: false },
   { title: "STATUT", key: "is_active", sortable: true },
   { title: "ACTIONS", key: "actions", sortable: false, align: "center" },
 ];

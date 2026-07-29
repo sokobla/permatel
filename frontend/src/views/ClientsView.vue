@@ -120,16 +120,6 @@
               <span class="mono-text">{{ item.code_postal }}</span>
             </template>
 
-            <template #[`item.contact`]="{ item }">
-              <div v-if="item.telephone" class="d-flex align-center">
-                <v-icon start size="x-small">mdi-phone-outline</v-icon>
-                <span class="mono-text">{{ item.telephone }}</span>
-              </div>
-              <div v-if="item.email" class="d-flex align-center mt-1">
-                <v-icon start size="x-small">mdi-email-outline</v-icon>
-                <span class="mono-text cell-email">{{ item.email }}</span>
-              </div>
-            </template>
 
             <template #[`item.is_active`]="{ item }">
               <span
@@ -578,7 +568,6 @@ const headers = [
   { title: "ADRESSE", key: "adresse", sortable: true },
   { title: "VILLE", key: "ville", sortable: true },
   { title: "CODE POSTAL", key: "code_postal", sortable: true, width: "120px" },
-  { title: "CONTACT", key: "contact", sortable: false, width: "220px" },
   {
     title: "CONTACT PRINCIPAL",
     key: "contact_principal",

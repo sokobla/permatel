@@ -117,18 +117,11 @@
                 <div class="user-cell__info">
                   <span class="user-cell__handle">{{ item.nom }}</span>
                   <span class="mono-text cell-email">{{ item.code_site }}</span>
-                  <div v-if="item.client?.nom || item.adresse || item.ville" class="user-cell__meta">
-                    <span v-if="item.client?.nom" class="user-cell__meta-item">{{ item.client.nom }}</span>
-                    <span v-if="item.adresse || item.ville" class="user-cell__meta-item">
-                      <v-icon size="10">mdi-map-marker-outline</v-icon>{{ [item.adresse, item.ville].filter(Boolean).join(", ") }}
-                    </span>
+                  <div v-if="item.client?.nom" class="user-cell__meta">
+                    <span class="user-cell__meta-item">{{ item.client.nom }}</span>
                   </div>
                 </div>
               </div>
-            </template>
-
-            <template #[`item.client`]="{ item }">
-              <span>{{ item.client?.nom }}</span>
             </template>
 
             <template #[`item.adresse`]="{ item }">
@@ -612,8 +605,7 @@ const contactOptionsGrouped = ref({});
 const contactsLoading = ref(false);
 
 const headers = [
-  { title: "NOM DU SITE", key: "nom", sortable: true, width: "25%" },
-  { title: "CLIENT", key: "client", sortable: false },
+  { title: "NOM DU SITE", key: "nom", sortable: true, width: "28%" },
   { title: "ADRESSE", key: "adresse", sortable: true },
   { title: "VILLE", key: "ville", sortable: true },
   { title: "CODE POSTAL", key: "code_postal", sortable: true, width: "120px" },

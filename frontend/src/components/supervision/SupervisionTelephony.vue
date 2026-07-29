@@ -50,33 +50,40 @@
       <table class="stl-table" v-if="activeCalls.length">
         <thead>
           <tr>
-            <th>Appelant</th>
-            <th>Destination</th>
+            <th>Appel</th>
             <th>Agent</th>
-            <th>File</th>
             <th>Statut</th>
-            <th>Mise à jour</th>
             <th>Durée</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="c in activeCalls" :key="c.call_uuid">
-            <td class="stl-mono">{{ c.caller || "—" }}</td>
-            <td class="stl-mono">{{ c.callee || "—" }}</td>
+            <td>
+              <div class="stl-call-cell">
+                <span class="stl-call-icon" :class="`stl-status-${c.call_status}`">
+                  <v-icon size="13">mdi-phone-in-talk-outline</v-icon>
+                </span>
+                <div class="stl-call-text">
+                  <div class="stl-call-title stl-mono">{{ c.caller || "—" }} → {{ c.callee || "—" }}</div>
+                  <div v-if="c.queue_id" class="stl-call-sub stl-mono">{{ c.queue_id }}</div>
+                </div>
+              </div>
+            </td>
             <td>
               <div v-if="c.agent_login" class="stl-agent-cell">
                 <span class="stl-avatar">{{ initials(c.agent_login) }}</span>{{ c.agent_login }}
               </div>
               <span v-else class="stl-muted">—</span>
             </td>
-            <td class="stl-mono">{{ c.queue_id || "—" }}</td>
             <td>
               <span class="stl-status-badge" :class="`stl-status-${c.call_status}`">
                 <span class="stl-dot"></span>{{ CALL_STATUS_LABEL[c.call_status] || c.call_status }}
               </span>
             </td>
-            <td class="stl-mono stl-muted">{{ relativeTime(c.created_at) }}</td>
-            <td class="stl-mono">{{ formatDuration(c.started_at) }}</td>
+            <td>
+              <div class="stl-mono">{{ formatDuration(c.started_at) }}</div>
+              <div class="stl-call-sub">mis à jour {{ relativeTime(c.created_at) }}</div>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -476,12 +483,20 @@ onUnmounted(() => {
 .stl-table td { padding: 8px 16px; vertical-align: middle; }
 .stl-agent-cell { display: flex; align-items: center; gap: 8px; }
 .stl-avatar {
-  width: 22px; height: 22px; border-radius: 50%; background: #00a8a8; color: #fff;
+  width: 22px; height: 22px; border-radius: 8px; background: #00a8a8; color: #fff;
   font-size: 9.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
+.stl-call-cell { display: flex; align-items: flex-start; gap: 9px; }
+.stl-call-icon {
+  width: 26px; height: 26px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 1px;
+}
+.stl-call-text { min-width: 0; }
+.stl-call-title { font-weight: 600; color: #1a1a2e; }
+.stl-call-sub { font-size: 10.5px; color: #9aa0aa; margin-top: 2px; }
 .stl-status-badge {
   display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700;
-  padding: 3px 8px; border-radius: 4px;
+  padding: 3px 9px; border-radius: 999px;
 }
 .stl-status-badge .stl-dot { width: 6px; height: 6px; border-radius: 50%; }
 .stl-status-ringing { background: rgba(245,158,11,0.14); color: #b45309; }

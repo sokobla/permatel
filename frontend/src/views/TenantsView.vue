@@ -91,7 +91,6 @@
                 </div>
               </div>
             </td>
-            <td class="tn-td tn-mono">{{ t.code }}</td>
             <td class="tn-td tn-mono">{{ t.slug }}</td>
             <td class="tn-td">
               <span :class="['tn-badge', t.is_active ? 'tn-badge--on' : 'tn-badge--off']">
@@ -99,7 +98,6 @@
                 {{ t.is_active ? 'ACTIF' : 'INACTIF' }}
               </span>
             </td>
-            <td class="tn-td tn-mono tn-td--date">{{ formatDate(t.created_at) }}</td>
             <td class="tn-td tn-td--actions">
               <button
                 class="tn-icon-btn"
@@ -410,10 +408,8 @@ const deleting = ref(false);
 
 const columns = [
   { key: "nom", label: "NOM", sortable: true },
-  { key: "code", label: "CODE", sortable: true },
   { key: "slug", label: "SLUG", sortable: true },
   { key: "is_active", label: "STATUT", sortable: true },
-  { key: "created_at", label: "CRÉÉ LE", sortable: true },
   { key: "actions", label: "ACTIONS", sortable: false },
 ];
 
