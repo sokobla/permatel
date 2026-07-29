@@ -87,3 +87,19 @@ def test_callcenter_agent_state_change():
 def test_callcenter_unmapped_action_returns_none():
     headers = _headers(**{"CC-Action": "bridge-agent-start", "CC-Queue": "queue-support"})
     assert normalizer.normalize_callcenter_info(headers, "d") is None
+
+
+def test_normalize_agent_status_change_utilise_domaine_et_login_fournis():
+    """Domaine et login ne viennent PAS des en-têtes (confirmé absents sur
+    trafic réel) mais des paramètres, résolus en amont par ESLAdapter via
+    l'annuaire agents."""
+    headers = _headers(**{
+        "CC-Action": "agent-status-change", "CC-Agent": "e8a58298-87e7-4960-a222-d05763866b15",
+        "CC-Agent-Status": "Available", "CC-Queue": "8004@africallpbx.fusion.cloud228.com",
+    })
+    payload = normalizer.normalize_agent_status_change(headers, "africallpbx.fusion.cloud228.com", "22101005")
+    assert payload["event_type"] == "CALLCENTER_AGENT_STATE_CHANGE"
+    assert payload["pbx_domain"] == "africallpbx.fusion.cloud228.com"
+    assert payload["agent"]["login"] == "22101005"
+    assert payload["agent"]["status"] == "Available"
+    assert payload["queue"]["id"] == "8004@africallpbx.fusion.cloud228.com"

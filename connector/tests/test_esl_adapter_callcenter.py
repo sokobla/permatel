@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-_on_callcenter_info() ne doit jamais perdre silencieusement un événement
-CUSTOM callcenter::info dont le CC-Action n'est pas encore reconnu par
-normalize_callcenter_info() (aujourd'hui : seuls 'queue-enter' et
-'agent-state-change' le sont) — un tel événement doit être journalisé avec
-ses en-têtes complets, pour repérer une action manquante (ex. un éventuel
-'agent-status-change' distinct pour les changements de statut manuels
-Available/On Break/Logged Out) plutôt que de le perdre sans trace.
+_on_callcenter_info() et l'annuaire agents (_refresh_agent_directory).
+
+Confirmé sur trafic FusionPBX réel (29/07) :
+  - 'queue-enter' reste lié à un canal d'appel actif (porte
+    'variable_domain_name') — chemin inchangé.
+  - 'agent-status-change' (le vrai événement de transition manuelle
+    Available/On Break/Logged Out — PAS 'agent-state-change', jamais
+    observé) et 'agent-status-get' (lecture passive) ne portent NI domaine
+    NI identifiant exploitable : 'CC-Agent' y est un UUID interne
+    FusionPBX, pas une extension. Résolus via un annuaire construit par
+    `api callcenter_config agent list <queue>@<domain>`.
 """
 import logging
 import sys
@@ -30,28 +34,109 @@ class _FakeEvent:
         self.headers = headers
 
 
-def test_callcenter_info_action_reconnue_est_transmise():
+class _FakeResponse:
+    def __init__(self, data):
+        self.data = data
+
+
+# ── _on_callcenter_info : chemin 'queue-enter' (inchangé, lié à un canal) ──
+
+def test_callcenter_info_queue_enter_est_transmis():
     ingest_client = MagicMock()
     adapter = ESLAdapter(_fake_connector_config(), ingest_client=ingest_client)
     headers = {
         "variable_domain_name": "tenant.pbx.local",
-        "CC-Action": "agent-state-change",
+        "CC-Action": "queue-enter",
         "CC-Queue": "queue-support",
-        "CC-Agent": "agent01",
+        "CC-Member-Uuid": "mem-1",
     }
 
     adapter._on_callcenter_info(_FakeEvent(headers))
 
     ingest_client.send.assert_called_once()
 
+
 def test_callcenter_info_action_non_reconnue_est_journalisee_pas_perdue(caplog):
+    """Une CC-Action liée à un canal (donc avec variable_domain_name) mais
+    non mappée par normalize_callcenter_info() (ex. bridge-agent-start) doit
+    être journalisée, pas silencieusement perdue."""
     ingest_client = MagicMock()
     adapter = ESLAdapter(_fake_connector_config(), ingest_client=ingest_client)
     headers = {
         "variable_domain_name": "tenant.pbx.local",
-        "CC-Action": "agent-status-change",  # non reconnue par normalize_callcenter_info()
+        "CC-Action": "bridge-agent-start",
         "CC-Queue": "queue-support",
-        "CC-Agent": "agent01",
+    }
+
+    with caplog.at_level(logging.WARNING, logger="connector.esl"):
+        adapter._on_callcenter_info(_FakeEvent(headers))
+
+    ingest_client.send.assert_not_called()
+    assert any("bridge-agent-start" in record.message for record in caplog.records)
+
+
+def test_callcenter_info_sans_domaine_est_journalise_pas_perdu(caplog):
+    """CC-Action liée à un canal mais sans variable_domain_name (config PBX
+    incomplète) : abandonné, mais journalisé avant abandon."""
+    ingest_client = MagicMock()
+    adapter = ESLAdapter(_fake_connector_config(), ingest_client=ingest_client)
+    headers = {"CC-Action": "queue-enter"}
+
+    with caplog.at_level(logging.WARNING, logger="connector.esl"):
+        adapter._on_callcenter_info(_FakeEvent(headers))
+
+    ingest_client.send.assert_not_called()
+    assert any("variable_domain_name" in r.message for r in caplog.records)
+
+
+# ── _on_callcenter_info : chemin agent-status-change/-get (annuaire) ──────
+
+def test_agent_status_get_est_ignore_silencieusement():
+    """'agent-status-get' est une lecture passive, pas une transition —
+    jamais transmise, même si l'agent est dans l'annuaire."""
+    ingest_client = MagicMock()
+    adapter = ESLAdapter(_fake_connector_config(), ingest_client=ingest_client)
+    adapter._agent_directory = {"agent-uuid-1": {"domain": "d", "extension": "1005", "queue": "q"}}
+    headers = {"CC-Action": "agent-status-get", "CC-Agent": "agent-uuid-1", "CC-Agent-Status": "Available"}
+
+    adapter._on_callcenter_info(_FakeEvent(headers))
+
+    ingest_client.send.assert_not_called()
+
+
+def test_agent_status_change_resout_via_annuaire_et_transmet():
+    ingest_client = MagicMock()
+    adapter = ESLAdapter(_fake_connector_config(), ingest_client=ingest_client)
+    adapter._agent_directory = {
+        "e8a58298-87e7-4960-a222-d05763866b15": {
+            "domain": "africallpbx.fusion.cloud228.com", "extension": "22101005", "queue": "8004",
+        },
+    }
+    headers = {
+        "CC-Action": "agent-status-change",
+        "CC-Agent": "e8a58298-87e7-4960-a222-d05763866b15",
+        "CC-Agent-Status": "Logged Out",
+        "CC-Queue": "8004@africallpbx.fusion.cloud228.com",
+    }
+
+    adapter._on_callcenter_info(_FakeEvent(headers))
+
+    ingest_client.send.assert_called_once()
+    payload = ingest_client.send.call_args[0][0]
+    assert payload["pbx_domain"] == "africallpbx.fusion.cloud228.com"
+    assert payload["agent"]["login"] == "22101005"
+    assert payload["agent"]["status"] == "Logged Out"
+
+
+def test_agent_status_change_agent_absent_de_l_annuaire_est_journalise(caplog):
+    """Annuaire pas encore rafraîchi ou agent hors des files supervisées :
+    abandonné proprement, pas d'exception, mais journalisé (pas perdu sans
+    trace)."""
+    ingest_client = MagicMock()
+    adapter = ESLAdapter(_fake_connector_config(), ingest_client=ingest_client)
+    headers = {
+        "CC-Action": "agent-status-change",
+        "CC-Agent": "uuid-inconnu",
         "CC-Agent-Status": "Available",
     }
 
@@ -59,22 +144,64 @@ def test_callcenter_info_action_non_reconnue_est_journalisee_pas_perdue(caplog):
         adapter._on_callcenter_info(_FakeEvent(headers))
 
     ingest_client.send.assert_not_called()
-    assert any("agent-status-change" in record.message for record in caplog.records)
+    assert any("uuid-inconnu" in r.message for r in caplog.records)
 
 
-def test_callcenter_info_sans_domaine_est_journalise_pas_perdu(caplog):
-    """Pas de variable_domain_name : l'événement est abandonné (comme avant),
-    mais désormais journalisé avant abandon — test réel du 29/07 où AUCUNE
-    trace 'callcenter'/'agent'/'CC-Action' n'apparaissait dans les logs,
-    suggérant un abandon avant même d'atteindre le diagnostic précédent
-    (qui ne loguait qu'après le filtre de domaine)."""
-    ingest_client = MagicMock()
-    adapter = ESLAdapter(_fake_connector_config(), ingest_client=ingest_client)
-    headers = {"CC-Action": "agent-status-change"}
+# ── _refresh_agent_directory / _fetch_agent_list ──────────────────────────
+
+def test_refresh_agent_directory_parse_une_ligne_valide():
+    domains = [{"pbx_domain": "d1", "queue_ids": ["queue-support"]}]
+    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=MagicMock())
+    fake_esl = MagicMock()
+    fake_esl.send.return_value = _FakeResponse(
+        "e8a58298-87e7-4960-a222-d05763866b15|callback|user/22101005@d1|Available|Waiting|"
+        "5|10|3|3|10|0|0|0|0|0|0|0|0|0"
+    )
+    adapter._esl = fake_esl
+
+    adapter._refresh_agent_directory()
+
+    assert adapter._agent_directory["e8a58298-87e7-4960-a222-d05763866b15"] == {
+        "domain": "d1", "extension": "22101005", "queue": "queue-support",
+    }
+    fake_esl.send.assert_called_once_with("api callcenter_config agent list queue-support@d1")
+
+
+def test_refresh_agent_directory_domaine_sans_file_est_journalise_et_ignore(caplog):
+    domains = [{"pbx_domain": "d1", "queue_ids": []}]  # pas de filtre explicite
+    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=MagicMock())
+    fake_esl = MagicMock()
+    adapter._esl = fake_esl
 
     with caplog.at_level(logging.WARNING, logger="connector.esl"):
-        adapter._on_callcenter_info(_FakeEvent(headers))
+        adapter._refresh_agent_directory()
 
-    ingest_client.send.assert_not_called()
-    assert any("callcenter::info reçu" in r.message for r in caplog.records)
-    assert any("variable_domain_name" in r.message for r in caplog.records)
+    fake_esl.send.assert_not_called()
+    assert any("sans file explicite" in r.message for r in caplog.records)
+    assert adapter._agent_directory == {}
+
+
+def test_refresh_agent_directory_reponse_vide_ne_leve_pas():
+    domains = [{"pbx_domain": "d1", "queue_ids": ["queue-support"]}]
+    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=MagicMock())
+    fake_esl = MagicMock()
+    fake_esl.send.return_value = _FakeResponse("-ERR no such queue\n")
+    adapter._esl = fake_esl
+
+    adapter._refresh_agent_directory()
+
+    assert adapter._agent_directory == {}
+
+
+def test_refresh_agent_directory_echec_send_ne_leve_pas(caplog):
+    domains = [{"pbx_domain": "d1", "queue_ids": ["queue-support"]}]
+    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=MagicMock())
+    fake_esl = MagicMock()
+    fake_esl.send.side_effect = RuntimeError("connexion perdue")
+    adapter._esl = fake_esl
+
+    with caplog.at_level(logging.WARNING, logger="connector.esl"):
+        adapter._refresh_agent_directory()
+
+    assert adapter._agent_directory == {}
+    assert any("Échec de 'agent list'" in r.message for r in caplog.records)

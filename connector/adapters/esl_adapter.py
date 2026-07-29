@@ -6,6 +6,7 @@ port 8021 par défaut). Une greenlet gevent par PbxConnector de type ESL,
 orchestrée par CoreConnector — jamais un process séparé (cf. §4 du plan).
 """
 import logging
+import re
 
 import gevent
 from gevent.event import Event
@@ -25,6 +26,23 @@ _SUBSCRIBE_CMD = (
     "CHANNEL_HANGUP_COMPLETE CUSTOM callcenter::info"
 )
 
+# Colonnes de `api callcenter_config agent list <queue>@<domain>`, d'après
+# la convention documentée de mod_callcenter — NON reconfirmée contre une
+# sortie réelle à ce jour (le format exact sera visible dans le log
+# "agent list ... -> " au premier rafraîchissement en production ; à
+# corriger ici si les valeurs ne correspondent pas aux colonnes attendues).
+_AGENT_LIST_FIELDS = (
+    "agent_name", "agent_type", "contact", "status", "state",
+    "max_no_answer", "wrap_up_time", "reject_delay_time", "busy_delay_time",
+    "no_answer_delay_time", "last_bridge_start", "last_bridge_end",
+    "last_offered_call", "no_answer_count", "calls_answered",
+    "calls_abandoned", "talk_time", "ready_time", "external_calls_count",
+)
+# Extension numérique dans le champ 'contact' (ex. "user/22101005@domaine"
+# ou "sofia/internal/22101005@domaine") — même convention que l'extraction
+# côté CDR (callflow originatee.destination_number).
+_EXTENSION_RE = re.compile(r"(\d{2,})")
+
 
 class ESLAdapter(PBXAdapter):
     def __init__(self, connector_config: dict, ingest_client):
@@ -38,6 +56,13 @@ class ESLAdapter(PBXAdapter):
             d["pbx_domain"]: set(d.get("queue_ids") or [])
             for d in connector_config.get("domains", [])
         }
+        # uuid FreeSWITCH (CC-Agent) -> {"domain":..., "extension":..., "queue":...}
+        # — construit via _refresh_agent_directory(), nécessaire car les
+        # événements agent-status-change ne portent ni domaine ni extension
+        # exploitable directement (confirmé sur trafic réel, voir
+        # _on_callcenter_info).
+        self._agent_directory = {}
+        self._agent_directory_greenlet = None
 
     @property
     def is_connected(self) -> bool:
@@ -51,6 +76,7 @@ class ESLAdapter(PBXAdapter):
                 self.last_error = None
                 backoff = config.ESL_RECONNECT_BACKOFF_INITIAL  # connexion OK, reset backoff
                 self._disconnect_event.clear()
+                self._agent_directory_greenlet = gevent.spawn(self._agent_directory_refresh_loop)
                 self._disconnect_event.wait()  # bloque jusqu'à déconnexion (ou stop()/force_reconnect())
             except (NotConnectedError, OSError) as exc:
                 self.last_error = str(exc)
@@ -62,6 +88,9 @@ class ESLAdapter(PBXAdapter):
                 self.last_error = str(exc)
                 logger.exception("[%s] Erreur inattendue dans l'adapter ESL", self.connector_config["name"])
             finally:
+                if self._agent_directory_greenlet is not None:
+                    gevent.kill(self._agent_directory_greenlet)
+                    self._agent_directory_greenlet = None
                 # SEULE et unique place qui ferme la connexion ESL (voir
                 # _hard_disconnect) — stop()/force_reconnect() ne font que
                 # réveiller ce wait() via l'event, jamais toucher la socket
@@ -133,6 +162,82 @@ class ESLAdapter(PBXAdapter):
 
         self._esl.send(_SUBSCRIBE_CMD)
         logger.info("[%s] Connecté et souscrit aux événements.", cfg["name"])
+        self._refresh_agent_directory()
+
+    def _agent_directory_refresh_loop(self):
+        while self.is_connected:
+            gevent.sleep(config.AGENT_DIRECTORY_REFRESH_SECONDS)
+            if self.is_connected:
+                self._refresh_agent_directory()
+
+    def _refresh_agent_directory(self):
+        """Construit l'annuaire uuid FreeSWITCH -> extension/domaine via
+        `api callcenter_config agent list <queue>@<domain>`, une requête
+        synchrone par file supervisée (scoper par domaine+file donne le
+        domaine "gratuitement" — pas besoin que FreeSWITCH le reporte sur
+        l'événement, ce qu'il ne fait pas pour agent-status-change).
+
+        Limitation connue : un domaine sans `queue_ids` configurés (pas de
+        filtre explicite) n'est pas rafraîchi ici — il n'existe pas de
+        moyen de lister "toutes les files d'un domaine" sans connaître
+        leurs noms au préalable. Se contente de le journaliser plutôt que
+        de deviner.
+        """
+        directory = {}
+        for domain, queues in self._supervised_queues.items():
+            if not queues:
+                logger.warning(
+                    "[%s] Domaine '%s' sans file explicite — annuaire agents non "
+                    "rafraîchi pour ce domaine (queue_ids requis).",
+                    self.connector_config["name"], domain,
+                )
+                continue
+            for queue in queues:
+                self._fetch_agent_list(domain, queue, directory)
+        self._agent_directory = directory
+        logger.info(
+            "[%s] Annuaire agents rafraîchi : %d agent(s) résolu(s).",
+            self.connector_config["name"], len(directory),
+        )
+
+    def _fetch_agent_list(self, domain, queue, directory):
+        try:
+            response = self._esl.send(f"api callcenter_config agent list {queue}@{domain}")
+        except Exception as exc:
+            logger.warning(
+                "[%s] Échec de 'agent list' pour %s@%s : %s",
+                self.connector_config["name"], queue, domain, exc,
+            )
+            return
+
+        raw = (getattr(response, "data", None) or "").strip()
+        # Journalisé systématiquement (pas seulement en cas d'erreur) tant que
+        # le format de colonnes ci-dessus n'a pas été confirmé contre une
+        # sortie réelle — à retirer une fois _AGENT_LIST_FIELDS validé.
+        logger.info(
+            "[%s] agent list %s@%s -> %r", self.connector_config["name"], queue, domain, raw,
+        )
+        if not raw or raw.startswith("-ERR"):
+            return
+
+        for line in raw.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            fields = line.split("|")
+            if len(fields) < 3:
+                continue
+            row = dict(zip(_AGENT_LIST_FIELDS, fields))
+            agent_uuid = row.get("agent_name")
+            contact = row.get("contact") or ""
+            match = _EXTENSION_RE.search(contact)
+            if not agent_uuid or not match:
+                logger.warning(
+                    "[%s] Ligne 'agent list' ininterprétable (uuid ou extension manquant) : %r",
+                    self.connector_config["name"], line,
+                )
+                continue
+            directory[agent_uuid] = {"domain": domain, "extension": match.group(1), "queue": queue}
 
     def _on_disconnect(self, _event):
         logger.warning("[%s] Déconnecté de FreeSWITCH.", self.connector_config["name"])
@@ -162,21 +267,26 @@ class ESLAdapter(PBXAdapter):
 
     def _on_callcenter_info(self, event):
         headers = event.headers
-        # Diagnostic : test réel du 29/07 sans aucune trace 'callcenter'/
-        # 'agent'/'CC-Action' dans les logs, alors que _resolve_domain()
-        # aurait normalement dû laisser passer même un domaine non rattaché
-        # (elle ne retourne None que si 'variable_domain_name' est carrément
-        # absent du header). Log inconditionnel dès l'entrée du handler,
-        # AVANT toute logique de filtrage, pour confirmer si l'événement
-        # callcenter::info atteint seulement le socket ESL ou est perdu plus
-        # tôt (jamais souscrit, filtré par FreeSWITCH lui-même, etc.).
-        logger.warning("[%s] callcenter::info reçu — en-têtes=%r", self.connector_config["name"], dict(headers))
+        action = headers.get("CC-Action")
+
+        # Confirmé sur trafic FusionPBX réel (29/07) : les événements de
+        # statut agent ('agent-status-change'/'agent-status-get') ne portent
+        # NI 'variable_domain_name' NI d'identifiant exploitable dans
+        # 'CC-Agent' (un UUID interne FusionPBX) — contrairement à
+        # 'queue-enter', qui reste lié à un canal d'appel actif et passe par
+        # le chemin habituel (_resolve_domain). Traités à part, résolus via
+        # l'annuaire agents (_refresh_agent_directory), AVANT toute
+        # tentative de lecture de 'variable_domain_name' qui n'existera
+        # jamais sur ce type d'événement.
+        if action in ("agent-status-change", "agent-status-get"):
+            self._on_agent_status_event(headers, action)
+            return
 
         domain = self._resolve_domain(headers)
         if not domain:
             logger.warning(
-                "[%s] callcenter::info abandonné : 'variable_domain_name' absent des en-têtes.",
-                self.connector_config["name"],
+                "[%s] callcenter::info (CC-Action=%r) abandonné : 'variable_domain_name' absent des en-têtes.",
+                self.connector_config["name"], action,
             )
             return
 
@@ -190,14 +300,29 @@ class ESLAdapter(PBXAdapter):
             self.ingest_client.send(payload)
         else:
             # Diagnostic : normalize_callcenter_info() ne reconnaît que
-            # 'queue-enter' et 'agent-state-change' — tout autre CC-Action
-            # (ex. un éventuel 'agent-status-change' distinct pour les
-            # changements de statut manuels Available/On Break/Logged Out,
-            # non confirmé à ce jour) est ici silencieusement abandonné en
-            # amont. On journalise systématiquement les en-têtes complets
-            # d'un événement callcenter::info non reconnu pour repérer une
-            # action manquante plutôt que de perdre l'information sans trace.
+            # 'queue-enter' et 'agent-state-change' — toute autre CC-Action
+            # est ici silencieusement abandonnée en amont. On journalise
+            # systématiquement les en-têtes complets d'un événement
+            # callcenter::info non reconnu pour repérer une action
+            # manquante plutôt que de perdre l'information sans trace.
             logger.warning(
                 "[%s] callcenter::info non reconnu — CC-Action=%r, en-têtes=%r",
-                self.connector_config["name"], headers.get("CC-Action"), dict(headers),
+                self.connector_config["name"], action, dict(headers),
             )
+
+    def _on_agent_status_event(self, headers, action):
+        if action == "agent-status-get":
+            return  # lecture passive (ex. rafraîchissement d'un écran admin), pas une transition réelle
+
+        agent_uuid = headers.get("CC-Agent")
+        entry = self._agent_directory.get(agent_uuid)
+        if entry is None:
+            logger.warning(
+                "[%s] agent-status-change pour un agent absent de l'annuaire (uuid=%s, statut=%r) — "
+                "annuaire pas encore rafraîchi, ou agent hors des files supervisées.",
+                self.connector_config["name"], agent_uuid, headers.get("CC-Agent-Status"),
+            )
+            return
+
+        payload = normalizer.normalize_agent_status_change(headers, entry["domain"], entry["extension"])
+        self.ingest_client.send(payload)
