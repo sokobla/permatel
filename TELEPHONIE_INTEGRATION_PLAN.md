@@ -411,7 +411,8 @@ silencieusement absent de l'archive).
 > le plus souvent un **chemin de fichier local sur le serveur PBX**, pas une
 > URL accessible depuis PERMATEL. Écoute/téléchargement ne fonctionnent que
 > si FusionPBX est configuré pour exposer ces fichiers via une URL http(s) —
-> non confirmé à ce jour, à valider avec un enregistrement réel.
+> non confirmé à ce jour (aucun appel de test avec enregistrement actif),
+> à valider avec un enregistrement réel.
 
 **Six correctifs successifs sur le webhook CDR, chacun découvert et validé
 contre du vrai trafic FusionPBX en production** (pas en local, pas en
@@ -456,8 +457,45 @@ adjacentes de `backend/tests/test_telephony.py`.
 **Trace diagnostique** (`TELEPHONY_CDR_TRACE=true`, désactivée par défaut,
 voir `.env.example`) : journalise l'inventaire complet des variables reçues
 (nom, type, aperçu de valeur) + écrit le payload intégral dans
-`/tmp/cdr_trace_last.json`, pour confirmer quelles variables un PBX réel
-envoie effectivement (`cc_queue`/`cc_agent` notamment, toujours non
-confirmés — best-effort) avant d'exploiter de nouveaux champs. Un CDR
-complet peut peser plusieurs dizaines de Ko : à activer ponctuellement, pas
-en fonctionnement normal.
+`/tmp/cdr_trace_last.json`. Un CDR complet peut peser plusieurs dizaines de
+Ko : à activer ponctuellement, pas en fonctionnement normal.
+
+### 8.7 Enseignements de deux traces CDR réelles (appel direct + appel en file d'attente)
+
+Deux traces complètes (`TELEPHONY_CDR_TRACE=true`) — un appel sortant direct
+via passerelle SIP, un appel entrant routé en file d'attente `mod_callcenter`
+— ont permis de confirmer ou corriger plusieurs hypothèses initiales :
+
+- **`caller_id_number`/`destination_number` n'existent pas systématiquement
+  sous `variables`** — absents sur l'appel direct, présents sur l'appel en
+  file d'attente (visiblement posés explicitement par le dialplan XML dans
+  ce second cas, `app_log` en atteste). La donnée fiable, présente dans les
+  deux cas, vit sous `payload.callflow[0].caller_profile.{caller_id_number,
+  destination_number}` — c'est désormais la source primaire, avec repli sur
+  `variables.sip_from_user`/`sip_to_user` si `callflow` est absent.
+- **`cc_queue` confirmé fiable** : format `"<extension>@<domaine>"` (ex.
+  `8004@africallpbx.fusion.cloud228.com`), même convention que le header ESL
+  `CC-Queue` — aucun changement nécessaire pour `queue_id`.
+- **`cc_agent` confirmé être un UUID interne FusionPBX**
+  (`call_center_agents.call_center_agent_uuid`), **pas** un login/une
+  extension exploitable pour matcher un `User` PERMATEL via `agent_login`.
+  L'extension réelle de l'agent qui décroche (`"22101005"` dans la trace)
+  vit sous `payload.callflow[0].caller_profile.originatee
+  .originatee_caller_profiles[0].destination_number` — le leg vers lequel
+  `mod_callcenter` a bridgé l'appel. Extraction corrigée en conséquence,
+  gardée derrière la présence de `cc_queue` (jamais fabriquée hors contexte
+  de file d'attente réel, même si un profil `originatee` existe pour une
+  autre raison — transfert, etc.).
+- **`recording_url` toujours non confirmé** : aucune des deux traces ne
+  portait d'enregistrement actif (`record_file_path` absent des deux) — la
+  limitation ci-dessus reste entièrement ouverte.
+- **Chaque leg d'un appel bridgé génère son propre CDR** (observé sur la
+  trace directe : `variables.uuid` ≠ `variables.call_uuid`, ce dernier
+  pointant vers l'autre leg) — caractéristique déjà partagée avec
+  l'ingestion ESL (chaque canal produit ses propres événements), pas une
+  régression introduite par le webhook CDR. Non traité pour l'instant
+  (chaque leg reste un `call_uuid` PERMATEL distinct).
+
+Deux correctifs supplémentaires appliqués suite à ces traces (extraction
+caller/callee, extraction agent_login), chacun avec un test de
+non-régression reproduisant la structure réelle exacte.

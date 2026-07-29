@@ -970,8 +970,8 @@ LIMIT 50;
 - `event_type` : **String(50)** (pas d'enum Postgres — `CHANNEL_CREATE`/`CHANNEL_PROGRESS_MEDIA`/`CHANNEL_ANSWER`/`CHANNEL_HANGUP_COMPLETE`/`CALLCENTER_QUEUE_ENTER`/`CALLCENTER_AGENT_STATE_CHANGE`)
 - `call_direction` : String(10), nullable (`inbound`/`outbound`)
 - `call_status` : String(30), nullable (`ringing`/`early_media`/`answered`/`missed`/`abandoned`/`technical_failure`/`on_hold`/`ended`)
-- `caller_number` / `callee_number` : String(20), nullable
-- `agent_login` : String(50), nullable, indexé
+- `caller_number` / `callee_number` : String(20), nullable — source CDR : `callflow[0].caller_profile.{caller_id_number,destination_number}` (confirmé plus fiable que les variables `caller_id_number`/`destination_number`, absentes selon le type d'appel)
+- `agent_login` : String(50), nullable, indexé — source CDR (appel en file d'attente uniquement) : `callflow[0].caller_profile.originatee.originatee_caller_profiles[0].destination_number` (l'extension réellement bridgée par mod_callcenter) ; **jamais** la variable `cc_agent`, confirmée être un UUID interne FusionPBX sans rapport avec un login exploitable
 - `agent_status` : String(50), nullable — statut brut FreeSWITCH (`CC-Agent-Status`, mod_callcenter), normalisé en présence disponible/pause/hors-ligne par `GET /telephony/agents/status` (Phase 13)
 - `queue_id` : String(100), nullable, indexé
 - `duration` : Integer, nullable (secondes)
