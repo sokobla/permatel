@@ -522,40 +522,48 @@ Deux constats, différents des hypothèses initiales de la Phase 13 :
   extension exploitable pour `agent_login`.
 
 **Solution retenue** : un annuaire `uuid FreeSWITCH → {domaine, extension}`
-construit via une requête ESL synchrone `api callcenter_config agent list
-<queue>@<domaine>` (jusque-là le connecteur ne faisait que s'abonner à des
-événements, jamais de requête synchrone) — scopée par domaine+file
-supervisée, ce qui donne le domaine "gratuitement" sans dépendre d'un
-header absent. Rafraîchi à la connexion puis toutes les
-`AGENT_DIRECTORY_REFRESH_SECONDS` (300s par défaut). `_on_callcenter_info`
-route `agent-status-change`/`agent-status-get` vers ce chemin avant toute
-tentative de lecture de `variable_domain_name`.
+construit via une requête ESL synchrone `api callcenter_config agent list`
+(jusque-là le connecteur ne faisait que s'abonner à des événements, jamais
+de requête synchrone). **Correction post-premier-test (29/07)** :
+initialement scopée par domaine+file (`agent list <queue>@<domaine>`) dans
+l'idée de récupérer le domaine "gratuitement" — mais confirmé en
+production que ce filtre **n'existe pas** : la commande est acceptée sans
+erreur mais ne retourne jamais aucune ligne d'agent (`+OK` brut), quelle
+que soit la file passée. mod_callcenter ne documente `agent list` que
+filtrable par nom d'agent, jamais par file. Corrigé en un appel **global,
+sans scope**, pour l'unique domaine configuré sur le connecteur (limitation
+assumée : plusieurs domaines sur un même connecteur ne sont pas supportés
+ici, `agent list` global ne permettant pas de savoir à quel domaine chaque
+agent appartient — journalisé plutôt que deviné). Rafraîchi à la connexion
+puis toutes les `AGENT_DIRECTORY_REFRESH_SECONDS` (300s par défaut).
+`_on_callcenter_info` route `agent-status-change`/`agent-status-get` vers
+ce chemin avant toute tentative de lecture de `variable_domain_name`.
 
-> ⚠️ **Limitations connues, à surveiller au prochain déploiement** :
-> - Le format des colonnes de `agent list` (`agent_name|agent_type|contact|
->   status|state|...`) suit la convention documentée de mod_callcenter,
->   **non reconfirmée contre une sortie réelle** — la réponse brute est
->   journalisée systématiquement (`"agent list ... -> "`) pour validation ;
->   à corriger si les colonnes observées ne correspondent pas.
-> - Un domaine sans `queue_ids` explicitement configurés n'est pas
->   couvert (pas de moyen de lister les files d'un domaine sans connaître
->   leurs noms) — journalisé plutôt que deviné, à traiter si un tel besoin
->   se présente.
+> ⚠️ **Limitation connue, à surveiller au prochain déploiement** : le
+> format des colonnes de `agent list` (`agent_name|agent_type|contact|
+> status|state|...`) suit la convention documentée de mod_callcenter,
+> **non reconfirmée contre une sortie réelle** — la réponse brute est
+> journalisée systématiquement (`"agent list -> "`) pour validation ; à
+> corriger si les colonnes observées ne correspondent pas.
 
-**Durcissement suite au premier test réel (29/07)** : la saisie initiale
-des 5 files du domaine test dans le combobox "Entrée pour ajouter" a
-produit UNE entrée `"8001, 8002, 8003, 8004, 8005"` au lieu de 5 entrées
-distinctes — `agent list <ceci>@<domaine>` rejeté par FreeSWITCH
-(`-ERR Invalid!`), annuaire toujours vide. Deux corrections :
+**Durcissement suite aux deux premiers tests réels (29/07)** : le 1er test
+a montré la saisie initiale des 5 files du domaine dans le combobox
+"Entrée pour ajouter" produisant UNE entrée `"8001, 8002, 8003, 8004,
+8005"` au lieu de 5 entrées distinctes. Le 2e test (une fois cette saisie
+scindée) a ensuite révélé le vrai problème ci-dessus (`agent list` non
+filtrable par file, jamais lié à la saisie multi-files elle-même). Trois
+corrections :
 
 - **Formulaire domaine (`Paramètres > Intégrations > Téléphonie`)** :
   le combobox est remplacé par des champs Identifiant/Alias ajoutables un
   par un ("Ajouter une file") — corrige structurellement la saisie
   multi-files en une entrée (plus de virgules à scinder par l'utilisateur).
   `queue_ids` devient une liste de `{"id", "alias"}` ; l'alias est un
-  libellé d'affichage PERMATEL, jamais transmis à FreeSWITCH. Compat
-  ancien format (chaîne nue) conservée côté backend (`_normalize_queue_ids`)
-  et connecteur pour les domaines pas encore ré-enregistrés.
+  libellé d'affichage PERMATEL, jamais transmis à FreeSWITCH. Reste utile
+  pour le filtrage `queue-enter` (`_on_callcenter_info`), même si l'annuaire
+  agents n'est plus scopé par file. Compat ancien format (chaîne nue)
+  conservée côté backend (`_normalize_queue_ids`) et connecteur pour les
+  domaines pas encore ré-enregistrés.
 - **Roster agents faisant autorité côté PERMATEL** : `GET
   /telephony/connectors/config` expose désormais `known_agent_logins`
   (les `User.agent_login` peuplés pour le tenant, actifs, adhésion tenant

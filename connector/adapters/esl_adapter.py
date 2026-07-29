@@ -205,16 +205,19 @@ class ESLAdapter(PBXAdapter):
 
     def _refresh_agent_directory(self):
         """Construit l'annuaire uuid FreeSWITCH -> extension/domaine via
-        `api callcenter_config agent list <queue>@<domain>`, une requête
-        synchrone par file supervisée (scoper par domaine+file donne le
-        domaine "gratuitement" — pas besoin que FreeSWITCH le reporte sur
-        l'événement, ce qu'il ne fait pas pour agent-status-change).
+        `api callcenter_config agent list` (liste globale, SANS scope par
+        file).
 
-        Limitation connue : un domaine sans `queue_ids` configurés (pas de
-        filtre explicite) n'est pas rafraîchi ici — il n'existe pas de
-        moyen de lister "toutes les files d'un domaine" sans connaître
-        leurs noms au préalable. Se contente de le journaliser plutôt que
-        de deviner.
+        Confirmé en prod (29/07) : `agent list <queue>@<domaine>` est
+        accepté sans erreur mais ne retourne jamais aucune ligne d'agent
+        ('+OK' brut) — ce filtre n'existe pas. mod_callcenter documente
+        `agent list [<agent_name>]` : un nom d'agent précis, ou rien du
+        tout pour lister tous les agents — jamais une file.
+
+        Limitation connue : un seul domaine par connecteur supporté ici —
+        `agent list` global ne permet pas de savoir à quel domaine chaque
+        agent appartient s'il y en a plusieurs de configurés sur le même
+        connecteur. Journalisé plutôt que deviné.
         """
         if not self._known_agent_logins:
             logger.warning(
@@ -224,46 +227,45 @@ class ESLAdapter(PBXAdapter):
                 self.connector_config["name"],
             )
 
+        domains = list(self._supervised_queues.keys())
+        if not domains:
+            self._agent_directory = {}
+            return
+        if len(domains) > 1:
+            logger.warning(
+                "[%s] Plusieurs domaines configurés (%s) — 'agent list' n'étant pas "
+                "filtrable par domaine, l'annuaire agents n'est pas rafraîchi (un "
+                "seul domaine par connecteur supporté à ce jour).",
+                self.connector_config["name"], domains,
+            )
+            return
+
         directory = {}
-        for domain, queues in self._supervised_queues.items():
-            if not queues:
-                logger.warning(
-                    "[%s] Domaine '%s' sans file explicite — annuaire agents non "
-                    "rafraîchi pour ce domaine (queue_ids requis).",
-                    self.connector_config["name"], domain,
-                )
-                continue
-            for queue in queues:
-                self._fetch_agent_list(domain, queue, directory)
+        self._fetch_agent_list(domains[0], directory)
         self._agent_directory = directory
         logger.info(
             "[%s] Annuaire agents rafraîchi : %d agent(s) résolu(s).",
             self.connector_config["name"], len(directory),
         )
 
-    def _fetch_agent_list(self, domain, queue, directory):
+    def _fetch_agent_list(self, domain, directory):
         try:
-            response = self._esl.send(f"api callcenter_config agent list {queue}@{domain}")
+            response = self._esl.send("api callcenter_config agent list")
         except Exception as exc:
-            logger.warning(
-                "[%s] Échec de 'agent list' pour %s@%s : %s",
-                self.connector_config["name"], queue, domain, exc,
-            )
+            logger.warning("[%s] Échec de 'agent list' : %s", self.connector_config["name"], exc)
             return
 
         raw = (getattr(response, "data", None) or "").strip()
         # Journalisé systématiquement (pas seulement en cas d'erreur) tant que
         # le format de colonnes ci-dessus n'a pas été confirmé contre une
         # sortie réelle — à retirer une fois _AGENT_LIST_FIELDS validé.
-        logger.info(
-            "[%s] agent list %s@%s -> %r", self.connector_config["name"], queue, domain, raw,
-        )
+        logger.info("[%s] agent list -> %r", self.connector_config["name"], raw)
         if not raw or raw.startswith("-ERR"):
             return
 
         for line in raw.splitlines():
             line = line.strip()
-            if not line:
+            if not line or line == "+OK":
                 continue
             fields = line.split("|")
             if len(fields) < 3:
@@ -286,7 +288,7 @@ class ESLAdapter(PBXAdapter):
                     self.connector_config["name"], extension, agent_uuid,
                 )
                 continue
-            directory[agent_uuid] = {"domain": domain, "extension": extension, "queue": queue}
+            directory[agent_uuid] = {"domain": domain, "extension": extension}
 
     def _on_disconnect(self, _event):
         logger.warning("[%s] Déconnecté de FreeSWITCH.", self.connector_config["name"])

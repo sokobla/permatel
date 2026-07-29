@@ -10,7 +10,8 @@ Confirmé sur trafic FusionPBX réel (29/07) :
     observé) et 'agent-status-get' (lecture passive) ne portent NI domaine
     NI identifiant exploitable : 'CC-Agent' y est un UUID interne
     FusionPBX, pas une extension. Résolus via un annuaire construit par
-    `api callcenter_config agent list <queue>@<domain>`.
+    `api callcenter_config agent list` (SANS scope par file — confirmé en
+    prod que 'agent list <queue>@<domain>' ne filtre jamais rien).
 """
 import logging
 import sys
@@ -96,7 +97,7 @@ def test_agent_status_get_est_ignore_silencieusement():
     jamais transmise, même si l'agent est dans l'annuaire."""
     ingest_client = MagicMock()
     adapter = ESLAdapter(_fake_connector_config(), ingest_client=ingest_client)
-    adapter._agent_directory = {"agent-uuid-1": {"domain": "d", "extension": "1005", "queue": "q"}}
+    adapter._agent_directory = {"agent-uuid-1": {"domain": "d", "extension": "1005"}}
     headers = {"CC-Action": "agent-status-get", "CC-Agent": "agent-uuid-1", "CC-Agent-Status": "Available"}
 
     adapter._on_callcenter_info(_FakeEvent(headers))
@@ -109,7 +110,7 @@ def test_agent_status_change_resout_via_annuaire_et_transmet():
     adapter = ESLAdapter(_fake_connector_config(), ingest_client=ingest_client)
     adapter._agent_directory = {
         "e8a58298-87e7-4960-a222-d05763866b15": {
-            "domain": "africallpbx.fusion.cloud228.com", "extension": "22101005", "queue": "8004",
+            "domain": "africallpbx.fusion.cloud228.com", "extension": "22101005",
         },
     }
     headers = {
@@ -147,13 +148,14 @@ def test_agent_status_change_agent_absent_de_l_annuaire_est_journalise(caplog):
     assert any("uuid-inconnu" in r.message for r in caplog.records)
 
 
-# ── Saisie multi-files en une entrée ("8001, 8002, ...") ──────────────────
+# ── Saisie multi-files en une entrée ("8001, 8002, ...") — pour le filtre
+# des événements liés à un canal (_on_callcenter_info), pas pour l'annuaire
+# agents qui n'est plus scopé par file (voir plus bas) ─────────────────────
 
 def test_queue_ids_avec_plusieurs_files_dans_une_seule_entree_est_scindee():
-    """Reproduit le cas réel du 29/07 : 5 files saisies en une fois dans le
-    combobox produisent UNE entrée "8001, 8002, 8003, 8004, 8005" plutôt que
-    5 entrées distinctes — FreeSWITCH rejette ('-ERR Invalid!') un tel
-    argument multi-files pour 'agent list'. Doit être scindée en amont."""
+    """Reproduit le cas réel du 29/07 : 5 files saisies en une fois dans
+    l'ancien combobox produisaient UNE entrée "8001, 8002, ..." plutôt que
+    5 entrées distinctes — doit être scindée pour le filtrage queue-enter."""
     domains = [{"pbx_domain": "d1", "queue_ids": ["8001, 8002, 8003, 8004, 8005"]}]
     adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=MagicMock())
 
@@ -167,26 +169,14 @@ def test_queue_ids_normalement_scindes_restent_inchanges():
     assert adapter._supervised_queues["d1"] == {"8001", "8002"}
 
 
-def test_refresh_agent_directory_emet_un_appel_par_file_apres_scission():
-    domains = [{"pbx_domain": "d1", "queue_ids": ["8001, 8002, 8003"]}]
-    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=MagicMock())
-    fake_esl = MagicMock()
-    fake_esl.send.return_value = _FakeResponse("")
-    adapter._esl = fake_esl
-
-    adapter._refresh_agent_directory()
-
-    called_commands = {call.args[0] for call in fake_esl.send.call_args_list}
-    assert called_commands == {
-        "api callcenter_config agent list 8001@d1",
-        "api callcenter_config agent list 8002@d1",
-        "api callcenter_config agent list 8003@d1",
-    }
-
-
 # ── _refresh_agent_directory / _fetch_agent_list ──────────────────────────
+# Confirmé en prod (29/07) : 'agent list <queue>@<domaine>' est accepté sans
+# erreur mais ne retourne jamais aucune ligne ('+OK' brut) — mod_callcenter
+# ne filtre 'agent list' que par nom d'agent, jamais par file. L'annuaire
+# appelle donc désormais 'agent list' SANS scope, une seule fois, pour
+# l'unique domaine du connecteur.
 
-def test_refresh_agent_directory_parse_une_ligne_valide():
+def test_refresh_agent_directory_appelle_agent_list_sans_scope():
     domains = [{"pbx_domain": "d1", "queue_ids": ["queue-support"]}]
     adapter = ESLAdapter(
         _fake_connector_config(domains, known_agent_logins=["22101005"]), ingest_client=MagicMock(),
@@ -201,9 +191,25 @@ def test_refresh_agent_directory_parse_une_ligne_valide():
     adapter._refresh_agent_directory()
 
     assert adapter._agent_directory["e8a58298-87e7-4960-a222-d05763866b15"] == {
-        "domain": "d1", "extension": "22101005", "queue": "queue-support",
+        "domain": "d1", "extension": "22101005",
     }
-    fake_esl.send.assert_called_once_with("api callcenter_config agent list queue-support@d1")
+    fake_esl.send.assert_called_once_with("api callcenter_config agent list")
+
+
+def test_refresh_agent_directory_ignore_la_ligne_ok_brute():
+    """Réponse réelle observée pour un filtre sans correspondance ('+OK'
+    seul, sans ligne d'agent) — ne doit pas planter, juste ne rien ajouter."""
+    domains = [{"pbx_domain": "d1", "queue_ids": ["queue-support"]}]
+    adapter = ESLAdapter(
+        _fake_connector_config(domains, known_agent_logins=["22101005"]), ingest_client=MagicMock(),
+    )
+    fake_esl = MagicMock()
+    fake_esl.send.return_value = _FakeResponse("+OK")
+    adapter._esl = fake_esl
+
+    adapter._refresh_agent_directory()
+
+    assert adapter._agent_directory == {}
 
 
 def test_refresh_agent_directory_extension_inconnue_de_permatel_est_ignoree(caplog):
@@ -246,8 +252,25 @@ def test_update_known_agent_logins_remplace_le_roster():
     assert adapter._known_agent_logins == {"2", "3"}
 
 
-def test_refresh_agent_directory_domaine_sans_file_est_journalise_et_ignore(caplog):
-    domains = [{"pbx_domain": "d1", "queue_ids": []}]  # pas de filtre explicite
+def test_refresh_agent_directory_aucun_domaine_configure():
+    adapter = ESLAdapter(_fake_connector_config(domains=[]), ingest_client=MagicMock())
+    fake_esl = MagicMock()
+    adapter._esl = fake_esl
+
+    adapter._refresh_agent_directory()
+
+    fake_esl.send.assert_not_called()
+    assert adapter._agent_directory == {}
+
+
+def test_refresh_agent_directory_plusieurs_domaines_non_supporte(caplog):
+    """'agent list' n'étant pas filtrable par domaine, un connecteur avec
+    plus d'un domaine configuré n'est pas rafraîchi (limitation connue,
+    journalisée plutôt que devinée)."""
+    domains = [
+        {"pbx_domain": "d1", "queue_ids": ["q1"]},
+        {"pbx_domain": "d2", "queue_ids": ["q2"]},
+    ]
     adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=MagicMock())
     fake_esl = MagicMock()
     adapter._esl = fake_esl
@@ -256,8 +279,7 @@ def test_refresh_agent_directory_domaine_sans_file_est_journalise_et_ignore(capl
         adapter._refresh_agent_directory()
 
     fake_esl.send.assert_not_called()
-    assert any("sans file explicite" in r.message for r in caplog.records)
-    assert adapter._agent_directory == {}
+    assert any("Plusieurs domaines" in r.message for r in caplog.records)
 
 
 def test_refresh_agent_directory_reponse_vide_ne_leve_pas():
