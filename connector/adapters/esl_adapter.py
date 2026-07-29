@@ -238,6 +238,17 @@ class ESLAdapter(PBXAdapter):
                 "le champ Login Agent CC des utilisateurs concernés).",
                 self.connector_config["name"],
             )
+        else:
+            # Journalisé systématiquement (pas seulement si vide) pour pouvoir
+            # confirmer, sans deviner, que le roster reçu de PERMATEL contient
+            # bien l'extension attendue — vu en prod (29/07) un cas où
+            # `agent list` résolvait la bonne extension mais où elle était
+            # quand même écartée comme "inconnue" faute de visibilité ici.
+            logger.info(
+                "[%s] known_agent_logins courant (%d) : %s",
+                self.connector_config["name"], len(self._known_agent_logins),
+                sorted(self._known_agent_logins),
+            )
 
         domains = list(self._supervised_queues.keys())
         if not domains:
