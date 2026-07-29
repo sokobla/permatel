@@ -366,6 +366,19 @@ class ESLAdapter(PBXAdapter):
         headers = event.headers
         action = headers.get("CC-Action")
 
+        # Diagnostic temporaire (à retirer une fois la corrélation de legs
+        # confirmée) : Other-Leg-Unique-ID et variable_dnis/variable_ani
+        # confirmés vides sur trafic réel (29/07) — piste abandonnée. On
+        # journalise maintenant TOUS les en-têtes de TOUTE action
+        # callcenter::info, y compris celles abandonnées faute de
+        # 'variable_domain_name' (agent-offering, bridge-agent-fail,
+        # members-count…) qui n'étaient jusqu'ici jamais inspectées : l'une
+        # d'elles porte peut-être l'identifiant qui relie les legs.
+        logger.info(
+            "[%s] callcenter::info CC-Action=%r en-têtes=%r",
+            self.connector_config["name"], action, dict(headers),
+        )
+
         # Confirmé sur trafic FusionPBX réel (29/07) : les événements de
         # statut agent ('agent-status-change'/'agent-status-get') ne portent
         # NI 'variable_domain_name' NI d'identifiant exploitable dans
