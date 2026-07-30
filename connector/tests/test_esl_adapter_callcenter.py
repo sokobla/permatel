@@ -15,11 +15,13 @@ Confirmé sur trafic FusionPBX réel (29/07) :
 """
 import logging
 import sys
+import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import normalizer  # noqa: E402
 from adapters.esl_adapter import ESLAdapter  # noqa: E402
 
 
@@ -342,6 +344,106 @@ def test_bridge_agent_start_queue_non_supervisee_est_ignoree():
     adapter._on_callcenter_info(_FakeEvent(_bridge_start_headers(**{"CC-Queue": "8004@d1"})))
 
     ingest_client.send.assert_not_called()
+
+
+# ── Tentative de sonnerie agent pour un appel de file (leg fantôme) ───────
+# Confirmé en prod (30/07) : un appel de file réel apparaissait sur 3 lignes
+# dans /active-calls au lieu de 2 — la 3e étant le CHANNEL_CREATE outbound
+# que mod_callcenter origine à chaque tentative de pont vers un agent
+# ('agent-offering'), jamais lié par Other-Leg-Unique-ID s'il échoue
+# (bridge-agent-fail). agent-offering pose l'extension attendue en attente ;
+# le prochain CHANNEL_CREATE outbound vers cette extension la consomme et se
+# fait tagger linked_call_uuid = CC-Member-Session-UUID, pour être fusionné/
+# supprimé par la même règle backend que les legs bridgés directs.
+
+def test_agent_offering_pose_une_tentative_en_attente_pour_l_extension_resolue():
+    domains = [{"pbx_domain": "africallpbx.fusion.cloud228.com", "queue_ids": ["8004"]}]
+    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=MagicMock())
+    adapter._agent_directory = {
+        "e8a58298-87e7-4960-a222-d05763866b15": {
+            "domain": "africallpbx.fusion.cloud228.com", "extension": "22101001",
+        },
+    }
+
+    adapter._on_callcenter_info(_FakeEvent(_offering_headers(**{
+        "CC-Agent": "e8a58298-87e7-4960-a222-d05763866b15",
+        "CC-Member-Session-UUID": "member-session-1",
+    })))
+
+    assert "22101001" in adapter._pending_agent_rings
+    member_uuid, _ = adapter._pending_agent_rings["22101001"]
+    assert member_uuid == "member-session-1"
+
+
+def test_agent_offering_agent_inconnu_ne_pose_aucune_tentative():
+    """Agent non résolu (pas dans l'annuaire) : pas d'extension connue, donc
+    rien à poser — pas d'exception, juste aucune entrée créée."""
+    domains = [{"pbx_domain": "africallpbx.fusion.cloud228.com", "queue_ids": ["8004"]}]
+    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=MagicMock())
+
+    adapter._on_callcenter_info(_FakeEvent(_offering_headers()))
+
+    assert adapter._pending_agent_rings == {}
+
+
+def _outbound_channel_create_headers(destination, domain="d1"):
+    return {
+        "variable_domain_name": domain,
+        "Event-Name": "CHANNEL_CREATE",
+        "Unique-ID": "ring-attempt-uuid",
+        "Call-Direction": "outbound",
+        "Caller-Destination-Number": destination,
+    }
+
+
+def test_channel_create_outbound_consomme_la_tentative_et_tag_linked_call_uuid():
+    adapter = ESLAdapter(_fake_connector_config([{"pbx_domain": "d1", "queue_ids": ["8004"]}]), ingest_client=MagicMock())
+    adapter._pending_agent_rings["22101001"] = ("member-session-1", time.monotonic())
+    handler = adapter._make_handler(normalizer.normalize_channel_create)
+
+    handler(_FakeEvent(_outbound_channel_create_headers("22101001")))
+
+    payload = adapter.ingest_client.send.call_args[0][0]
+    assert payload["call"]["linked_call_uuid"] == "member-session-1"
+    assert "22101001" not in adapter._pending_agent_rings  # consommée, une seule fois
+
+
+def test_channel_create_inbound_n_est_jamais_tag():
+    """Une tentative en attente ne doit jamais taguer un leg INBOUND — seul
+    le leg outbound que mod_callcenter origine vers l'agent est concerné."""
+    adapter = ESLAdapter(_fake_connector_config([{"pbx_domain": "d1", "queue_ids": ["8004"]}]), ingest_client=MagicMock())
+    adapter._pending_agent_rings["22101001"] = ("member-session-1", time.monotonic())
+    handler = adapter._make_handler(normalizer.normalize_channel_create)
+    headers = _outbound_channel_create_headers("22101001")
+    headers["Call-Direction"] = "inbound"
+
+    handler(_FakeEvent(headers))
+
+    payload = adapter.ingest_client.send.call_args[0][0]
+    assert payload["call"].get("linked_call_uuid") is None
+    assert "22101001" in adapter._pending_agent_rings  # pas consommée
+
+
+def test_channel_create_sans_tentative_en_attente_reste_intact():
+    adapter = ESLAdapter(_fake_connector_config([{"pbx_domain": "d1", "queue_ids": ["8004"]}]), ingest_client=MagicMock())
+    handler = adapter._make_handler(normalizer.normalize_channel_create)
+
+    handler(_FakeEvent(_outbound_channel_create_headers("22101099")))
+
+    payload = adapter.ingest_client.send.call_args[0][0]
+    assert payload["call"].get("linked_call_uuid") is None
+
+
+def test_tentative_expiree_n_est_pas_consommee():
+    adapter = ESLAdapter(_fake_connector_config([{"pbx_domain": "d1", "queue_ids": ["8004"]}]), ingest_client=MagicMock())
+    stale = time.monotonic() - 999
+    adapter._pending_agent_rings["22101001"] = ("member-session-1", stale)
+    handler = adapter._make_handler(normalizer.normalize_channel_create)
+
+    handler(_FakeEvent(_outbound_channel_create_headers("22101001")))
+
+    payload = adapter.ingest_client.send.call_args[0][0]
+    assert payload["call"].get("linked_call_uuid") is None
 
 
 # ── Saisie multi-files en une entrée ("8001, 8002, ...") — pour le filtre

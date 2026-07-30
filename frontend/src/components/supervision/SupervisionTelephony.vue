@@ -50,29 +50,30 @@
       <table class="stl-table" v-if="activeCalls.length">
         <thead>
           <tr>
-            <th>Appel</th>
             <th>Agent</th>
+            <th>Appelant</th>
+            <th>Destination</th>
+            <th>Queue</th>
             <th>Statut</th>
             <th>Durée</th>
           </tr>
         </thead>
-        <tbody>
+        <transition-group name="stl-row" tag="tbody">
           <tr v-for="c in activeCalls" :key="c.call_uuid">
             <td>
-              <div class="stl-call-cell">
-                <span class="stl-call-icon" :class="`stl-status-${c.call_status}`">
-                  <v-icon size="13">mdi-phone-in-talk-outline</v-icon>
-                </span>
+              <div v-if="c.agent_login" class="stl-agent-cell">
+                <span class="stl-avatar">{{ initials(c.agent_name || c.agent_login) }}</span>
                 <div class="stl-call-text">
-                  <div class="stl-call-title stl-mono">{{ c.caller || "—" }} → {{ c.callee || "—" }}</div>
-                  <div v-if="c.queue_id" class="stl-call-sub stl-mono">{{ c.queue_id }}</div>
+                  <div class="stl-call-title">{{ c.agent_name || c.agent_login }}</div>
+                  <div v-if="c.agent_station" class="stl-call-sub stl-mono">Poste {{ c.agent_station }}</div>
                 </div>
               </div>
+              <span v-else class="stl-muted">—</span>
             </td>
+            <td class="stl-mono">{{ c.caller || "—" }}</td>
+            <td class="stl-mono">{{ c.callee || "—" }}</td>
             <td>
-              <div v-if="c.agent_login" class="stl-agent-cell">
-                <span class="stl-avatar">{{ initials(c.agent_name || c.agent_login) }}</span>{{ c.agent_name || c.agent_login }}
-              </div>
+              <span v-if="c.queue_label" class="stl-mono">{{ c.queue_label }}</span>
               <span v-else class="stl-muted">—</span>
             </td>
             <td>
@@ -85,7 +86,7 @@
               <div class="stl-call-sub">mis à jour {{ relativeTime(c.created_at) }}</div>
             </td>
           </tr>
-        </tbody>
+        </transition-group>
       </table>
       <div v-else class="stl-empty-row">Aucun appel en cours.</div>
     </div>
@@ -108,7 +109,8 @@
           prepend-inner-icon="mdi-magnify"
         />
       </div>
-      <div v-if="queues.length" class="stl-queue-list">
+      <div v-if="queues.length">
+        <transition-group name="stl-card" tag="div" class="stl-queue-list">
         <div v-for="q in filteredQueues" :key="q.queue_id" class="stl-queue-card">
           <div class="stl-queue-card__top">
             <div class="stl-queue-card__id-block">
@@ -172,6 +174,7 @@
             </div>
           </details>
         </div>
+        </transition-group>
         <div v-if="!filteredQueues.length" class="stl-empty-row">Aucune file ne correspond au filtre.</div>
       </div>
       <div v-else class="stl-empty-row">Aucune file d'attente active sur la période.</div>
@@ -202,7 +205,13 @@
         </div>
       </div>
 
-      <div v-if="agents.length" class="stl-agents-grid" :class="{ 'stl-agents-grid--list': agentsView === 'list' }">
+      <transition-group
+        v-if="agents.length"
+        name="stl-card"
+        tag="div"
+        class="stl-agents-grid"
+        :class="{ 'stl-agents-grid--list': agentsView === 'list' }"
+      >
         <div v-for="a in agents" :key="a.agent_login" class="stl-agent-card">
           <div class="stl-agent-card__avatar-wrap">
             <span class="stl-agent-card__avatar">{{ initials(a.agent_name || a.agent_login) }}</span>
@@ -224,7 +233,7 @@
             <span class="stl-agent-card__bar-value">{{ a.calls_handled }}</span>
           </div>
         </div>
-      </div>
+      </transition-group>
       <div v-else class="stl-empty-row">
         Aucun agent n'a encore rapporté son état auprès du PBX.
       </div>
@@ -364,6 +373,11 @@ function startPolling() {
     loadSummary();
     loadQueues();
     loadAgents();
+    // Recharge périodiquement l'état complet backend-résolu (agent_name/
+    // agent_station/queue_label) : sans ça, un appel arrivé uniquement via
+    // socket depuis le dernier chargement complet reste bloqué sur ses
+    // valeurs brutes (uuid CC-Agent, id de file nu) indéfiniment.
+    loadActiveCalls();
   }, 30000);
 }
 
@@ -395,6 +409,7 @@ function processIncomingEvents() {
     // les 30s), pour qu'un appel arrivé UNIQUEMENT par socket depuis le
     // dernier chargement complet affiche quand même un nom lisible.
     const agentAlias = agentLogin ? agents.value.find((a) => a.agent_login === agentLogin) : null;
+    const queueId = e.queue_id || existing?.queue_id || null;
     const merged = {
       call_uuid: e.call_uuid,
       call_direction: e.call_direction || existing?.call_direction || null,
@@ -404,7 +419,13 @@ function processIncomingEvents() {
       agent_login: agentLogin,
       agent_name: agentAlias?.agent_name || existing?.agent_name || agentLogin,
       agent_station: agentAlias?.agent_station || existing?.agent_station || null,
-      queue_id: e.queue_id || existing?.queue_id || null,
+      queue_id: queueId,
+      // /active-calls résout "Alias (id)" côté backend (_format_queue_label) ;
+      // un événement brut poussé par le socket ne porte que l'id nu — on
+      // réutilise l'étiquette déjà résolue si connue (chargement complet
+      // précédent), sinon on affiche l'id nu en attendant le prochain
+      // rafraîchissement périodique de loadActiveCalls().
+      queue_label: existing?.queue_label || (queueId ? queueId.split("@")[0] : null),
       linked_call_uuid: e.linked_call_uuid || existing?.linked_call_uuid || null,
       started_at: existing?.started_at || e.created_at || null,
       created_at: e.created_at || existing?.created_at || null,
@@ -507,9 +528,11 @@ onUnmounted(() => {
 .stl-call-sub { font-size: 10.5px; color: #9aa0aa; margin-top: 2px; }
 .stl-status-badge {
   display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700;
-  padding: 3px 9px; border-radius: 999px;
+  padding: 3px 9px; border-radius: 999px; transition: background-color 0.35s ease, color 0.35s ease;
 }
-.stl-status-badge .stl-dot { width: 6px; height: 6px; border-radius: 50%; }
+.stl-status-badge .stl-dot {
+  width: 6px; height: 6px; border-radius: 50%; transition: background-color 0.35s ease;
+}
 .stl-status-ringing { background: rgba(245,158,11,0.14); color: #b45309; }
 .stl-status-ringing .stl-dot { background: #f59e0b; }
 .stl-status-early_media { background: rgba(14,165,233,0.14); color: #0369a1; }
@@ -639,4 +662,34 @@ onUnmounted(() => {
   border-top: 1px solid #e5e7eb; font-size: 11px; color: #6b7280;
 }
 .stl-legend-item { display: flex; align-items: center; gap: 5px; }
+
+/* ── Animations temps réel — arrivée/fin d'appel, réordonnancement,
+   changement de statut (validé en maquette avant implémentation). ── */
+.stl-row-enter-active {
+  transition: opacity 0.32s ease, transform 0.32s ease, background-color 0.9s ease;
+}
+.stl-row-enter-from { opacity: 0; transform: translateY(-6px); }
+.stl-row-enter-to { background-color: rgba(0, 168, 168, 0.14); }
+.stl-row-move { transition: transform 0.32s ease; }
+/* Pas de position:absolute ici : <tr> ignore ce positionnement dans la
+   plupart des moteurs de rendu (mise en page table), contrairement aux
+   cartes en grille/flex ci-dessous — juste un fondu à la sortie. */
+.stl-row-leave-active { transition: opacity 0.28s ease; }
+.stl-row-leave-to { opacity: 0; }
+
+.stl-card-enter-active { transition: opacity 0.32s ease, transform 0.32s ease; }
+.stl-card-enter-from { opacity: 0; transform: translateY(8px); }
+.stl-card-move { transition: transform 0.32s ease; }
+.stl-card-leave-active { transition: opacity 0.24s ease, transform 0.24s ease; position: absolute; }
+.stl-card-leave-to { opacity: 0; transform: scale(0.96); }
+
+@media (prefers-reduced-motion: reduce) {
+  .stl-pulse-dot,
+  .stl-row-enter-active, .stl-row-move, .stl-row-leave-active,
+  .stl-card-enter-active, .stl-card-move, .stl-card-leave-active,
+  .stl-status-badge, .stl-status-badge .stl-dot {
+    animation: none !important;
+    transition: none !important;
+  }
+}
 </style>

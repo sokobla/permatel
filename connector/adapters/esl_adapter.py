@@ -7,6 +7,7 @@ orchestrée par CoreConnector — jamais un process séparé (cf. §4 du plan).
 """
 import logging
 import re
+import time
 
 import gevent
 from gevent.event import Event
@@ -55,6 +56,20 @@ _AGENT_LIST_HEADER_PREFIX = "name|instance_id|uuid|type|contact|status|state"
 # strict sur le motif "user/<extension>@<domaine>".
 _EXTENSION_RE = re.compile(r"user/(\d+)@([\w.-]+)")
 
+# Confirmé sur trafic réel (30/07) : quand mod_callcenter tente de sonner un
+# agent pour un appel de file (événement 'agent-offering'), il crée un
+# CHANNEL_CREATE outbound SÉPARÉ vers l'extension de cet agent (ex.
+# Destination-Number=22101001) — un leg purement interne à la tentative de
+# pont, jamais rattaché par un header CC-* et jamais bridgé si l'agent ne
+# répond pas (Other-Leg-Unique-ID reste vide). Sans corrélation, ce leg
+# apparaît comme un appel fantôme distinct dans /active-calls (confirmé :
+# un appel de file réel produisait 3 lignes au lieu de 2). Fenêtre de
+# validité courte : l'attribution extension -> tentative doit être consommée
+# quasi immédiatement (le CHANNEL_CREATE suit l'agent-offering de quelques
+# millisecondes sur trafic réel) ; expire pour ne jamais retenir une entrée
+# périmée si un événement intermédiaire est perdu.
+_PENDING_AGENT_RING_TTL_SECONDS = 30
+
 
 class ESLAdapter(PBXAdapter):
     def __init__(self, connector_config: dict, ingest_client):
@@ -97,6 +112,12 @@ class ESLAdapter(PBXAdapter):
         # jamais l'extension (voir _on_agent_status_event et consorts).
         self._agent_directory = {}
         self._agent_directory_greenlet = None
+        # extension -> (CC-Member-Session-UUID, horodatage) : posé par
+        # agent-offering, consommé par le prochain CHANNEL_CREATE outbound
+        # vers cette extension (voir _consume_pending_agent_ring) pour tagger
+        # ce leg de tentative comme lié au même appel physique plutôt que de
+        # le laisser apparaître comme un appel fantôme.
+        self._pending_agent_rings = {}
         # Roster faisant autorité côté PERMATEL : `User.agent_login` contient
         # désormais l'UUID FusionPBX de l'agent (CC-Agent / colonne "name" de
         # 'agent list'), PAS l'extension — un agent PBX découvert via
@@ -381,6 +402,24 @@ class ESLAdapter(PBXAdapter):
                 return  # pas de domaine FusionPBX sur ce canal (config PBX incomplète)
             payload = normalize_fn(headers, domain)
             if payload:
+                # Tentative de sonnerie agent pour un appel de file (voir
+                # _on_member_enrichment_event) : ce leg outbound n'est jamais
+                # lié par Other-Leg-Unique-ID s'il n'aboutit pas
+                # (bridge-agent-fail) — sans ce raccroc, il apparaît comme un
+                # appel fantôme distinct dans /active-calls. Ne s'applique
+                # qu'au CHANNEL_CREATE : c'est le seul événement du leg où
+                # cette tentative est encore en attente (posée juste avant),
+                # et une fois taggé, la fusion backend (linked_call_uuid)
+                # n'a plus besoin d'être reposée sur ANSWER/HANGUP_COMPLETE.
+                if (
+                    headers.get("Event-Name") == "CHANNEL_CREATE"
+                    and headers.get("Call-Direction") == "outbound"
+                ):
+                    member_session_uuid = self._consume_pending_agent_ring(
+                        headers.get("Caller-Destination-Number")
+                    )
+                    if member_session_uuid:
+                        payload["call"]["linked_call_uuid"] = member_session_uuid
                 self.ingest_client.send(payload)
 
         return _handler
@@ -518,8 +557,30 @@ class ESLAdapter(PBXAdapter):
         if not self._is_supervised_queue(domain, queue_id):
             return  # queue non supervisée pour ce tenant — pas transmis
 
+        # Poser la tentative AVANT d'envoyer l'enrichissement : mod_callcenter
+        # origine le CHANNEL_CREATE de la tentative de pont quelques
+        # millisecondes après cet événement (confirmé sur trafic réel 30/07),
+        # donc l'ordre importe peu ici, mais autant l'enregistrer dès que
+        # l'extension est connue plutôt que d'attendre l'envoi réseau.
+        extension = entry["extension"] if entry else None
+        if extension:
+            self._pending_agent_rings[extension] = (headers.get("CC-Member-Session-UUID"), time.monotonic())
+
         payload = normalizer.normalize_member_enrichment(headers, domain, agent_login)
         self.ingest_client.send(payload)
+
+    def _consume_pending_agent_ring(self, extension):
+        """Consomme (une seule fois) la tentative de sonnerie en attente pour
+        cette extension, posée par _on_member_enrichment_event — None si
+        aucune tentative en attente ou si elle a expiré (voir
+        _PENDING_AGENT_RING_TTL_SECONDS)."""
+        entry = self._pending_agent_rings.pop(extension, None)
+        if not entry:
+            return None
+        member_session_uuid, posed_at = entry
+        if time.monotonic() - posed_at > _PENDING_AGENT_RING_TTL_SECONDS:
+            return None
+        return member_session_uuid
 
     def _on_bridge_recording_event(self, headers):
         """'bridge-agent-start' — même contexte que 'agent-offering' (pas de

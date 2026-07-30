@@ -406,6 +406,31 @@ class TestActiveCalls:
         assert call["agent_name"] == "Awa Diop"
         assert call["agent_station"] == "22101001"
 
+    def test_active_calls_habille_la_file_avec_son_alias(
+        self, client, db, auth_headers, pbx_connector, default_tenant,
+    ):
+        domain = PbxConnectorDomain(
+            pbx_connector_id=pbx_connector.id, pbx_domain="africallpbx.fusion.cloud228.com",
+            queue_ids=[{"id": "8004", "alias": "Centre d'appels"}],
+        )
+        db.session.add(domain)
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, pbx_connector_id=pbx_connector.id,
+            event_type="CHANNEL_ANSWER", call_status="answered", call_uuid="call-file-aliasee",
+            queue_id="8004@africallpbx.fusion.cloud228.com", created_at=datetime.utcnow(),
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, pbx_connector_id=pbx_connector.id,
+            event_type="CHANNEL_ANSWER", call_status="answered", call_uuid="call-file-sans-alias",
+            queue_id="9001@africallpbx.fusion.cloud228.com", created_at=datetime.utcnow(),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/active-calls", headers=auth_headers)
+        calls = {c["call_uuid"]: c for c in resp.get_json()["active_calls"]}
+        assert calls["call-file-aliasee"]["queue_label"] == "Centre d'appels (8004)"
+        assert calls["call-file-sans-alias"]["queue_label"] == "9001"
+
     def test_active_calls_agent_login_non_declare_retombe_sur_l_uuid_brut(
         self, client, db, auth_headers, pbx_domain, default_tenant,
     ):

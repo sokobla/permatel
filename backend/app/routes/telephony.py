@@ -58,6 +58,17 @@ ACTIVE_CALL_STALE_AFTER = timedelta(minutes=30)
 logger = logging.getLogger(__name__)
 
 
+def _iso_utc(dt) -> str | None:
+    """Toutes les colonnes datetime de ce module sont naïves-UTC
+    (`datetime.utcnow()`) — `.isoformat()` seul ne porte donc AUCUN
+    désignateur de fuseau. Confirmé en prod (30/07) : un navigateur (ou tout
+    parseur JS/ISO strict) interprète alors une chaîne date-heure SANS
+    désignateur comme heure LOCALE, pas UTC — un décalage de +1h (fuseau
+    UTC+1) apparaissait systématiquement sur toutes les durées calculées côté
+    Supervision temps réel. Le 'Z' explicite lève l'ambiguïté."""
+    return f"{dt.isoformat()}Z" if dt else None
+
+
 def _get_client_ip() -> str:
     """Dupliqué depuis app/routes/auth.py (petite fonction, pas de module
     utilitaire commun pour l'instant) — support reverse proxy (X-Forwarded-For)."""
@@ -739,6 +750,7 @@ def active_calls():
             merged.pop(call_uuid, None)
 
     alias_lookup = _agent_alias_lookup(g.tenant_id)
+    queue_alias_lookup = _queue_alias_lookup(g.tenant_id)
     active = []
     for m in merged.values():
         alias = alias_lookup.get(m["agent_login"]) if m["agent_login"] else None
@@ -746,8 +758,9 @@ def active_calls():
             **m,
             "agent_name": alias["name"] if alias else m["agent_login"],
             "agent_station": alias["station"] if alias else None,
-            "started_at": m["started_at"].isoformat() if m["started_at"] else None,
-            "created_at": m["created_at"].isoformat() if m["created_at"] else None,
+            "queue_label": _format_queue_label(m["queue_id"], queue_alias_lookup),
+            "started_at": _iso_utc(m["started_at"]),
+            "created_at": _iso_utc(m["created_at"]),
         })
     return jsonify({"active_calls": active, "total": len(active)}), 200
 
@@ -789,7 +802,7 @@ def kpis_summary():
     decroche_rate = round(answered_calls / total_calls * 100, 1) if total_calls else 0
 
     return jsonify({
-        "period": {"from": dt_from.isoformat(), "to": dt_to.isoformat()},
+        "period": {"from": _iso_utc(dt_from), "to": _iso_utc(dt_to)},
         "total_calls": total_calls,
         "answered_calls": answered_calls,
         "decroche_rate_pct": decroche_rate,
@@ -821,6 +834,20 @@ def _queue_alias_lookup(tenant_id) -> dict:
             if queue_id:
                 lookup[f"{queue_id}@{d.pbx_domain}"] = alias or queue_id
     return lookup
+
+
+def _format_queue_label(queue_id, alias_lookup) -> str | None:
+    """"{alias} ({id nu})" pour l'affichage humain (monitoring temps réel) —
+    None si l'appel n'est rattaché à aucune file. Retombe sur l'id nu seul
+    si aucun alias n'est configuré pour cette file (jamais de doublon du
+    type "8004 (8004)")."""
+    if not queue_id:
+        return None
+    bare_id = queue_id.split("@", 1)[0]
+    alias = alias_lookup.get(queue_id)
+    if alias and alias != queue_id:
+        return f"{alias} ({bare_id})"
+    return bare_id
 
 
 def _agent_alias_lookup(tenant_id) -> dict:
@@ -901,7 +928,7 @@ def kpis_queues():
     result.sort(key=lambda q: q["total_calls"], reverse=True)
 
     return jsonify({
-        "period": {"from": dt_from.isoformat(), "to": dt_to.isoformat()},
+        "period": {"from": _iso_utc(dt_from), "to": _iso_utc(dt_to)},
         "queues": result,
     }), 200
 
@@ -945,7 +972,7 @@ def kpis_agents():
         for login, b in per_agent.items()
     ]
     return jsonify({
-        "period": {"from": dt_from.isoformat(), "to": dt_to.isoformat()},
+        "period": {"from": _iso_utc(dt_from), "to": _iso_utc(dt_to)},
         "agents": result,
     }), 200
 
@@ -1043,7 +1070,7 @@ def agents_status():
                 "agent_station": alias_lookup.get(e.agent_login, {}).get("station"),
                 "presence": _normalize_agent_presence(e.agent_status),
                 "raw_status": e.agent_status,
-                "last_seen_at": e.created_at.isoformat() if e.created_at else None,
+                "last_seen_at": _iso_utc(e.created_at),
                 "calls_handled": calls_handled.get(e.agent_login, 0),
             }
             for e in latest_events
@@ -1052,7 +1079,7 @@ def agents_status():
     )
 
     return jsonify({
-        "period": {"from": dt_from.isoformat(), "to": dt_to.isoformat()},
+        "period": {"from": _iso_utc(dt_from), "to": _iso_utc(dt_to)},
         "agents": agents,
     }), 200
 
@@ -1160,8 +1187,8 @@ def _query_calls_history(filters, *, recordings_only=False):
             "queue_id": queue_id,
             "call_status": terminal.call_status,
             "duration": terminal.duration,
-            "started_at": first.created_at.isoformat() if first.created_at else None,
-            "ended_at": terminal.created_at.isoformat() if terminal.created_at else None,
+            "started_at": _iso_utc(first.created_at),
+            "ended_at": _iso_utc(terminal.created_at),
             "recording_url": recording_url,
             "recording_available": bool(recording_url) and urlparse(recording_url).scheme in ("http", "https"),
             "_linked_call_uuid": linked_call_uuid,

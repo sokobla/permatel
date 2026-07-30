@@ -78,7 +78,13 @@ class TelephonyEvent(Base):
             "linked_call_uuid": self.linked_call_uuid,
             "recording_url": self.recording_url,
             "demande_id": self.demande_id,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            # Naïf-UTC (datetime.utcnow()) — 'Z' explicite obligatoire, sinon
+            # un parseur JS/ISO strict lit une chaîne date-heure sans
+            # désignateur de fuseau comme heure LOCALE, pas UTC (confirmé en
+            # prod 30/07 : décalage systématique de +1h sur les durées
+            # calculées côté Supervision temps réel à partir de cet événement
+            # poussé par WebSocket).
+            "created_at": f"{self.created_at.isoformat()}Z" if self.created_at else None,
         }
 
     def __repr__(self):
