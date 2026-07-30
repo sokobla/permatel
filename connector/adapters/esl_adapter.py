@@ -360,12 +360,15 @@ class ESLAdapter(PBXAdapter):
             logger.info(
                 "[%s] %s -> Unique-ID=%s Other-Leg-Unique-ID=%s Call-Direction=%s "
                 "Caller-Caller-ID-Number=%s Caller-Destination-Number=%s "
-                "variable_dnis=%s variable_ani=%s variable_sip_to_user=%s",
+                "variable_dnis=%s variable_ani=%s variable_sip_to_user=%s "
+                "Hangup-Cause=%s variable_billsec=%s variable_record_file_path=%s",
                 self.connector_config["name"], headers.get("Event-Name"),
                 headers.get("Unique-ID"), headers.get("Other-Leg-Unique-ID"),
                 headers.get("Call-Direction"), headers.get("Caller-Caller-ID-Number"),
                 headers.get("Caller-Destination-Number"), headers.get("variable_dnis"),
                 headers.get("variable_ani"), headers.get("variable_sip_to_user"),
+                headers.get("Hangup-Cause"), headers.get("variable_billsec"),
+                headers.get("variable_record_file_path"),
             )
             domain = self._resolve_domain(headers)
             if not domain:
