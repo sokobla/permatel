@@ -479,8 +479,8 @@
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.1em;
-  padding: 3px 8px;
-  border-radius: 2px;
+  padding: 3px 9px;
+  border-radius: 999px;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -488,14 +488,12 @@
 
 .status-badge--active {
   color: #00838f;
-  background: rgba(0, 168, 168, 0.08);
-  border: 1px solid rgba(0, 168, 168, 0.2);
+  background: rgba(0, 168, 168, 0.1);
 }
 
 .status-badge--inactive {
   color: #888;
-  background: rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .status-badge__dot {
@@ -513,16 +511,14 @@
 }
 .status-badge--suspended {
   color: #c0392b;
-  background: rgba(231, 76, 60, 0.07);
-  border: 1px solid rgba(231, 76, 60, 0.2);
+  background: rgba(231, 76, 60, 0.1);
 }
 .status-badge--suspended .status-badge__dot {
   background: #e74c3c;
 }
 .status-badge--pending {
   color: #b37400;
-  background: rgba(245, 184, 0, 0.08);
-  border: 1px solid rgba(245, 184, 0, 0.25);
+  background: rgba(245, 184, 0, 0.12);
 }
 .status-badge--pending .status-badge__dot {
   background: #f5a623;
@@ -780,32 +776,30 @@
 .act-btn {
   width: 26px;
   height: 26px;
-  border-radius: 3px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  border: none;
   background: transparent;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.12s, border-color 0.12s;
+  transition: background 0.12s, color 0.12s;
 }
 
 .act-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .act-btn--edit:hover {
-  border-color: #00a8a8;
   color: #00a8a8;
 }
 
 .act-btn--delete:hover {
-  border-color: #e74c3c;
   background: rgba(231, 76, 60, 0.06);
   color: #e74c3c;
 }
 .act-btn--key:hover {
-  border-color: #f39c12;
+  color: #f39c12;
 }
 
 .act-btn--anomalie {
@@ -886,9 +880,9 @@
 }
 
 .user-cell__avatar {
-  width: 36px;
+  width: 26px;
   height: 26px;
-  border-radius: 3px;
+  border-radius: 8px;
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
@@ -931,6 +925,30 @@
 .cell-email {
   font-size: 11px;
   color: #666;
+}
+
+/* Ligne d'enrichissement sous le nom (tel/email/adresse — toujours précédés
+   d'une icône, jamais d'un libellé texte ; le tel précède toujours l'email
+   quand les deux sont présents) */
+.user-cell__meta {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-top: 1px;
+}
+.user-cell__meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: #9aa0aa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-cell__meta-item .v-icon {
+  opacity: 0.75;
 }
 
 .form-feedback {
@@ -1064,6 +1082,136 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
+/* ─── Ligne d'en-tête de groupe (Sites/Agents groupés par client/prestataire) ─── */
+.cb-group-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 3px;
+  font-family: var(--ff-sans);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.cb-group-btn:hover {
+  border-color: var(--dn-teal, #00a8a8);
+  color: var(--dn-teal, #00a8a8);
+}
+.cb-group-btn--active {
+  border-color: var(--dn-teal, #00a8a8);
+  color: var(--dn-teal, #00a8a8);
+  background: rgba(0, 168, 168, 0.06);
+}
+
+.group-row {
+  cursor: pointer;
+}
+.group-row:hover .group-row__cell {
+  background: rgba(0, 168, 168, 0.04);
+}
+.group-row__cell {
+  padding: 8px 10px;
+  background: rgba(0, 11, 35, 0.02);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  transition: background 0.12s;
+}
+.group-row__inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.group-row__chevron {
+  color: #bbb;
+  transition: transform 0.18s;
+  flex-shrink: 0;
+}
+.group-row__chevron--open {
+  transform: rotate(90deg);
+}
+.group-row__swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--ff-mono);
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+}
+.group-row__name {
+  font-family: var(--ff-sans);
+  font-size: 12px;
+  font-weight: 700;
+  color: #000b23;
+}
+.group-row__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.07);
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: #555;
+}
+.group-row__spacer {
+  flex: 1;
+}
+.group-row__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--ff-sans);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--dn-teal, #00a8a8);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 8px;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+.group-row__link:hover {
+  background: rgba(0, 168, 168, 0.08);
+}
+
+/* ─── Chips (colonne LIENS de ContactsView) ─────────────────────────────── */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--ff-sans);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #555;
+  background: rgba(0, 0, 0, 0.045);
+  border-radius: 6px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+
 .panel-body::-webkit-scrollbar,
 .ops-sidebar::-webkit-scrollbar,
 .table-wrapper :deep(*)::-webkit-scrollbar {

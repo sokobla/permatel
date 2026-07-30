@@ -57,6 +57,14 @@
             </select>
           </div>
           <div class="cb-spacer"></div>
+          <button
+            class="cb-group-btn"
+            :class="{ 'cb-group-btn--active': groupEnabled }"
+            @click="groupEnabled = !groupEnabled"
+          >
+            <v-icon size="13">mdi-format-list-group</v-icon>
+            GROUPER
+          </button>
           <div class="cb-meta">
             <span class="cb-meta__count">{{ loading ? "—" : totalSites }}</span>
             <span class="cb-meta__label"> SITES</span>
@@ -84,171 +92,235 @@
           <div v-if="loading" class="table-loader">
             <div class="table-loader__bar"></div>
           </div>
-          <v-data-table-server
-            v-model:page="page"
-            v-model:items-per-page="itemsPerPage"
-            :headers="headers"
-            :items="sites"
-            :items-length="totalSites"
-            :loading="loading"
-            density="compact"
-            class="users-table"
-            item-value="id"
-            hide-default-footer
-            @update:options="onTableOptions"
-          >
-            <template #[`item.nom`]="{ item }">
-              <div class="user-cell">
-                <div class="user-cell__avatar">
-                  <img
-                    v-if="item.logo_url"
-                    :src="getLogoFullUrl(item.logo_url)"
-                    alt="logo"
-                    class="user-cell__avatar-img"
-                  />
-                  <div
-                    v-else
-                    class="user-cell__avatar-initials"
-                    :style="{ background: avatarColor(item.nom) }"
+          <div class="users-table">
+            <div class="v-table__wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width: 28%">NOM DU SITE</th>
+                    <th>ADRESSE</th>
+                    <th>VILLE</th>
+                    <th style="width: 120px">CODE POSTAL</th>
+                    <th>TÉLÉPHONE</th>
+                    <th style="text-align: center">EFFECTIF</th>
+                    <th style="text-align: center">STATUT</th>
+                    <th style="text-align: center; width: 100px">ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template v-if="groupEnabled">
+                    <template v-for="group in groupedSites" :key="group.key">
+                      <tr class="group-row" @click="toggleGroup(group.key)">
+                        <td colspan="8" class="group-row__cell">
+                          <div class="group-row__inner">
+                            <v-icon
+                              size="12"
+                              :class="[
+                                'group-row__chevron',
+                                openGroups.has(group.key)
+                                  ? 'group-row__chevron--open'
+                                  : '',
+                              ]"
+                              >mdi-chevron-right</v-icon
+                            >
+                            <span
+                              class="group-row__swatch"
+                              :style="{ background: group.color }"
+                              >{{ getInitials(group.name) }}</span
+                            >
+                            <span class="group-row__name">{{ group.name }}</span>
+                            <span class="group-row__count">{{
+                              group.items.length
+                            }}</span>
+                            <span class="group-row__spacer"></span>
+                            <button
+                              class="group-row__link"
+                              @click.stop="goToClientFiche(group)"
+                            >
+                              Voir la fiche client
+                              <v-icon size="11">mdi-arrow-right</v-icon>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      <template v-if="openGroups.has(group.key)">
+                        <tr v-for="item in group.items" :key="item.id">
+                          <td>
+                            <div class="user-cell">
+                              <div class="user-cell__avatar">
+                                <img
+                                  v-if="item.logo_url"
+                                  :src="getLogoFullUrl(item.logo_url)"
+                                  alt="logo"
+                                  class="user-cell__avatar-img"
+                                />
+                                <div
+                                  v-else
+                                  class="user-cell__avatar-initials"
+                                  :style="{ background: avatarColor(item.nom) }"
+                                >
+                                  {{ getInitials(item.nom) }}
+                                </div>
+                              </div>
+                              <div class="user-cell__info">
+                                <span class="user-cell__handle">{{
+                                  item.nom
+                                }}</span>
+                                <span class="mono-text cell-email">{{
+                                  item.code_site
+                                }}</span>
+                                <div v-if="item.client?.nom" class="user-cell__meta">
+                                  <span class="user-cell__meta-item">{{
+                                    item.client.nom
+                                  }}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td>{{ item.adresse }}</td>
+                          <td>{{ item.ville || "—" }}</td>
+                          <td class="mono-text">{{ item.code_postal || "—" }}</td>
+                          <td>{{ item.telephone }}</td>
+                          <td style="text-align: center">{{ item.effectif_requis }}</td>
+                          <td style="text-align: center">
+                            <span
+                              :class="[
+                                'status-badge',
+                                item.is_active
+                                  ? 'status-badge--active'
+                                  : 'status-badge--inactive',
+                              ]"
+                            >
+                              <span class="status-badge__dot"></span>
+                              {{ item.is_active ? "ACTIF" : "INACTIF" }}
+                            </span>
+                          </td>
+                          <td style="text-align: center">
+                            <div class="actions-cell">
+                              <button
+                                class="act-btn act-btn--edit"
+                                title="Modifier"
+                                @click="openEditPanel(item)"
+                              >
+                                <v-icon size="13">mdi-pencil-outline</v-icon>
+                              </button>
+                              <button
+                                class="act-btn"
+                                title="Gérer les contacts"
+                                @click="manageContacts(item)"
+                              >
+                                <v-icon size="13">mdi-account-group</v-icon>
+                              </button>
+                              <button
+                                class="act-btn act-btn--delete"
+                                title="Désactiver"
+                                @click="confirmDelete(item)"
+                              >
+                                <v-icon size="13">mdi-delete-outline</v-icon>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      </template>
+                    </template>
+                  </template>
+
+                  <template v-else>
+                    <tr v-for="item in sites" :key="item.id">
+                      <td>
+                        <div class="user-cell">
+                          <div class="user-cell__avatar">
+                            <img
+                              v-if="item.logo_url"
+                              :src="getLogoFullUrl(item.logo_url)"
+                              alt="logo"
+                              class="user-cell__avatar-img"
+                            />
+                            <div
+                              v-else
+                              class="user-cell__avatar-initials"
+                              :style="{ background: avatarColor(item.nom) }"
+                            >
+                              {{ getInitials(item.nom) }}
+                            </div>
+                          </div>
+                          <div class="user-cell__info">
+                            <span class="user-cell__handle">{{ item.nom }}</span>
+                            <span class="mono-text cell-email">{{
+                              item.code_site
+                            }}</span>
+                            <div v-if="item.client?.nom" class="user-cell__meta">
+                              <span class="user-cell__meta-item">{{
+                                item.client.nom
+                              }}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>{{ item.adresse }}</td>
+                      <td>{{ item.ville || "—" }}</td>
+                      <td class="mono-text">{{ item.code_postal || "—" }}</td>
+                      <td>{{ item.telephone }}</td>
+                      <td style="text-align: center">{{ item.effectif_requis }}</td>
+                      <td style="text-align: center">
+                        <span
+                          :class="[
+                            'status-badge',
+                            item.is_active
+                              ? 'status-badge--active'
+                              : 'status-badge--inactive',
+                          ]"
+                        >
+                          <span class="status-badge__dot"></span>
+                          {{ item.is_active ? "ACTIF" : "INACTIF" }}
+                        </span>
+                      </td>
+                      <td style="text-align: center">
+                        <div class="actions-cell">
+                          <button
+                            class="act-btn act-btn--edit"
+                            title="Modifier"
+                            @click="openEditPanel(item)"
+                          >
+                            <v-icon size="13">mdi-pencil-outline</v-icon>
+                          </button>
+                          <button
+                            class="act-btn"
+                            title="Gérer les contacts"
+                            @click="manageContacts(item)"
+                          >
+                            <v-icon size="13">mdi-account-group</v-icon>
+                          </button>
+                          <button
+                            class="act-btn act-btn--delete"
+                            title="Désactiver"
+                            @click="confirmDelete(item)"
+                          >
+                            <v-icon size="13">mdi-delete-outline</v-icon>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+
+                  <tr
+                    v-if="
+                      !loading &&
+                      (groupEnabled ? groupedSites : sites).length === 0
+                    "
                   >
-                    {{ getInitials(item.nom) }}
-                  </div>
-                </div>
-                <div class="user-cell__info">
-                  <span class="user-cell__handle">{{ item.nom }}</span>
-                  <span class="mono-text cell-email">{{ item.code_site }}</span>
-                  <div v-if="item.client?.nom" class="user-cell__meta">
-                    <span class="user-cell__meta-item">{{ item.client.nom }}</span>
-                  </div>
-                </div>
-              </div>
-            </template>
-
-            <template #[`item.adresse`]="{ item }">
-              <span>{{ item.adresse }}</span>
-            </template>
-
-            <template #[`item.ville`]="{ item }">
-              <span>{{ item.ville || "—" }}</span>
-            </template>
-
-            <template #[`item.code_postal`]="{ item }">
-              <span class="mono-text">{{ item.code_postal || "—" }}</span>
-            </template>
-
-            <template #[`item.is_active`]="{ item }">
-              <span
-                :class="[
-                  'status-badge',
-                  item.is_active
-                    ? 'status-badge--active'
-                    : 'status-badge--inactive',
-                ]"
-              >
-                <span class="status-badge__dot"></span>
-                {{ item.is_active ? "ACTIF" : "INACTIF" }}
-              </span>
-            </template>
-
-            <template #[`item.actions`]="{ item }">
-              <div class="actions-cell">
-                <button
-                  class="act-btn act-btn--edit"
-                  title="Modifier"
-                  @click="openEditPanel(item)"
-                >
-                  <v-icon size="13">mdi-pencil-outline</v-icon>
-                </button>
-                <button
-                  class="act-btn"
-                  title="Gérer les contacts"
-                  @click="manageContacts(item)"
-                >
-                  <v-icon size="13">mdi-account-group</v-icon>
-                </button>
-                <button
-                  class="act-btn act-btn--delete"
-                  title="Désactiver"
-                  @click="confirmDelete(item)"
-                >
-                  <v-icon size="13">mdi-delete-outline</v-icon>
-                </button>
-              </div>
-            </template>
-
-            <template v-slot:no-data>
-              <div class="table-empty">
-                <v-icon size="36" color="#ddd">mdi-domain-off</v-icon>
-                <p class="table-empty__text">AUCUN SITE TROUVÉ</p>
-                <p class="table-empty__sub">
-                  Modifiez les filtres ou créez un nouveau site
-                </p>
-              </div>
-            </template>
-          </v-data-table-server>
-
-          <!-- Pagination -->
-          <div class="table-pagination">
-            <span class="pag-info">
-              PAGE&nbsp;<span class="mono-text">{{ page }}</span
-              >&nbsp;/&nbsp;<span class="mono-text">{{ totalPages }}</span
-              >&nbsp;—&nbsp;<span class="mono-text">{{ totalSites }}</span
-              >&nbsp;ENTRÉE(S)
-            </span>
-
-            <div class="pag-controls">
-              <button
-                class="pag-btn"
-                :disabled="page <= 1"
-                @click="goToPage(1)"
-                title="Première page"
-              >
-                <v-icon size="13">mdi-page-first</v-icon>
-              </button>
-              <button
-                class="pag-btn"
-                :disabled="page <= 1"
-                @click="goToPage(page - 1)"
-              >
-                <v-icon size="13">mdi-chevron-left</v-icon>
-              </button>
-              <button
-                v-for="p in visiblePages"
-                :key="p"
-                :class="['pag-btn', { 'pag-btn--active': p === page }]"
-                @click="goToPage(p)"
-              >
-                {{ p }}
-              </button>
-              <button
-                class="pag-btn"
-                :disabled="page >= totalPages"
-                @click="goToPage(page + 1)"
-              >
-                <v-icon size="13">mdi-chevron-right</v-icon>
-              </button>
-              <button
-                class="pag-btn"
-                :disabled="page >= totalPages"
-                @click="goToPage(totalPages)"
-                title="Dernière page"
-              >
-                <v-icon size="13">mdi-page-last</v-icon>
-              </button>
-            </div>
-
-            <div class="pag-perpage">
-              <label class="pag-perpage__label">PAR PAGE</label>
-              <select
-                v-model="itemsPerPage"
-                class="pag-perpage__select"
-                @change="goToPage(1)"
-              >
-                <option :value="10">10</option>
-                <option :value="25">25</option>
-                <option :value="50">50</option>
-                <option :value="100">100</option>
-              </select>
+                    <td colspan="8">
+                      <div class="table-empty">
+                        <v-icon size="36" color="#ddd">mdi-domain-off</v-icon>
+                        <p class="table-empty__text">AUCUN SITE TROUVÉ</p>
+                        <p class="table-empty__sub">
+                          Modifiez les filtres ou créez un nouveau site
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -553,10 +625,8 @@ const {
   clientFilter,
   itemsPerPage,
   page,
-  totalPages,
   loadSites,
   onSearchInput,
-  onTableOptions,
   createSite,
   updateSite,
   deleteSite,
@@ -565,6 +635,44 @@ const {
 
 const route = useRoute();
 const router = useRouter();
+
+// Groupement par client : la liste complète est toujours chargée (pas de
+// pagination serveur), le toggle ne fait que changer le mode d'affichage.
+const groupEnabled = ref(true);
+const openGroups = ref(new Set());
+
+function toggleGroup(key) {
+  const s = new Set(openGroups.value);
+  s.has(key) ? s.delete(key) : s.add(key);
+  openGroups.value = s;
+}
+
+const groupedSites = computed(() => {
+  const map = {};
+  for (const site of sites.value) {
+    const key = site.client_id ?? "none";
+    if (!map[key]) {
+      const name = site.client?.nom ?? "Sans client";
+      map[key] = { key, name, color: avatarColor(name), items: [] };
+    }
+    map[key].items.push(site);
+  }
+  return Object.values(map);
+});
+
+watch(
+  groupedSites,
+  (groups) => {
+    const s = new Set(openGroups.value);
+    groups.forEach((g) => s.add(g.key));
+    openGroups.value = s;
+  },
+  { immediate: true },
+);
+
+function goToClientFiche(group) {
+  router.push({ path: "/clients", query: { search: group.name } });
+}
 
 const panelOpen = ref(false);
 const panelMode = ref("create");
@@ -603,28 +711,6 @@ const dragging = ref(false);
 const clients = ref([]);
 const contactOptionsGrouped = ref({});
 const contactsLoading = ref(false);
-
-const headers = [
-  { title: "NOM DU SITE", key: "nom", sortable: true, width: "28%" },
-  { title: "ADRESSE", key: "adresse", sortable: true },
-  { title: "VILLE", key: "ville", sortable: true },
-  { title: "CODE POSTAL", key: "code_postal", sortable: true, width: "120px" },
-  { title: "TÉLÉPHONE", key: "telephone", sortable: false },
-  {
-    title: "EFFECTIF",
-    key: "effectif_requis",
-    sortable: true,
-    align: "center",
-  },
-  { title: "STATUT", key: "is_active", sortable: true, align: "center" },
-  {
-    title: "ACTIONS",
-    key: "actions",
-    sortable: false,
-    align: "center",
-    width: "100px",
-  },
-];
 
 const panelTitle = computed(() =>
   panelMode.value === "edit" ? "MODIFIER LE SITE" : "NOUVEAU SITE",
@@ -672,22 +758,6 @@ function resetForm() {
   logoRemoved.value = false;
   resetSubmissionState();
 }
-
-const visiblePages = computed(() => {
-  const total = totalPages.value || 1;
-  const current = page.value || 1;
-  const max = 5;
-  let start = Math.max(1, current - Math.floor(max / 2));
-  let end = Math.min(total, start + max - 1);
-  start = Math.max(1, end - max + 1);
-  const res = [];
-  for (let i = start; i <= end; i++) res.push(i);
-  return res;
-});
-
-const goToPage = (p) => {
-  page.value = p;
-};
 
 const openCreatePanel = () => {
   resetForm();
@@ -843,9 +913,13 @@ onMounted(() => {
   if (route.query.client_id) clientFilter.value = route.query.client_id;
   if (route.query.status) statusFilter.value = route.query.status;
   if (route.query.search) searchQuery.value = route.query.search;
-  if (route.query.page) page.value = parseInt(route.query.page, 10);
-  if (route.query.per_page)
-    itemsPerPage.value = parseInt(route.query.per_page, 10);
+
+  // Plus de pagination serveur côté table : on charge toujours la liste
+  // complète (regroupée ou non, c'est le même jeu de données déjà en
+  // mémoire), en reprenant la convention "bulk" déjà utilisée ailleurs
+  // dans ce fichier (per_page: 1000).
+  page.value = 1;
+  itemsPerPage.value = 1000;
 
   loadSites();
   fetchRelatedData();
@@ -853,14 +927,12 @@ onMounted(() => {
 
 // Mise à jour dynamique de l'URL lorsque l'utilisateur modifie un filtre
 watch(
-  [clientFilter, statusFilter, searchQuery, page, itemsPerPage],
-  ([newClient, newStatus, newSearch, newPage, newPerPage]) => {
+  [clientFilter, statusFilter, searchQuery],
+  ([newClient, newStatus, newSearch]) => {
     const query = {};
     if (newClient) query.client_id = newClient;
     if (newStatus) query.status = newStatus;
     if (newSearch) query.search = newSearch;
-    if (newPage > 1) query.page = newPage;
-    if (newPerPage !== 10) query.per_page = newPerPage;
 
     router.replace({ query }).catch(() => {});
   },

@@ -57,6 +57,14 @@
             </select>
           </div>
           <div class="cb-spacer"></div>
+          <button
+            class="cb-group-btn"
+            :class="{ 'cb-group-btn--active': groupEnabled }"
+            @click="groupEnabled = !groupEnabled"
+          >
+            <v-icon size="13">mdi-format-list-group</v-icon>
+            GROUPER
+          </button>
           <div class="cb-meta">
             <span class="cb-meta__count">{{
               loading ? "—" : totalAgents
@@ -77,181 +85,268 @@
           <div v-if="loading" class="table-loader">
             <div class="table-loader__bar"></div>
           </div>
-          <v-data-table-server
-            :headers="headers"
-            :items="agents"
-            :items-length="totalAgents"
-            :loading="loading"
-            v-model:page="page"
-            v-model:items-per-page="itemsPerPage"
-            density="compact"
-            class="users-table"
-            item-value="id"
-            hide-default-footer
-            @update:options="onTableOptions"
-          >
-            <template #[`item.nom`]="{ item }">
-              <div class="user-cell">
-                <div class="user-cell__avatar">
-                  <img
-                    v-if="item.avatar_url"
-                    :src="getAvatarFullUrl(item.avatar_url)"
-                    alt="avatar"
-                    class="user-cell__avatar-img"
-                  />
-                  <div
-                    v-else
-                    class="user-cell__avatar-initials"
-                    :style="{ background: avatarColor(item.nom) }"
+          <div class="users-table">
+            <div class="v-table__wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width: 34%">AGENT</th>
+                    <th>TYPE</th>
+                    <th style="text-align: center">MOTORISÉ</th>
+                    <th style="text-align: center">ORIGINE</th>
+                    <th style="text-align: center">STATUT</th>
+                    <th style="text-align: center">ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template v-if="groupEnabled">
+                    <template v-for="group in groupedAgents" :key="group.key">
+                      <tr class="group-row" @click="toggleGroup(group.key)">
+                        <td colspan="6" class="group-row__cell">
+                          <div class="group-row__inner">
+                            <v-icon
+                              size="12"
+                              :class="[
+                                'group-row__chevron',
+                                openGroups.has(group.key)
+                                  ? 'group-row__chevron--open'
+                                  : '',
+                              ]"
+                              >mdi-chevron-right</v-icon
+                            >
+                            <span
+                              class="group-row__swatch"
+                              :style="{ background: group.color }"
+                              >{{ getInitials(group.name) }}</span
+                            >
+                            <span class="group-row__name">{{ group.name }}</span>
+                            <span class="group-row__count">{{
+                              group.items.length
+                            }}</span>
+                            <span class="group-row__spacer"></span>
+                            <button
+                              v-if="group.key !== 'none'"
+                              class="group-row__link"
+                              @click.stop="goToPrestataireFiche(group)"
+                            >
+                              Voir la fiche prestataire
+                              <v-icon size="11">mdi-arrow-right</v-icon>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      <template v-if="openGroups.has(group.key)">
+                        <tr v-for="item in group.items" :key="item.id">
+                          <td>
+                            <div class="user-cell">
+                              <div class="user-cell__avatar">
+                                <img
+                                  v-if="item.avatar_url"
+                                  :src="getAvatarFullUrl(item.avatar_url)"
+                                  alt="avatar"
+                                  class="user-cell__avatar-img"
+                                />
+                                <div
+                                  v-else
+                                  class="user-cell__avatar-initials"
+                                  :style="{ background: avatarColor(item.nom) }"
+                                >
+                                  {{ getInitials(item.nom) }}
+                                </div>
+                              </div>
+                              <div class="user-cell__info">
+                                <span
+                                  class="user-cell__handle"
+                                  style="font-family: &quot;Fira Sans, sans-serif&quot;"
+                                  >{{ item.nom }} {{ item.prenom }}</span
+                                >
+                                <div
+                                  v-if="item.telephone || item.email || item.ville"
+                                  class="user-cell__meta"
+                                >
+                                  <span v-if="item.telephone" class="user-cell__meta-item">
+                                    <v-icon size="10">mdi-phone-outline</v-icon>{{ item.telephone }}
+                                  </span>
+                                  <span v-if="item.email" class="user-cell__meta-item">
+                                    <v-icon size="10">mdi-email-outline</v-icon>{{ item.email }}
+                                  </span>
+                                  <span v-if="item.ville" class="user-cell__meta-item">
+                                    <v-icon size="10">mdi-map-marker-outline</v-icon>{{ [item.code_postal, item.ville].filter(Boolean).join(' ') }}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <span class="role-badge">{{
+                              item.type_agent || item.qualification || "—"
+                            }}</span>
+                          </td>
+                          <td style="text-align: center">
+                            <span
+                              v-if="
+                                item.motorise === true ||
+                                item.motorise === 'true' ||
+                                item.motorise === 1
+                              "
+                              ><v-icon icon="mdi-car-side" color="green"></v-icon
+                            ></span>
+                            <span v-else class="tenant-badge"></span>
+                          </td>
+                          <td style="text-align: center">
+                            <span v-if="item.prestataire_id !== ''" class="role-badge">{{
+                              item.prestataire_nom
+                            }}</span>
+                            <span v-else class="tenant-badge">INTERNE</span>
+                          </td>
+                          <td style="text-align: center">
+                            <span
+                              :class="[
+                                'status-badge',
+                                item.is_active
+                                  ? 'status-badge--active'
+                                  : 'status-badge--inactive',
+                              ]"
+                            >
+                              <span class="status-badge__dot"></span>
+                              {{ item.is_active ? "ACTIF" : "INACTIF" }}
+                            </span>
+                          </td>
+                          <td style="text-align: center">
+                            <div class="actions-cell">
+                              <button
+                                class="act-btn act-btn--edit"
+                                title="Modifier"
+                                @click="openEditPanel(item)"
+                              >
+                                <v-icon size="13">mdi-pencil-outline</v-icon>
+                              </button>
+                              <button
+                                class="act-btn act-btn--delete"
+                                title="Supprimer"
+                                @click="confirmDelete(item)"
+                              >
+                                <v-icon size="13">mdi-delete-outline</v-icon>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      </template>
+                    </template>
+                  </template>
+
+                  <template v-else>
+                    <tr v-for="item in agents" :key="item.id">
+                      <td>
+                        <div class="user-cell">
+                          <div class="user-cell__avatar">
+                            <img
+                              v-if="item.avatar_url"
+                              :src="getAvatarFullUrl(item.avatar_url)"
+                              alt="avatar"
+                              class="user-cell__avatar-img"
+                            />
+                            <div
+                              v-else
+                              class="user-cell__avatar-initials"
+                              :style="{ background: avatarColor(item.nom) }"
+                            >
+                              {{ getInitials(item.nom) }}
+                            </div>
+                          </div>
+                          <div class="user-cell__info">
+                            <span
+                              class="user-cell__handle"
+                              style="font-family: &quot;Fira Sans, sans-serif&quot;"
+                              >{{ item.nom }} {{ item.prenom }}</span
+                            >
+                            <div
+                              v-if="item.telephone || item.email || item.ville"
+                              class="user-cell__meta"
+                            >
+                              <span v-if="item.telephone" class="user-cell__meta-item">
+                                <v-icon size="10">mdi-phone-outline</v-icon>{{ item.telephone }}
+                              </span>
+                              <span v-if="item.email" class="user-cell__meta-item">
+                                <v-icon size="10">mdi-email-outline</v-icon>{{ item.email }}
+                              </span>
+                              <span v-if="item.ville" class="user-cell__meta-item">
+                                <v-icon size="10">mdi-map-marker-outline</v-icon>{{ [item.code_postal, item.ville].filter(Boolean).join(' ') }}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span class="role-badge">{{
+                          item.type_agent || item.qualification || "—"
+                        }}</span>
+                      </td>
+                      <td style="text-align: center">
+                        <span
+                          v-if="
+                            item.motorise === true ||
+                            item.motorise === 'true' ||
+                            item.motorise === 1
+                          "
+                          ><v-icon icon="mdi-car-side" color="green"></v-icon
+                        ></span>
+                        <span v-else class="tenant-badge"></span>
+                      </td>
+                      <td style="text-align: center">
+                        <span v-if="item.prestataire_id !== ''" class="role-badge">{{
+                          item.prestataire_nom
+                        }}</span>
+                        <span v-else class="tenant-badge">INTERNE</span>
+                      </td>
+                      <td style="text-align: center">
+                        <span
+                          :class="[
+                            'status-badge',
+                            item.is_active
+                              ? 'status-badge--active'
+                              : 'status-badge--inactive',
+                          ]"
+                        >
+                          <span class="status-badge__dot"></span>
+                          {{ item.is_active ? "ACTIF" : "INACTIF" }}
+                        </span>
+                      </td>
+                      <td style="text-align: center">
+                        <div class="actions-cell">
+                          <button
+                            class="act-btn act-btn--edit"
+                            title="Modifier"
+                            @click="openEditPanel(item)"
+                          >
+                            <v-icon size="13">mdi-pencil-outline</v-icon>
+                          </button>
+                          <button
+                            class="act-btn act-btn--delete"
+                            title="Supprimer"
+                            @click="confirmDelete(item)"
+                          >
+                            <v-icon size="13">mdi-delete-outline</v-icon>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+
+                  <tr
+                    v-if="
+                      !loading &&
+                      (groupEnabled ? groupedAgents : agents).length === 0
+                    "
                   >
-                    {{ getInitials(item.nom) }}
-                  </div>
-                </div>
-                <div class="user-cell__info">
-                  <span
-                    class="user-cell__handle"
-                    style="font-family: &quot;Fira Sans, sans-serif&quot;"
-                    >{{ item.nom }} {{ item.prenom }}</span
-                  >
-                  <div v-if="item.telephone || item.email || item.ville" class="user-cell__meta">
-                    <span v-if="item.telephone" class="user-cell__meta-item">
-                      <v-icon size="10">mdi-phone-outline</v-icon>{{ item.telephone }}
-                    </span>
-                    <span v-if="item.email" class="user-cell__meta-item">
-                      <v-icon size="10">mdi-email-outline</v-icon>{{ item.email }}
-                    </span>
-                    <span v-if="item.ville" class="user-cell__meta-item">
-                      <v-icon size="10">mdi-map-marker-outline</v-icon>{{ [item.code_postal, item.ville].filter(Boolean).join(' ') }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </template>
-
-            <template #[`item.type_agent`]="{ item }">
-              <span class="role-badge">{{
-                item.type_agent || item.qualification || "—"
-              }}</span>
-            </template>
-
-            <template #[`item.motorise`]="{ item }">
-              <span
-                v-if="
-                  item.motorise === true ||
-                  item.motorise === 'true' ||
-                  item.motorise === 1
-                "
-                ><v-icon icon="mdi-car-side" color="green"></v-icon
-              ></span>
-              <span v-else class="tenant-badge"></span>
-            </template>
-            <template #[`item.prestataire`]="{ item }">
-              <span v-if="item.prestataire_id !== ''" class="role-badge">{{
-                item.prestataire_nom
-              }}</span>
-              <span v-else class="tenant-badge">INTERNE</span>
-            </template>
-
-            <template #[`item.is_active`]="{ item }">
-              <span
-                :class="[
-                  'status-badge',
-                  item.is_active
-                    ? 'status-badge--active'
-                    : 'status-badge--inactive',
-                ]"
-              >
-                <span class="status-badge__dot"></span>
-                {{ item.is_active ? "ACTIF" : "INACTIF" }}
-              </span>
-            </template>
-
-            <template #[`item.actions`]="{ item }">
-              <div class="actions-cell">
-                <button
-                  class="act-btn act-btn--edit"
-                  title="Modifier"
-                  @click="openEditPanel(item)"
-                >
-                  <v-icon size="13">mdi-pencil-outline</v-icon>
-                </button>
-                <button
-                  class="act-btn act-btn--delete"
-                  title="Supprimer"
-                  @click="confirmDelete(item)"
-                >
-                  <v-icon size="13">mdi-delete-outline</v-icon>
-                </button>
-              </div>
-            </template>
-
-            <template v-slot:no-data>
-              <div class="table-empty">
-                <p class="table-empty__text">AUCUN AGENT TROUVÉ</p>
-              </div>
-            </template>
-          </v-data-table-server>
-
-          <!-- Pagination -->
-          <div class="table-pagination">
-            <span class="pag-info">
-              PAGE&nbsp;<span class="mono-text">{{ page }}</span
-              >&nbsp;/&nbsp;<span class="mono-text">{{ totalPages }}</span>
-              &nbsp;—&nbsp;<span class="mono-text">{{ totalAgents }}</span
-              >&nbsp;ENTRÉE(S)
-            </span>
-            <div class="pag-controls">
-              <button
-                class="pag-btn"
-                :disabled="page <= 1"
-                @click="goToPage(1)"
-                title="Première page"
-              >
-                <v-icon size="13">mdi-page-first</v-icon>
-              </button>
-              <button
-                class="pag-btn"
-                :disabled="page <= 1"
-                @click="goToPage(page - 1)"
-              >
-                <v-icon size="13">mdi-chevron-left</v-icon>
-              </button>
-              <button
-                v-for="p in visiblePages"
-                :key="p"
-                :class="['pag-btn', { 'pag-btn--active': p === page }]"
-                @click="goToPage(p)"
-              >
-                {{ p }}
-              </button>
-              <button
-                class="pag-btn"
-                :disabled="page >= totalPages"
-                @click="goToPage(page + 1)"
-              >
-                <v-icon size="13">mdi-chevron-right</v-icon>
-              </button>
-              <button
-                class="pag-btn"
-                :disabled="page >= totalPages"
-                @click="goToPage(totalPages)"
-                title="Dernière page"
-              >
-                <v-icon size="13">mdi-page-last</v-icon>
-              </button>
-            </div>
-            <div class="pag-perpage">
-              <label class="pag-perpage__label">PAR PAGE</label>
-              <select
-                v-model="itemsPerPage"
-                class="pag-perpage__select"
-                @change="goToPage(1)"
-              >
-                <option :value="10">10</option>
-                <option :value="25">25</option>
-                <option :value="50">50</option>
-                <option :value="100">100</option>
-              </select>
+                    <td colspan="6">
+                      <div class="table-empty">
+                        <p class="table-empty__text">AUCUN AGENT TROUVÉ</p>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -585,7 +680,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from "vue";
+import { ref, reactive, onMounted, computed, watch } from "vue";
+import { useRouter } from "vue-router";
 import { useAgents } from "@/composables/useAgents";
 import apiClient from "@/services/http/axios";
 import AgentKpiCards from "@/components/agents/AgentKpiCards.vue";
@@ -607,25 +703,57 @@ const {
   typeFilter,
   itemsPerPage,
   page,
-  totalPages,
   init,
   loadAgents,
   onSearchInput,
-  onTableOptions,
   createAgent,
   updateAgent,
   deleteAgent,
   resetSubmissionState,
 } = useAgents();
 
-const visiblePages = computed(() => {
-  let pages = [];
-  for (let i = 1; i <= totalPages.value; i++) pages.push(i);
-  return pages;
+const router = useRouter();
+
+// Groupement par prestataire d'origine : la liste complète est toujours
+// chargée (pas de pagination serveur), le toggle ne fait que changer le
+// mode d'affichage (même donnée déjà en mémoire).
+const groupEnabled = ref(true);
+const openGroups = ref(new Set());
+
+function toggleGroup(key) {
+  const s = new Set(openGroups.value);
+  s.has(key) ? s.delete(key) : s.add(key);
+  openGroups.value = s;
+}
+
+const INTERNE_LABEL = "Agent interne (Tenant)";
+
+const groupedAgents = computed(() => {
+  const map = {};
+  for (const agent of agents.value) {
+    const key = agent.prestataire_id ? agent.prestataire_id : "none";
+    if (!map[key]) {
+      const name = agent.prestataire_id ? agent.prestataire_nom : INTERNE_LABEL;
+      map[key] = { key, name, color: avatarColor(name), items: [] };
+    }
+    map[key].items.push(agent);
+  }
+  return Object.values(map);
 });
-const goToPage = (p) => {
-  page.value = p;
-};
+
+watch(
+  groupedAgents,
+  (groups) => {
+    const s = new Set(openGroups.value);
+    groups.forEach((g) => s.add(g.key));
+    openGroups.value = s;
+  },
+  { immediate: true },
+);
+
+function goToPrestataireFiche(group) {
+  router.push({ path: "/partners", query: { search: group.name } });
+}
 
 const panelOpen = ref(false);
 const panelMode = ref("create");
@@ -668,15 +796,6 @@ async function loadAgentKpis(agentId) {
     kpisLoading.value = false;
   }
 }
-
-const headers = [
-  { title: "AGENT", key: "nom", sortable: true, width: "34%" },
-  { title: "TYPE", key: "type_agent", sortable: true },
-  { title: "MOTORISÉ", key: "motorise", align: "center" },
-  { title: "ORIGINE", key: "prestataire", sortable: true, align: "center" },
-  { title: "STATUT", key: "is_active", sortable: true, align: "center" },
-  { title: "ACTIONS", key: "actions", sortable: false, align: "center" },
-];
 
 const agentTypes = ref([]);
 const agentTypesLoading = ref(false);
@@ -894,6 +1013,11 @@ function onFilterChange() {
 }
 
 onMounted(() => {
+  // Plus de pagination serveur côté table : on charge toujours la liste
+  // complète (regroupée ou non), en reprenant la convention "bulk" déjà
+  // utilisée ailleurs dans l'application (per_page: 1000).
+  page.value = 1;
+  itemsPerPage.value = 1000;
   init();
   loadAgentTypes();
 });

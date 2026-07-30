@@ -194,17 +194,17 @@
                 v-if="
                   item.type === 'Client' && item.clients && item.clients.length
                 "
+                class="chip-row"
               >
-                <span
-                  class="tenant-badge"
-                  v-for="c in item.clients"
-                  :key="c.id"
-                  style="margin-right: 4px"
-                  >{{ c.nom }}</span
-                >
+                <span class="chip" v-for="c in item.clients" :key="c.id">{{
+                  c.nom
+                }}</span>
               </div>
-              <div v-else-if="item.type === 'Prestataire' && item.prestataire">
-                <span class="tenant-badge">{{ item.prestataire.nom }}</span>
+              <div
+                v-else-if="item.type === 'Prestataire' && item.prestataire"
+                class="chip-row"
+              >
+                <span class="chip">{{ item.prestataire.nom }}</span>
               </div>
               <span v-else class="tenant-badge">—</span>
             </template>
