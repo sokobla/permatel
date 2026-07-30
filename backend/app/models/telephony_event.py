@@ -36,7 +36,26 @@ class TelephonyEvent(Base):
     call_status = Column(String(30), nullable=True)
     caller_number = Column(String(20), nullable=True)
     callee_number = Column(String(20), nullable=True)
+    # Historique : contient l'UUID FusionPBX CC-Agent sur les événements live
+    # ESL, l'extension physique sur les événements CDR (deux vocabulaires
+    # incompatibles écrits dans la même colonne — cf. `agent_uuid`/
+    # `agent_station_extension` ci-dessous, ajoutés pour lever l'ambiguïté).
+    # Conservée telle quelle pour compat descendante, ne plus l'utiliser pour
+    # joindre un événement à un `User.agent_login` (utiliser `agent_uuid`).
     agent_login = Column(String(50), nullable=True, index=True)
+    # UUID FusionPBX CC-Agent (== `User.agent_login`) — identité stable,
+    # peuplée aussi bien depuis les événements live ESL (déjà cette valeur
+    # historiquement) que depuis le CDR webhook (variable `cc_agent`, jusque
+    # là extraite puis jetée car jugée inexploitable en tant que login/
+    # extension — elle reste la clé de jointure correcte). C'est la colonne
+    # à utiliser pour résoudre un événement vers un `User` (`_agent_alias_lookup`).
+    agent_uuid = Column(String(50), nullable=True, index=True)
+    # Poste physique (extension) confirmé au moment de l'événement — CDR :
+    # extrait du profil originatee du callflow. Distinct de
+    # `User.station_extension` (déclaratif, statique côté gestion des
+    # utilisateurs) : cette valeur est observée en direct sur le trafic PBX,
+    # donc prioritaire à l'affichage quand elle est présente.
+    agent_station_extension = Column(String(20), nullable=True)
     agent_status = Column(String(50), nullable=True)  # brut FreeSWITCH (CC-Agent-Status), normalisé côté route
     queue_id = Column(String(100), nullable=True, index=True)
     duration = Column(Integer, nullable=True)  # en secondes
@@ -71,6 +90,8 @@ class TelephonyEvent(Base):
             "caller": self.caller_number,
             "callee": self.callee_number,
             "agent_login": self.agent_login,
+            "agent_uuid": self.agent_uuid,
+            "agent_station_extension": self.agent_station_extension,
             "agent_status": self.agent_status,
             "queue_id": self.queue_id,
             "duration": self.duration,

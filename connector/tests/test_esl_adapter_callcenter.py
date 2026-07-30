@@ -132,6 +132,10 @@ def test_agent_status_change_resout_via_annuaire_et_transmet():
     # l'extension/poste physique.
     assert payload["agent"]["login"] == "e8a58298-87e7-4960-a222-d05763866b15"
     assert payload["agent"]["status"] == "Logged Out"
+    # Poste observé en direct dans l'annuaire, transmis à part (audit 30/07) —
+    # PERMATEL en a besoin pour l'affichage, pas comme identité.
+    assert payload["agent"]["uuid"] == "e8a58298-87e7-4960-a222-d05763866b15"
+    assert payload["agent"]["station"] == "22101005"
 
 
 def test_agent_status_change_agent_absent_de_l_annuaire_est_journalise(caplog):

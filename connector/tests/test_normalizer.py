@@ -189,3 +189,29 @@ def test_normalize_agent_status_change_utilise_domaine_et_login_fournis():
     assert payload["agent"]["login"] == "22101005"
     assert payload["agent"]["status"] == "Available"
     assert payload["queue"]["id"] == "8004@africallpbx.fusion.cloud228.com"
+
+
+def test_normalize_agent_status_change_transmet_uuid_et_station_a_part():
+    """Audit du 30/07 : `agent.login` reste l'uuid (identité stable), mais
+    `agent.uuid` (même valeur, explicite) et `agent.station` (extension
+    observée en direct dans l'annuaire ESL) sont désormais transmis à part —
+    PERMATEL en a besoin pour joindre les événements CDR/live entre eux et
+    afficher un poste à jour sans dépendre uniquement de la config statique."""
+    headers = _headers(**{
+        "CC-Action": "agent-status-change", "CC-Agent": "e8a58298-87e7-4960-a222-d05763866b15",
+        "CC-Agent-Status": "Available", "CC-Queue": "8004@africallpbx.fusion.cloud228.com",
+    })
+    payload = normalizer.normalize_agent_status_change(
+        headers, "africallpbx.fusion.cloud228.com", "e8a58298-87e7-4960-a222-d05763866b15", "22101005",
+    )
+    assert payload["agent"]["login"] == "e8a58298-87e7-4960-a222-d05763866b15"
+    assert payload["agent"]["uuid"] == "e8a58298-87e7-4960-a222-d05763866b15"
+    assert payload["agent"]["station"] == "22101005"
+
+
+def test_normalize_agent_status_change_sans_station_connue_vaut_none():
+    headers = _headers(**{
+        "CC-Action": "agent-status-change", "CC-Agent": "uuid-x", "CC-Agent-Status": "Available",
+    })
+    payload = normalizer.normalize_agent_status_change(headers, "d", "uuid-x")
+    assert payload["agent"]["station"] is None

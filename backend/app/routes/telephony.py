@@ -279,6 +279,13 @@ def ingest_event():
         call_uuid=call.get("id"),
         linked_call_uuid=call.get("linked_call_uuid"),
         agent_login=agent.get("login"),
+        # Sur ce canal, 'login' EST l'uuid FusionPBX CC-Agent (cf.
+        # normalizer.py::normalize_agent_status_change) — accepte aussi une
+        # clé 'uuid' explicite si le connecteur en envoie une un jour,
+        # 'station' si l'annuaire ESL a pu résoudre l'extension en direct
+        # (absent aujourd'hui, connecteur non encore mis à jour pour l'envoyer).
+        agent_uuid=agent.get("uuid") or agent.get("login"),
+        agent_station_extension=agent.get("station"),
         agent_status=agent.get("status"),
         queue_id=queue.get("id"),
         duration=data.get("duration_seconds"),
@@ -571,21 +578,29 @@ def cdr_ingest(token):
     direction = variables.get("direction")
     # Confirmé sur trafic FusionPBX réel (appel en file d'attente, 29/07) :
     # 'cc_queue' est fiable, format "<extension>@<domaine>" (même convention
-    # que le header ESL CC-Queue). 'cc_agent', en revanche, s'est révélé être
-    # un UUID interne FusionPBX (call_center_agents.call_center_agent_uuid),
-    # PAS un login/une extension exploitable pour matcher un User PERMATEL.
-    # L'extension réelle de l'agent qui décroche se trouve dans le profil
-    # "originatee" du callflow (le leg vers lequel mod_callcenter a bridgé),
-    # pas dans une variable 'cc_*' — absent sur un appel hors file d'attente,
-    # d'où le gardé conditionné à la présence de 'cc_queue'.
+    # que le header ESL CC-Queue). 'cc_agent' est un UUID interne FusionPBX
+    # (call_center_agents.call_center_agent_uuid) — inexploitable comme
+    # login/extension directement, mais c'est la même identité stable que
+    # `User.agent_login`/les événements live ESL : conservée sous
+    # `agent_uuid` (colonne dédiée, cf. audit du 30/07 — `agent_login` seul
+    # mélangeait UUID (live) et extension (CDR), cassant toute jointure
+    # entre les deux canaux). L'extension réelle de l'agent qui décroche se
+    # trouve dans le profil "originatee" du callflow (le leg vers lequel
+    # mod_callcenter a bridgé), pas dans une variable 'cc_*' — absente sur un
+    # appel hors file d'attente, d'où le garde conditionné à 'cc_queue'.
     queue_id = variables.get("cc_queue")
     originatee_profiles = (
         (caller_profile.get("originatee") or {}).get("originatee_caller_profiles") or []
     )
-    agent_login = (
+    agent_station_extension = (
         (originatee_profiles[0].get("destination_number") if originatee_profiles else None)
         if queue_id else None
     )
+    agent_uuid = variables.get("cc_agent") if queue_id else None
+    # `agent_login` conservée pour compat descendante (mêmes lecteurs qu'avant
+    # ce correctif) — vaut l'extension, comme depuis `d5f9e31`. Les nouveaux
+    # consommateurs doivent utiliser `agent_uuid`/`agent_station_extension`.
+    agent_login = agent_station_extension
     recording_url = variables.get("record_file_path") or variables.get("recording_follow_transfer")
 
     events = []
@@ -593,21 +608,24 @@ def cdr_ingest(token):
         events.append(TelephonyEvent(
             tenant_id=connector.tenant_id, pbx_connector_id=connector.id,
             event_type="CDR_RECORD_START", call_direction=direction, call_status="ringing",
-            caller_number=caller, callee_number=callee, agent_login=agent_login, queue_id=queue_id,
+            caller_number=caller, callee_number=callee, agent_login=agent_login,
+            agent_uuid=agent_uuid, agent_station_extension=agent_station_extension, queue_id=queue_id,
             call_uuid=call_uuid, created_at=start_at, raw_payload=payload,
         ))
     if answer_at and was_answered:
         events.append(TelephonyEvent(
             tenant_id=connector.tenant_id, pbx_connector_id=connector.id,
             event_type="CDR_RECORD_ANSWER", call_direction=direction, call_status="answered",
-            caller_number=caller, callee_number=callee, agent_login=agent_login, queue_id=queue_id,
+            caller_number=caller, callee_number=callee, agent_login=agent_login,
+            agent_uuid=agent_uuid, agent_station_extension=agent_station_extension, queue_id=queue_id,
             call_uuid=call_uuid, created_at=answer_at, raw_payload=payload,
         ))
     events.append(TelephonyEvent(
         tenant_id=connector.tenant_id, pbx_connector_id=connector.id,
         event_type="CDR_RECORD_END", call_direction=direction,
         call_status=_cdr_terminal_status(variables.get("hangup_cause"), was_answered),
-        caller_number=caller, callee_number=callee, agent_login=agent_login, queue_id=queue_id,
+        caller_number=caller, callee_number=callee, agent_login=agent_login,
+        agent_uuid=agent_uuid, agent_station_extension=agent_station_extension, queue_id=queue_id,
         duration=billsec, call_uuid=call_uuid, recording_url=recording_url,
         created_at=end_at, raw_payload=payload,
     ))
@@ -713,6 +731,8 @@ def active_calls():
             "caller": None,
             "callee": None,
             "agent_login": None,
+            "agent_uuid": None,
+            "agent_station_extension": None,
             "queue_id": None,
             "linked_call_uuid": None,
             "started_at": evs[0].created_at,
@@ -730,6 +750,10 @@ def active_calls():
                 m["callee"] = e.callee_number
             if e.agent_login:
                 m["agent_login"] = e.agent_login
+            if e.agent_uuid:
+                m["agent_uuid"] = e.agent_uuid
+            if e.agent_station_extension:
+                m["agent_station_extension"] = e.agent_station_extension
             if e.queue_id:
                 m["queue_id"] = e.queue_id
             if e.linked_call_uuid:
@@ -753,11 +777,13 @@ def active_calls():
     queue_alias_lookup = _queue_alias_lookup(g.tenant_id)
     active = []
     for m in merged.values():
-        alias = alias_lookup.get(m["agent_login"]) if m["agent_login"] else None
+        alias = alias_lookup.get(m["agent_uuid"]) if m["agent_uuid"] else None
         active.append({
             **m,
-            "agent_name": alias["name"] if alias else m["agent_login"],
-            "agent_station": alias["station"] if alias else None,
+            "agent_name": alias["name"] if alias else (m["agent_login"] or m["agent_uuid"]),
+            # Poste observé en direct sur cet appel prioritaire sur le poste
+            # statique déclaré côté gestion des utilisateurs.
+            "agent_station": m["agent_station_extension"] or (alias["station"] if alias else None),
             "queue_label": _format_queue_label(m["queue_id"], queue_alias_lookup),
             "started_at": _iso_utc(m["started_at"]),
             "created_at": _iso_utc(m["created_at"]),
@@ -1001,26 +1027,32 @@ def _normalize_agent_presence(raw_status):
 def agents_status():
     """
     Présence agent (disponible/pause/hors-ligne), dérivée du dernier
-    événement `CALLCENTER_AGENT_STATE_CHANGE` connu par `agent_login` —
+    événement `CALLCENTER_AGENT_STATE_CHANGE` connu par `agent_uuid` —
     seuls les agents ayant émis au moins un tel événement apparaissent (pas
     de roster fabriqué). Croisé avec le volume d'appels traités sur la
     période (même règle que /kpis/agents) : `calls_handled` est un compte
     d'appels, pas un taux d'occupation — aucune durée continue disponible/
     occupée n'est suivie aujourd'hui.
+
+    Jointure sur `agent_uuid` (pas `agent_login`, cf. audit du 30/07) : les
+    événements de présence live (`CALLCENTER_AGENT_STATE_CHANGE`) et les
+    événements CDR (volume d'appels) n'utilisaient pas le même vocabulaire
+    dans `agent_login` (uuid vs extension) — `calls_handled` ne recoupait
+    donc jamais rien. `agent_uuid` est peuplé sur les deux canaux.
     """
     dt_from, dt_to = _parse_period()
 
     latest_ts = (
         db.session.query(
-            TelephonyEvent.agent_login,
+            TelephonyEvent.agent_uuid,
             db.func.max(TelephonyEvent.created_at).label("max_created_at"),
         )
         .filter(
             TelephonyEvent.tenant_id == g.tenant_id,
             TelephonyEvent.event_type == "CALLCENTER_AGENT_STATE_CHANGE",
-            TelephonyEvent.agent_login.isnot(None),
+            TelephonyEvent.agent_uuid.isnot(None),
         )
-        .group_by(TelephonyEvent.agent_login)
+        .group_by(TelephonyEvent.agent_uuid)
         .subquery()
     )
     latest_events = (
@@ -1028,7 +1060,7 @@ def agents_status():
         .join(
             latest_ts,
             db.and_(
-                TelephonyEvent.agent_login == latest_ts.c.agent_login,
+                TelephonyEvent.agent_uuid == latest_ts.c.agent_uuid,
                 TelephonyEvent.created_at == latest_ts.c.max_created_at,
             ),
         )
@@ -1041,7 +1073,7 @@ def agents_status():
             TelephonyEvent.tenant_id == g.tenant_id,
             TelephonyEvent.created_at >= dt_from,
             TelephonyEvent.created_at <= dt_to,
-            TelephonyEvent.agent_login.isnot(None),
+            TelephonyEvent.agent_uuid.isnot(None),
             TelephonyEvent.call_uuid.isnot(None),
         ).all()
     )
@@ -1054,28 +1086,31 @@ def agents_status():
         terminal = next((e for e in call_events if e.call_status in TERMINAL_STATUSES), None)
         if terminal is None:
             continue
-        agent_login = next((e.agent_login for e in call_events if e.agent_login), None)
-        if not agent_login:
+        agent_uuid = next((e.agent_uuid for e in call_events if e.agent_uuid), None)
+        if not agent_uuid:
             continue
         answered = next((e for e in call_events if e.call_status == "answered"), None)
         if answered:
-            calls_handled[agent_login] = calls_handled.get(agent_login, 0) + 1
+            calls_handled[agent_uuid] = calls_handled.get(agent_uuid, 0) + 1
 
     alias_lookup = _agent_alias_lookup(g.tenant_id)
     agents = sorted(
         (
             {
                 "agent_login": e.agent_login,
-                "agent_name": alias_lookup.get(e.agent_login, {}).get("name", e.agent_login),
-                "agent_station": alias_lookup.get(e.agent_login, {}).get("station"),
+                "agent_uuid": e.agent_uuid,
+                "agent_name": alias_lookup.get(e.agent_uuid, {}).get("name", e.agent_uuid),
+                # Poste observé en direct sur ce dernier événement de
+                # présence, prioritaire sur le poste statique déclaré.
+                "agent_station": e.agent_station_extension or alias_lookup.get(e.agent_uuid, {}).get("station"),
                 "presence": _normalize_agent_presence(e.agent_status),
                 "raw_status": e.agent_status,
                 "last_seen_at": _iso_utc(e.created_at),
-                "calls_handled": calls_handled.get(e.agent_login, 0),
+                "calls_handled": calls_handled.get(e.agent_uuid, 0),
             }
             for e in latest_events
         ),
-        key=lambda a: a["agent_login"],
+        key=lambda a: a["agent_uuid"],
     )
 
     return jsonify({
@@ -1138,7 +1173,13 @@ def _query_calls_history(filters, *, recordings_only=False):
         TelephonyEvent.call_uuid.isnot(None),
     )
     if filters.get("agent_login"):
-        query = query.filter(TelephonyEvent.agent_login == filters["agent_login"])
+        # Filtre reçu du frontend sous 'agent_login' (nom de paramètre
+        # historique) — accepte indifféremment une valeur uuid ou extension,
+        # les deux vocabulaires ayant coexisté dans agent_login par le passé.
+        query = query.filter(db.or_(
+            TelephonyEvent.agent_login == filters["agent_login"],
+            TelephonyEvent.agent_uuid == filters["agent_login"],
+        ))
     if filters.get("queue_id"):
         query = query.filter(TelephonyEvent.queue_id == filters["queue_id"])
 
@@ -1159,6 +1200,10 @@ def _query_calls_history(filters, *, recordings_only=False):
         callee = next((e.callee_number for e in call_events if e.callee_number), None)
         direction = next((e.call_direction for e in call_events if e.call_direction), None)
         agent_login = next((e.agent_login for e in call_events if e.agent_login), None)
+        agent_uuid = next((e.agent_uuid for e in call_events if e.agent_uuid), None)
+        agent_station_extension = next(
+            (e.agent_station_extension for e in call_events if e.agent_station_extension), None,
+        )
         queue_id = next((e.queue_id for e in call_events if e.queue_id), None)
         recording_url = next((e.recording_url for e in call_events if e.recording_url), None)
         linked_call_uuid = next((e.linked_call_uuid for e in call_events if e.linked_call_uuid), None)
@@ -1175,15 +1220,18 @@ def _query_calls_history(filters, *, recordings_only=False):
             if needle not in haystack:
                 continue
 
-        agent_alias = alias_lookup.get(agent_login) if agent_login else None
+        agent_alias = alias_lookup.get(agent_uuid) if agent_uuid else None
         rows_by_uuid[call_uuid] = {
             "call_uuid": call_uuid,
             "caller": caller,
             "callee": callee,
             "direction": direction,
             "agent_login": agent_login,
-            "agent_name": agent_alias["name"] if agent_alias else agent_login,
-            "agent_station": agent_alias["station"] if agent_alias else None,
+            "agent_uuid": agent_uuid,
+            "agent_name": agent_alias["name"] if agent_alias else (agent_login or agent_uuid),
+            # Poste observé en direct sur cet appel prioritaire sur le poste
+            # statique déclaré côté gestion des utilisateurs.
+            "agent_station": agent_station_extension or (agent_alias["station"] if agent_alias else None),
             "queue_id": queue_id,
             "call_status": terminal.call_status,
             "duration": terminal.duration,

@@ -165,7 +165,9 @@ def normalize_callcenter_info(headers: dict, pbx_domain: str) -> dict | None:
     return None
 
 
-def normalize_member_enrichment(headers: dict, pbx_domain: str, agent_login: str | None) -> dict:
+def normalize_member_enrichment(
+    headers: dict, pbx_domain: str, agent_login: str | None, agent_station: str | None = None,
+) -> dict:
     """Événement callcenter::info de gestion de file ('agent-offering',
     'bridge-agent-start'/'bridge-agent-fail') — sans contexte de canal
     exploitable (pas de 'variable_domain_name'), comme
@@ -178,6 +180,11 @@ def normalize_member_enrichment(headers: dict, pbx_domain: str, agent_login: str
     statut — pour ne jamais écraser un statut d'appel déjà mieux connu.
     `pbx_domain` et `agent_login` sont résolus EN AMONT par ESLAdapter via
     l'annuaire agents (même mécanisme que `normalize_agent_status_change`).
+    `agent_station` (poste physique actuellement associé à cet uuid dans
+    l'annuaire, cf. `esl_adapter.py::_agent_directory`) est transmis à titre
+    indicatif — jamais utilisé comme identité, seulement pour l'affichage
+    côté PERMATEL (audit du 30/07 : la station statique déclarée par
+    l'admin peut être périmée si l'agent a changé de poste).
     """
     return {
         "pbx_domain": pbx_domain,
@@ -186,12 +193,16 @@ def normalize_member_enrichment(headers: dict, pbx_domain: str, agent_login: str
             "id": headers.get("CC-Member-Session-UUID"),
             "callee": headers.get("CC-Member-DNIS"),
         },
-        "agent": {"login": agent_login} if agent_login else {},
+        "agent": (
+            {"login": agent_login, "uuid": agent_login, "station": agent_station} if agent_login else {}
+        ),
         "queue": {"id": headers.get("CC-Queue")},
     }
 
 
-def normalize_bridge_recording(headers: dict, pbx_domain: str, agent_login: str | None) -> dict | None:
+def normalize_bridge_recording(
+    headers: dict, pbx_domain: str, agent_login: str | None, agent_station: str | None = None,
+) -> dict | None:
     """Événement callcenter::info 'bridge-agent-start' — seule source
     confirmée (30/07) du chemin d'enregistrement d'un appel de file :
     `variable_execute_on_pre_bridge`, porté par le LEG AGENT, déjà résolu par
@@ -200,7 +211,7 @@ def normalize_bridge_recording(headers: dict, pbx_domain: str, agent_login: str 
     `normalize_member_enrichment`, on n'envoie ici QUE l'enregistrement, sans
     statut, pour ne jamais écraser un statut d'appel déjà mieux connu.
     Retourne None si aucun chemin n'a pu être extrait (pas de contenu utile
-    à transmettre)."""
+    à transmettre). `agent_station`, voir `normalize_member_enrichment`."""
     member_session_uuid = headers.get("variable_cc_member_session_uuid") or headers.get("CC-Member-Session-UUID")
     recording_path = _extract_recording_path(headers.get("variable_execute_on_pre_bridge"))
     if not member_session_uuid or not recording_path:
@@ -211,12 +222,16 @@ def normalize_bridge_recording(headers: dict, pbx_domain: str, agent_login: str 
         "event_type": "CALLCENTER_BRIDGE_RECORDING",
         "call": {"id": member_session_uuid},
         "recording_url": recording_path,
-        "agent": {"login": agent_login} if agent_login else {},
+        "agent": (
+            {"login": agent_login, "uuid": agent_login, "station": agent_station} if agent_login else {}
+        ),
         "queue": {"id": headers.get("CC-Queue")},
     }
 
 
-def normalize_agent_status_change(headers: dict, pbx_domain: str, agent_login: str) -> dict:
+def normalize_agent_status_change(
+    headers: dict, pbx_domain: str, agent_login: str, agent_station: str | None = None,
+) -> dict:
     """Changement de statut agent (`CC-Action: agent-status-change`,
     ex. Available/On Break/Logged Out).
 
@@ -230,11 +245,17 @@ def normalize_agent_status_change(headers: dict, pbx_domain: str, agent_login: s
     — d'où la signature différente de `normalize_callcenter_info`.
     `agent_login` transmis EST l'UUID `CC-Agent` (== `User.agent_login`
     désormais, identité stable) — PAS l'extension/poste physique, qui peut
-    changer sans que ce soit un changement d'agent.
+    changer sans que ce soit un changement d'agent. `agent_station` (poste
+    actuellement associé à cet uuid dans l'annuaire) est transmis à part,
+    à titre indicatif uniquement (cf. `normalize_member_enrichment`) — côté
+    PERMATEL, prioritaire à l'affichage sur le poste statique déclaré par
+    l'admin quand présent (audit du 30/07, `agent_station_extension`).
     """
     payload = _base_payload(headers, pbx_domain, "CALLCENTER_AGENT_STATE_CHANGE")
     payload["call"]["status"] = "on_hold"
     payload["agent"]["login"] = agent_login
+    payload["agent"]["uuid"] = agent_login
+    payload["agent"]["station"] = agent_station
     payload["agent"]["status"] = headers.get("CC-Agent-Status")
     payload["queue"]["id"] = headers.get("CC-Queue")
     return payload

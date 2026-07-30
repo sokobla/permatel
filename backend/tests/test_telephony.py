@@ -396,7 +396,8 @@ class TestActiveCalls:
         db.session.add(TelephonyEvent(
             tenant_id=default_tenant.id, pbx_connector_id=pbx_domain.pbx_connector_id,
             event_type="CHANNEL_ANSWER", call_status="answered", call_uuid="call-avec-agent",
-            agent_login="e8a58298-87e7-4960-a222-d05763866b15", created_at=datetime.utcnow(),
+            agent_login="e8a58298-87e7-4960-a222-d05763866b15",
+            agent_uuid="e8a58298-87e7-4960-a222-d05763866b15", created_at=datetime.utcnow(),
         ))
         db.session.commit()
 
@@ -440,7 +441,8 @@ class TestActiveCalls:
         db.session.add(TelephonyEvent(
             tenant_id=default_tenant.id, pbx_connector_id=pbx_domain.pbx_connector_id,
             event_type="CHANNEL_ANSWER", call_status="answered", call_uuid="call-agent-inconnu",
-            agent_login="uuid-sans-user-permatel", created_at=datetime.utcnow(),
+            agent_login="uuid-sans-user-permatel", agent_uuid="uuid-sans-user-permatel",
+            created_at=datetime.utcnow(),
         ))
         db.session.commit()
 
@@ -561,18 +563,18 @@ class TestAgentsStatus:
         # Deux changements d'état pour agent01 : seul le plus récent doit compter.
         db.session.add(TelephonyEvent(
             tenant_id=default_tenant.id, event_type="CALLCENTER_AGENT_STATE_CHANGE",
-            call_status="on_hold", call_uuid="ev-1", agent_login="agent01",
+            call_status="on_hold", call_uuid="ev-1", agent_login="agent01", agent_uuid="agent01",
             agent_status="On Break", created_at=base,
         ))
         db.session.add(TelephonyEvent(
             tenant_id=default_tenant.id, event_type="CALLCENTER_AGENT_STATE_CHANGE",
-            call_status="on_hold", call_uuid="ev-2", agent_login="agent01",
+            call_status="on_hold", call_uuid="ev-2", agent_login="agent01", agent_uuid="agent01",
             agent_status="Available", created_at=base + timedelta(minutes=5),
         ))
         # Agent en pause, statut inconnu -> offline par défaut (pas de fabrication).
         db.session.add(TelephonyEvent(
             tenant_id=default_tenant.id, event_type="CALLCENTER_AGENT_STATE_CHANGE",
-            call_status="on_hold", call_uuid="ev-3", agent_login="agent02",
+            call_status="on_hold", call_uuid="ev-3", agent_login="agent02", agent_uuid="agent02",
             agent_status="Logged Out", created_at=base,
         ))
         db.session.commit()
@@ -588,16 +590,17 @@ class TestAgentsStatus:
         base = datetime.utcnow() - timedelta(minutes=5)
         db.session.add(TelephonyEvent(
             tenant_id=default_tenant.id, event_type="CALLCENTER_AGENT_STATE_CHANGE",
-            call_status="on_hold", call_uuid="ev-presence", agent_login="agent01",
+            call_status="on_hold", call_uuid="ev-presence", agent_login="agent01", agent_uuid="agent01",
             agent_status="Available", created_at=base,
         ))
         db.session.add(TelephonyEvent(
             tenant_id=default_tenant.id, event_type="CHANNEL_ANSWER", call_status="answered",
-            call_uuid="call-1", agent_login="agent01", created_at=base,
+            call_uuid="call-1", agent_login="agent01", agent_uuid="agent01", created_at=base,
         ))
         db.session.add(TelephonyEvent(
             tenant_id=default_tenant.id, event_type="CHANNEL_HANGUP_COMPLETE", call_status="ended",
-            call_uuid="call-1", agent_login="agent01", duration=30, created_at=base + timedelta(seconds=30),
+            call_uuid="call-1", agent_login="agent01", agent_uuid="agent01",
+            duration=30, created_at=base + timedelta(seconds=30),
         ))
         db.session.commit()
 
@@ -622,6 +625,7 @@ class TestAgentsStatus:
             tenant_id=default_tenant.id, event_type="CALLCENTER_AGENT_STATE_CHANGE",
             call_status="on_hold", call_uuid="ev-habille",
             agent_login="fd18b0f6-47f3-4fe2-8e85-fe36ca077b79",
+            agent_uuid="fd18b0f6-47f3-4fe2-8e85-fe36ca077b79",
             agent_status="Available", created_at=datetime.utcnow(),
         ))
         db.session.commit()
@@ -640,6 +644,7 @@ class TestAgentsStatus:
         db.session.add(TelephonyEvent(
             tenant_id=other_tenant.id, event_type="CALLCENTER_AGENT_STATE_CHANGE",
             call_status="on_hold", call_uuid="ev-other", agent_login="agent-autre-tenant",
+            agent_uuid="agent-autre-tenant",
             agent_status="Available", created_at=datetime.utcnow(),
         ))
         db.session.commit()
@@ -974,7 +979,12 @@ class TestCdrIngest:
 
         event = TelephonyEvent.query.filter_by(call_uuid="call-cdr-queue", event_type="CDR_RECORD_END").first()
         assert event.queue_id == "8004@africallpbx.fusion.cloud228.com"
+        # `agent_login` reste l'extension (compat descendante) ; l'uuid
+        # cc_agent, auparavant jeté, est désormais conservé sous agent_uuid
+        # (colonne dédiée à la jointure User.agent_login — cf. audit 30/07).
         assert event.agent_login == "22101005"
+        assert event.agent_station_extension == "22101005"
+        assert event.agent_uuid == "9fb3f742-b96f-4b5a-9906-32e5e4cf1ccf"
 
     def test_ingest_cdr_agent_login_absent_hors_file_d_attente(self, client, db, pbx_connector_with_cdr_token):
         """Sans 'cc_queue' (appel hors file d'attente), agent_login doit
@@ -1003,6 +1013,8 @@ class TestCdrIngest:
         assert resp.status_code == 201
         event = TelephonyEvent.query.filter_by(call_uuid="call-cdr-no-queue", event_type="CDR_RECORD_END").first()
         assert event.agent_login is None
+        assert event.agent_uuid is None
+        assert event.agent_station_extension is None
 
     def test_ingest_cdr_manque_ne_cree_pas_d_evenement_answer(self, client, db, pbx_connector_with_cdr_token):
         _, raw_token = pbx_connector_with_cdr_token
@@ -1263,11 +1275,12 @@ class TestCallsHistory:
         ))
         db.session.add(TelephonyEvent(
             tenant_id=tenant_id, event_type="CHANNEL_ANSWER", call_status="answered",
-            call_uuid=call_uuid, agent_login=agent_login, queue_id=queue_id, created_at=base + timedelta(seconds=5),
+            call_uuid=call_uuid, agent_login=agent_login, agent_uuid=agent_login,
+            queue_id=queue_id, created_at=base + timedelta(seconds=5),
         ))
         db.session.add(TelephonyEvent(
             tenant_id=tenant_id, event_type="CHANNEL_HANGUP_COMPLETE", call_status=status,
-            call_uuid=call_uuid, agent_login=agent_login, queue_id=queue_id, duration=42,
+            call_uuid=call_uuid, agent_login=agent_login, agent_uuid=agent_login, queue_id=queue_id, duration=42,
             recording_url=recording_url, created_at=base + timedelta(seconds=50),
         ))
         db.session.commit()

@@ -517,8 +517,9 @@ class ESLAdapter(PBXAdapter):
         # agent.login = l'uuid lui-même (identité stable, == User.agent_login
         # désormais) — PAS entry["extension"], qui n'est que le poste
         # physique actuellement associé et peut changer sans que ce soit un
-        # changement d'agent.
-        payload = normalizer.normalize_agent_status_change(headers, entry["domain"], agent_uuid)
+        # changement d'agent. L'extension est quand même transmise à part
+        # (agent.station, poste observé en direct) — cf. normalizer.py.
+        payload = normalizer.normalize_agent_status_change(headers, entry["domain"], agent_uuid, entry["extension"])
         self.ingest_client.send(payload)
 
     def _on_member_enrichment_event(self, headers):
@@ -566,7 +567,9 @@ class ESLAdapter(PBXAdapter):
         if extension:
             self._pending_agent_rings[extension] = (headers.get("CC-Member-Session-UUID"), time.monotonic())
 
-        payload = normalizer.normalize_member_enrichment(headers, domain, agent_login)
+        payload = normalizer.normalize_member_enrichment(
+            headers, domain, agent_login, entry["extension"] if entry else None,
+        )
         self.ingest_client.send(payload)
 
     def _consume_pending_agent_ring(self, extension):
@@ -611,7 +614,9 @@ class ESLAdapter(PBXAdapter):
         if not self._is_supervised_queue(domain, queue_id):
             return  # queue non supervisée pour ce tenant — pas transmis
 
-        payload = normalizer.normalize_bridge_recording(headers, domain, agent_login)
+        payload = normalizer.normalize_bridge_recording(
+            headers, domain, agent_login, entry["extension"] if entry else None,
+        )
         if payload is None:
             logger.warning(
                 "[%s] bridge-agent-start sans chemin d'enregistrement exploitable (CC-Member-Session-UUID "
