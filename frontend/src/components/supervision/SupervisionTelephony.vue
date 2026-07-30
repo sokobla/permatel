@@ -71,7 +71,7 @@
             </td>
             <td>
               <div v-if="c.agent_login" class="stl-agent-cell">
-                <span class="stl-avatar">{{ initials(c.agent_login) }}</span>{{ c.agent_login }}
+                <span class="stl-avatar">{{ initials(c.agent_name || c.agent_login) }}</span>{{ c.agent_name || c.agent_login }}
               </div>
               <span v-else class="stl-muted">—</span>
             </td>
@@ -205,13 +205,14 @@
       <div v-if="agents.length" class="stl-agents-grid" :class="{ 'stl-agents-grid--list': agentsView === 'list' }">
         <div v-for="a in agents" :key="a.agent_login" class="stl-agent-card">
           <div class="stl-agent-card__avatar-wrap">
-            <span class="stl-agent-card__avatar">{{ initials(a.agent_login) }}</span>
+            <span class="stl-agent-card__avatar">{{ initials(a.agent_name || a.agent_login) }}</span>
             <span class="stl-agent-card__status-dot" :class="`stl-status-${a.presence}`"></span>
           </div>
-          <span class="stl-agent-card__name">{{ a.agent_login }}</span>
+          <span class="stl-agent-card__name">{{ a.agent_name || a.agent_login }}</span>
           <span class="stl-agent-card__presence" :class="`stl-presence-${a.presence}`">
             <span class="stl-dot" :class="`stl-status-${a.presence}`"></span>{{ PRESENCE_LABEL[a.presence] }}
           </span>
+          <span v-if="a.agent_station" class="stl-agent-card__queue">Poste {{ a.agent_station }}</span>
           <span class="stl-agent-card__queue">{{ formatLastSeen(a.last_seen_at) }}</span>
           <div
             class="stl-agent-card__bar-wrap"
@@ -386,13 +387,23 @@ function processIncomingEvents() {
     // doit jamais écraser un état déjà connu avec du vide.
     const existing = activeCallsMap.get(e.call_uuid);
     if (!existing && !e.call_status) continue; // pas assez d'info pour créer une ligne
+    const agentLogin = e.agent_login || existing?.agent_login || null;
+    // Un événement brut poussé par le socket ne porte que l'uuid CC-Agent
+    // (event.to_dict(), pas d'alias résolu) — /active-calls, elle, résout
+    // agent_name/agent_station côté backend. On complète donc via
+    // l'annuaire /agents/status déjà chargé côté client (rafraîchi toutes
+    // les 30s), pour qu'un appel arrivé UNIQUEMENT par socket depuis le
+    // dernier chargement complet affiche quand même un nom lisible.
+    const agentAlias = agentLogin ? agents.value.find((a) => a.agent_login === agentLogin) : null;
     const merged = {
       call_uuid: e.call_uuid,
       call_direction: e.call_direction || existing?.call_direction || null,
       call_status: e.call_status || existing?.call_status || null,
       caller: e.caller || existing?.caller || null,
       callee: e.callee || existing?.callee || null,
-      agent_login: e.agent_login || existing?.agent_login || null,
+      agent_login: agentLogin,
+      agent_name: agentAlias?.agent_name || existing?.agent_name || agentLogin,
+      agent_station: agentAlias?.agent_station || existing?.agent_station || null,
       queue_id: e.queue_id || existing?.queue_id || null,
       linked_call_uuid: e.linked_call_uuid || existing?.linked_call_uuid || null,
       started_at: existing?.started_at || e.created_at || null,

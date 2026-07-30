@@ -127,8 +127,12 @@
               {{ item.direction === "outbound" ? "Sortant" : "Entrant" }}
             </span>
           </template>
-          <template #[`item.agent_login`]="{ item }">
-            <span v-if="item.agent_login">{{ item.agent_login }}</span>
+          <template #[`item.agent_name`]="{ item }">
+            <span v-if="item.agent_name">{{ item.agent_name }}</span>
+            <span v-else class="cdr-muted">—</span>
+          </template>
+          <template #[`item.agent_station`]="{ item }">
+            <span v-if="item.agent_station" class="cdr-mono">{{ item.agent_station }}</span>
             <span v-else class="cdr-muted">—</span>
           </template>
           <template #[`item.call_status`]="{ item }">
@@ -230,8 +234,12 @@
           <template #[`item.started_at`]="{ item }">
             <span class="cdr-mono">{{ formatDateTime(item.started_at) }}</span>
           </template>
-          <template #[`item.agent_login`]="{ item }">
-            <span v-if="item.agent_login">{{ item.agent_login }}</span>
+          <template #[`item.agent_name`]="{ item }">
+            <span v-if="item.agent_name">{{ item.agent_name }}</span>
+            <span v-else class="cdr-muted">—</span>
+          </template>
+          <template #[`item.agent_station`]="{ item }">
+            <span v-if="item.agent_station" class="cdr-mono">{{ item.agent_station }}</span>
             <span v-else class="cdr-muted">—</span>
           </template>
           <template #[`item.duration`]="{ item }">
@@ -353,7 +361,8 @@ const CALLS_HEADERS = [
   { title: "Appelant", key: "caller", sortable: false },
   { title: "Appelé", key: "callee", sortable: false },
   { title: "Direction", key: "direction", sortable: false },
-  { title: "Agent", key: "agent_login", sortable: false },
+  { title: "Agent", key: "agent_name", sortable: false },
+  { title: "Poste", key: "agent_station", sortable: false },
   { title: "File", key: "queue_id", sortable: false },
   { title: "Statut", key: "call_status", sortable: false },
   { title: "Durée", key: "duration", sortable: false },
@@ -432,7 +441,8 @@ const RECORDINGS_HEADERS = [
   { title: "Date / heure", key: "started_at", sortable: false },
   { title: "Appelant", key: "caller", sortable: false },
   { title: "Appelé", key: "callee", sortable: false },
-  { title: "Agent", key: "agent_login", sortable: false },
+  { title: "Agent", key: "agent_name", sortable: false },
+  { title: "Poste", key: "agent_station", sortable: false },
   { title: "File", key: "queue_id", sortable: false },
   { title: "Durée", key: "duration", sortable: false },
   { title: "", key: "actions", sortable: false, align: "end" },

@@ -738,10 +738,14 @@ def active_calls():
         if linked and linked in merged and m.get("call_direction") == "outbound":
             merged.pop(call_uuid, None)
 
+    alias_lookup = _agent_alias_lookup(g.tenant_id)
     active = []
     for m in merged.values():
+        alias = alias_lookup.get(m["agent_login"]) if m["agent_login"] else None
         active.append({
             **m,
+            "agent_name": alias["name"] if alias else m["agent_login"],
+            "agent_station": alias["station"] if alias else None,
             "started_at": m["started_at"].isoformat() if m["started_at"] else None,
             "created_at": m["created_at"].isoformat() if m["created_at"] else None,
         })
@@ -817,6 +821,31 @@ def _queue_alias_lookup(tenant_id) -> dict:
             if queue_id:
                 lookup[f"{queue_id}@{d.pbx_domain}"] = alias or queue_id
     return lookup
+
+
+def _agent_alias_lookup(tenant_id) -> dict:
+    """`User.agent_login` (uuid FusionPBX CC-Agent, cf.
+    `_known_agent_logins_for_tenant`) -> {"name": "Prénom Nom", "station":
+    station_extension}, pour habiller le monitoring temps réel et le CDR
+    d'un identifiant humain plutôt que l'uuid brut. `station_extension` est
+    le poste déclaré côté PERMATEL (gestion des utilisateurs), pas une
+    valeur dérivée en direct du trafic PBX — reste stable même si l'agent
+    n'est pas actuellement enregistré sur son poste."""
+    rows = (
+        db.session.query(User.agent_login, User.prenom, User.nom, User.station_extension)
+        .join(TenantUser, TenantUser.user_id == User.id)
+        .filter(
+            TenantUser.tenant_id == tenant_id,
+            User.agent_login.isnot(None),
+        )
+        .distinct()
+        .all()
+    )
+    return {
+        login: {"name": f"{prenom} {nom}".strip(), "station": station}
+        for login, prenom, nom, station in rows
+        if login
+    }
 
 
 @telephony_bp.get("/kpis/queues")
@@ -1005,10 +1034,13 @@ def agents_status():
         if answered:
             calls_handled[agent_login] = calls_handled.get(agent_login, 0) + 1
 
+    alias_lookup = _agent_alias_lookup(g.tenant_id)
     agents = sorted(
         (
             {
                 "agent_login": e.agent_login,
+                "agent_name": alias_lookup.get(e.agent_login, {}).get("name", e.agent_login),
+                "agent_station": alias_lookup.get(e.agent_login, {}).get("station"),
                 "presence": _normalize_agent_presence(e.agent_status),
                 "raw_status": e.agent_status,
                 "last_seen_at": e.created_at.isoformat() if e.created_at else None,
@@ -1087,6 +1119,7 @@ def _query_calls_history(filters, *, recordings_only=False):
     for e in query.all():
         by_call.setdefault(e.call_uuid, []).append(e)
 
+    alias_lookup = _agent_alias_lookup(g.tenant_id)
     rows_by_uuid = {}
     for call_uuid, call_events in by_call.items():
         call_events.sort(key=lambda e: e.created_at)
@@ -1115,12 +1148,15 @@ def _query_calls_history(filters, *, recordings_only=False):
             if needle not in haystack:
                 continue
 
+        agent_alias = alias_lookup.get(agent_login) if agent_login else None
         rows_by_uuid[call_uuid] = {
             "call_uuid": call_uuid,
             "caller": caller,
             "callee": callee,
             "direction": direction,
             "agent_login": agent_login,
+            "agent_name": agent_alias["name"] if agent_alias else agent_login,
+            "agent_station": agent_alias["station"] if agent_alias else None,
             "queue_id": queue_id,
             "call_status": terminal.call_status,
             "duration": terminal.duration,
@@ -1180,14 +1216,17 @@ def export_calls_csv():
 
     buffer = io.StringIO()
     writer = csv.writer(buffer)
+    # CDR = uniquement le nom d'agent lisible + son poste PERMATEL déclaré
+    # (station_extension) — jamais l'uuid CC-Agent brut, illisible pour un
+    # export destiné à être lu/partagé tel quel.
     writer.writerow([
         "call_uuid", "started_at", "ended_at", "caller", "callee", "direction",
-        "agent_login", "queue_id", "call_status", "duration_seconds",
+        "agent_name", "station", "queue_id", "call_status", "duration_seconds",
     ])
     for r in rows:
         writer.writerow([
             r["call_uuid"], r["started_at"], r["ended_at"], r["caller"], r["callee"],
-            r["direction"], r["agent_login"], r["queue_id"], r["call_status"], r["duration"],
+            r["direction"], r["agent_name"], r["agent_station"], r["queue_id"], r["call_status"], r["duration"],
         ])
 
     filename = f"appels_{filters['dt_from'].date()}_{filters['dt_to'].date()}.csv"

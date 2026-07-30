@@ -374,6 +374,56 @@ class TestActiveCalls:
         assert data["active_calls"][0]["caller"] == "22101008"
         assert data["active_calls"][0]["callee"] == "010615465411"
 
+    def test_active_calls_habille_agent_login_avec_nom_et_poste_declares(
+        self, client, db, auth_headers, pbx_domain, default_tenant,
+    ):
+        """`agent_login` (uuid CC-Agent) est désormais illisible en tant que
+        tel — /active-calls doit l'habiller avec le nom PERMATEL de l'agent
+        (User.prenom/nom) et son poste déclaré (User.station_extension),
+        jamais dérivé du trafic PBX en direct."""
+        from app.models.user import User, UserRole
+
+        agent = User(
+            username="agent1001", email="agent1001@permatel.ma", nom="Diop", prenom="Awa",
+            role=UserRole.PERMANENCIER, is_active=True,
+            agent_login="e8a58298-87e7-4960-a222-d05763866b15", station_extension="22101001",
+        )
+        agent.set_password("Password123!")
+        agent.tenants.append(default_tenant)
+        db.session.add(agent)
+        db.session.commit()
+
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, pbx_connector_id=pbx_domain.pbx_connector_id,
+            event_type="CHANNEL_ANSWER", call_status="answered", call_uuid="call-avec-agent",
+            agent_login="e8a58298-87e7-4960-a222-d05763866b15", created_at=datetime.utcnow(),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/active-calls", headers=auth_headers)
+        call = resp.get_json()["active_calls"][0]
+        assert call["agent_login"] == "e8a58298-87e7-4960-a222-d05763866b15"
+        assert call["agent_name"] == "Awa Diop"
+        assert call["agent_station"] == "22101001"
+
+    def test_active_calls_agent_login_non_declare_retombe_sur_l_uuid_brut(
+        self, client, db, auth_headers, pbx_domain, default_tenant,
+    ):
+        """Aucun User.agent_login ne correspond (donnée historique, ou
+        agent_login mal renseigné) : pas d'exception, agent_name retombe
+        simplement sur la valeur brute plutôt que de fabriquer un nom."""
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, pbx_connector_id=pbx_domain.pbx_connector_id,
+            event_type="CHANNEL_ANSWER", call_status="answered", call_uuid="call-agent-inconnu",
+            agent_login="uuid-sans-user-permatel", created_at=datetime.utcnow(),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/active-calls", headers=auth_headers)
+        call = resp.get_json()["active_calls"][0]
+        assert call["agent_name"] == "uuid-sans-user-permatel"
+        assert call["agent_station"] is None
+
 
 class TestKpis:
     def test_kpis_summary_calcule_taux_decroche(self, client, db, auth_headers, pbx_domain, default_tenant):
@@ -529,6 +579,32 @@ class TestAgentsStatus:
         resp = client.get("/api/telephony/agents/status", headers=auth_headers)
         agents = {a["agent_login"]: a for a in resp.get_json()["agents"]}
         assert agents["agent01"]["calls_handled"] == 1
+
+    def test_agents_status_habille_agent_login_avec_nom_et_poste_declares(
+        self, client, db, auth_headers, default_tenant,
+    ):
+        from app.models.user import User, UserRole
+
+        agent = User(
+            username="agent1010", email="agent1010@permatel.ma", nom="Ndiaye", prenom="Moussa",
+            role=UserRole.PERMANENCIER, is_active=True,
+            agent_login="fd18b0f6-47f3-4fe2-8e85-fe36ca077b79", station_extension="22101010",
+        )
+        agent.set_password("Password123!")
+        agent.tenants.append(default_tenant)
+        db.session.add(agent)
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CALLCENTER_AGENT_STATE_CHANGE",
+            call_status="on_hold", call_uuid="ev-habille",
+            agent_login="fd18b0f6-47f3-4fe2-8e85-fe36ca077b79",
+            agent_status="Available", created_at=datetime.utcnow(),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/agents/status", headers=auth_headers)
+        agents = {a["agent_login"]: a for a in resp.get_json()["agents"]}
+        assert agents["fd18b0f6-47f3-4fe2-8e85-fe36ca077b79"]["agent_name"] == "Moussa Ndiaye"
+        assert agents["fd18b0f6-47f3-4fe2-8e85-fe36ca077b79"]["agent_station"] == "22101010"
 
     def test_agents_status_isolation_cross_tenant(self, client, db, auth_headers, default_tenant):
         from app.models.tenant import Tenant
@@ -1245,6 +1321,29 @@ class TestCallsHistory:
         uuids = [c["call_uuid"] for c in resp.get_json()["calls"]]
         assert "hist-autre-tenant" not in uuids
 
+    def test_habille_agent_login_avec_nom_et_poste_declares(self, client, db, auth_headers, default_tenant):
+        """CDR : agent_login (uuid CC-Agent) est habillé du nom PERMATEL de
+        l'agent et de son poste déclaré, comme /active-calls et
+        /agents/status."""
+        from app.models.user import User, UserRole
+
+        agent = User(
+            username="agenthist", email="agenthist@permatel.ma", nom="Fall", prenom="Ibra",
+            role=UserRole.PERMANENCIER, is_active=True,
+            agent_login="agent-hist-uuid", station_extension="22101099",
+        )
+        agent.set_password("Password123!")
+        agent.tenants.append(default_tenant)
+        db.session.add(agent)
+        db.session.commit()
+        self._seed_completed_call(db, default_tenant.id, "hist-agent-habille", agent_login="agent-hist-uuid")
+
+        resp = client.get("/api/telephony/calls", headers=auth_headers)
+        call = resp.get_json()["calls"][0]
+        assert call["agent_login"] == "agent-hist-uuid"
+        assert call["agent_name"] == "Ibra Fall"
+        assert call["agent_station"] == "22101099"
+
 
 class TestCallsExport:
     def test_export_csv_retourne_un_fichier_csv(self, client, db, auth_headers, default_tenant):
@@ -1255,6 +1354,32 @@ class TestCallsExport:
         body = resp.get_data(as_text=True)
         assert "call_uuid" in body.splitlines()[0]
         assert "export-1" in body
+
+    def test_export_csv_utilise_agent_name_pas_l_uuid_brut(self, client, db, auth_headers, default_tenant):
+        """Le CDR exporté ne doit exposer QUE le nom d'agent lisible et son
+        poste — jamais l'uuid CC-Agent brut, illisible dans un export."""
+        from app.models.user import User, UserRole
+
+        agent = User(
+            username="agentcsv", email="agentcsv@permatel.ma", nom="Sarr", prenom="Khady",
+            role=UserRole.PERMANENCIER, is_active=True,
+            agent_login="agent-csv-uuid", station_extension="22101003",
+        )
+        agent.set_password("Password123!")
+        agent.tenants.append(default_tenant)
+        db.session.add(agent)
+        db.session.commit()
+        TestCallsHistory()._seed_completed_call(db, default_tenant.id, "export-agent", agent_login="agent-csv-uuid")
+
+        resp = client.get("/api/telephony/calls/export", headers=auth_headers)
+        body = resp.get_data(as_text=True)
+        header = body.splitlines()[0]
+        assert "agent_name" in header
+        assert "station" in header
+        assert "agent_login" not in header
+        assert "Khady Sarr" in body
+        assert "22101003" in body
+        assert "agent-csv-uuid" not in body
 
 
 class TestRecordings:
