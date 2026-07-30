@@ -1189,6 +1189,34 @@ class TestCallsHistory:
         resp = client.get("/api/telephony/calls", headers=auth_headers)
         assert resp.get_json()["total"] == 0
 
+    def test_fusionne_les_legs_d_un_pont_direct(self, client, db, default_tenant, auth_headers):
+        """Reproduit le cas réel du 29/07 : un appel sortant direct (agent
+        vers externe) produit deux call_uuid distincts, liés par
+        Other-Leg-Unique-ID une fois le pont établi — l'historique ne doit
+        montrer qu'une seule ligne (le leg 'inbound'), pas deux."""
+        base = datetime.utcnow() - timedelta(minutes=10)
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CHANNEL_HANGUP_COMPLETE", call_status="ended",
+            call_uuid="leg-inbound", call_direction="inbound", caller_number="22101008",
+            callee_number="010615465411", linked_call_uuid="leg-outbound", duration=42,
+            created_at=base + timedelta(seconds=50),
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CHANNEL_HANGUP_COMPLETE", call_status="ended",
+            call_uuid="leg-outbound", call_direction="outbound", caller_number="33186569392",
+            callee_number="50000615465411", linked_call_uuid="leg-inbound", duration=42,
+            created_at=base + timedelta(seconds=50),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/calls", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["total"] == 1
+        assert data["calls"][0]["call_uuid"] == "leg-inbound"
+        assert data["calls"][0]["caller"] == "22101008"
+        assert data["calls"][0]["callee"] == "010615465411"
+
     def test_filtre_par_statut(self, client, db, auth_headers, default_tenant):
         self._seed_completed_call(db, default_tenant.id, "hist-answered", status="ended")
         self._seed_completed_call(db, default_tenant.id, "hist-missed", status="missed")

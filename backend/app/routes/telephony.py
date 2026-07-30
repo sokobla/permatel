@@ -1087,7 +1087,7 @@ def _query_calls_history(filters, *, recordings_only=False):
     for e in query.all():
         by_call.setdefault(e.call_uuid, []).append(e)
 
-    rows = []
+    rows_by_uuid = {}
     for call_uuid, call_events in by_call.items():
         call_events.sort(key=lambda e: e.created_at)
         terminal = next((e for e in call_events if e.call_status in TERMINAL_STATUSES), None)
@@ -1101,6 +1101,7 @@ def _query_calls_history(filters, *, recordings_only=False):
         agent_login = next((e.agent_login for e in call_events if e.agent_login), None)
         queue_id = next((e.queue_id for e in call_events if e.queue_id), None)
         recording_url = next((e.recording_url for e in call_events if e.recording_url), None)
+        linked_call_uuid = next((e.linked_call_uuid for e in call_events if e.linked_call_uuid), None)
 
         if recordings_only and not recording_url:
             continue
@@ -1114,7 +1115,7 @@ def _query_calls_history(filters, *, recordings_only=False):
             if needle not in haystack:
                 continue
 
-        rows.append({
+        rows_by_uuid[call_uuid] = {
             "call_uuid": call_uuid,
             "caller": caller,
             "callee": callee,
@@ -1127,7 +1128,24 @@ def _query_calls_history(filters, *, recordings_only=False):
             "ended_at": terminal.created_at.isoformat() if terminal.created_at else None,
             "recording_url": recording_url,
             "recording_available": bool(recording_url) and urlparse(recording_url).scheme in ("http", "https"),
-        })
+            "_linked_call_uuid": linked_call_uuid,
+            "_direction_raw": direction,
+        }
+
+    # Fusion des legs d'un appel bridgé — même règle que /active-calls :
+    # Other-Leg-Unique-ID (fiable une fois le pont établi) relie les deux
+    # call_uuid d'un même appel physique ; on ne garde que le leg "inbound",
+    # qui porte le numéro humainement lisible.
+    for call_uuid, row in list(rows_by_uuid.items()):
+        linked = row["_linked_call_uuid"]
+        if linked and linked in rows_by_uuid and row["_direction_raw"] == "outbound":
+            rows_by_uuid.pop(call_uuid, None)
+
+    rows = []
+    for row in rows_by_uuid.values():
+        row.pop("_linked_call_uuid", None)
+        row.pop("_direction_raw", None)
+        rows.append(row)
 
     rows.sort(key=lambda r: r["started_at"] or "", reverse=True)
     return rows
