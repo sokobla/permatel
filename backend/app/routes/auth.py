@@ -32,9 +32,16 @@ from app.models.user import User, UserRole
 from app.models.tenant import Tenant
 from app.models.tenant_user import TenantUser, MEMBERSHIP_ADMIN
 from app.models.user_session import SessionStatus, UserSession
+from app.models.user_token import (
+    UserToken, PURPOSE_PASSWORD_RESET, PASSWORD_RESET_TTL,
+    STATUS_PENDING, STATUS_COMPLETED, STATUS_EXPIRED,
+)
 from app.utils.auth import role_required
+from app.utils.email_templates import build_reset_url, send_templated_email
 from app.utils.logger import auth_logger
 from app.utils.login_throttle import check_locked, register_failure, reset as reset_login_throttle
+from app.utils.tokens import generate_token, hash_token
+from app.utils.validators import password_error
 from app.services.tenant_features import tenant_features
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
@@ -107,6 +114,26 @@ def _revoke_token(jti: str, token_type: str, user_id: int, expires_at: datetime)
         expires_at=expires_at,
     )
     db.session.add(entry)
+
+
+def _revoke_all_active_sessions(user_id: int) -> None:
+    """Invalide immédiatement toutes les sessions ACTIVE d'un utilisateur —
+    même mécanique que revoke_session() (blocklist du refresh token, statut
+    REVOKED) — déclenchée ici par une réinitialisation de mot de passe plutôt
+    qu'une révocation manuelle en Supervision. Un mot de passe qu'on vient de
+    réinitialiser (souvent parce qu'il a fuité) ne doit laisser aucune
+    session ouverte derrière lui, pas seulement empêcher les futures
+    connexions."""
+    from datetime import timedelta
+
+    now = datetime.utcnow()
+    sessions = UserSession.query.filter_by(user_id=user_id, status=SessionStatus.ACTIVE).all()
+    for session in sessions:
+        if session.jti and not TokenBlocklist.query.filter_by(jti=session.jti).first():
+            refresh_exp = now + current_app.config.get("JWT_REFRESH_TOKEN_EXPIRES", timedelta(days=1))
+            _revoke_token(jti=session.jti, token_type="refresh", user_id=user_id, expires_at=refresh_exp)
+        session.status = SessionStatus.REVOKED
+        session.session_end = now
 
 
 def _log_audit(user_id: int, event: str, details: dict, tenant_id: uuid.UUID | None = None) -> None:
@@ -1126,3 +1153,113 @@ def sessions_stats():
             "end_reasons": end_reasons,
         },
     }), 200
+
+
+# ═════════════════════════════════════════════════════════════════════════
+#  Mot de passe oublié — self-service, aucune authentification requise
+# ═════════════════════════════════════════════════════════════════════════
+
+@auth_bp.route("/forgot-password", methods=["POST"])
+def forgot_password():
+    """
+    Déclenche l'envoi d'un email de réinitialisation de mot de passe.
+
+    Retourne TOUJOURS 200 avec le même message, que l'email corresponde à un
+    compte actif ou non (anti-énumération) — ne jamais laisser une réponse
+    distinguer "cet email existe" de "cet email n'existe pas".
+    """
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    generic_response = (jsonify({
+        "message": "Si un compte existe pour cette adresse, un email de réinitialisation a été envoyé."
+    }), 200)
+
+    if not email:
+        return generic_response
+
+    user = User.query.filter(User.email.ilike(email), User.is_active.is_(True)).first()
+    if not user or not user.tenants:
+        return generic_response
+
+    tenant = user.tenants[0]
+    raw, token_hash = generate_token()
+    reset_token = UserToken(
+        user_id=user.id, purpose=PURPOSE_PASSWORD_RESET, token_hash=token_hash,
+        status=STATUS_PENDING, expires_at=datetime.utcnow() + PASSWORD_RESET_TTL,
+    )
+    db.session.add(reset_token)
+    db.session.flush()
+
+    try:
+        send_templated_email(
+            tenant, "password_reset",
+            {
+                "prenom": user.prenom,
+                "tenant_name": getattr(tenant, "nom", "") or "votre espace",
+                "reset_url": build_reset_url(raw),
+            },
+            user.email,
+        )
+    except Exception:  # noqa: BLE001
+        # Ne jamais révéler un échec d'envoi (fuiterait "cet email existe"
+        # via une différence de comportement) — journalisé, pas remonté.
+        db.session.rollback()
+        auth_logger.exception("Échec de l'envoi de l'email de réinitialisation de mot de passe.")
+        return generic_response
+
+    db.session.commit()
+    return generic_response
+
+
+def _resolve_reset_token(token: str):
+    """Miroir de onboarding.py::_resolve — jamais un message qui distingue
+    "n'existe pas" de "expiré" (anti-énumération)."""
+    if not token:
+        return None, (jsonify({"error": "Jeton manquant."}), 400)
+    reset_token = UserToken.query.filter_by(
+        token_hash=hash_token(token), purpose=PURPOSE_PASSWORD_RESET,
+    ).first()
+    if not reset_token or reset_token.status != STATUS_PENDING:
+        return None, (jsonify({"error": "Lien de réinitialisation invalide ou déjà utilisé."}), 404)
+    if reset_token.expires_at <= datetime.utcnow():
+        reset_token.status = STATUS_EXPIRED
+        db.session.commit()
+        return None, (jsonify({"error": "Lien de réinitialisation expiré."}), 410)
+    return reset_token, None
+
+
+@auth_bp.route("/reset-password/<token>", methods=["GET"])
+def check_reset_token(token):
+    """Validation seule (pas de données à pré-remplir, contrairement à
+    l'onboarding) — permet au frontend d'afficher le formulaire ou un état
+    d'erreur avant que l'utilisateur ne saisisse quoi que ce soit."""
+    _reset_token, err = _resolve_reset_token(token)
+    if err:
+        return err
+    return jsonify({"valid": True}), 200
+
+
+@auth_bp.route("/reset-password/<token>", methods=["POST"])
+def reset_password(token):
+    reset_token, err = _resolve_reset_token(token)
+    if err:
+        return err
+
+    data = request.get_json(silent=True) or {}
+    password = data.get("password") or ""
+    pwd_err = password_error(password)
+    if pwd_err:
+        return jsonify({"error": pwd_err}), 400
+
+    user = reset_token.user
+    user.set_password(password)
+    reset_token.status = STATUS_COMPLETED
+    reset_token.completed_at = datetime.utcnow()
+
+    # Un mot de passe qu'on vient de réinitialiser ne doit laisser aucune
+    # session déjà ouverte valide — décision produit actée explicitement.
+    _revoke_all_active_sessions(user.id)
+
+    db.session.commit()
+    auth_logger.info(f"PASSWORD_RESET_COMPLETED | user_id={user.id}")
+    return jsonify({"message": "Mot de passe réinitialisé. Vous pouvez vous connecter."}), 200

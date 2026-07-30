@@ -41,6 +41,22 @@ const routes = [
     meta: { skipTenantGuard: true },
   },
 
+  // Activation de compte via lien d'onboarding — page publique
+  {
+    path: "/onboarding",
+    name: "Onboarding",
+    component: () => import("../views/OnboardingView.vue"),
+    meta: { skipTenantGuard: true },
+  },
+
+  // Réinitialisation de mot de passe — page publique
+  {
+    path: "/reset-password",
+    name: "ResetPassword",
+    component: () => import("../views/ResetPasswordView.vue"),
+    meta: { skipTenantGuard: true },
+  },
+
   // Gestion des membres du tenant (admin de tenant ou super-admin)
   {
     path: "/members",

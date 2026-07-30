@@ -1,22 +1,11 @@
 """Helpers d'invitation : génération/hash de token et envoi d'email."""
-import hashlib
-import secrets
 from email.message import EmailMessage
 
 from flask import current_app
 
 from app.models.setting import SmtpSetting
 from app.utils.mailer import send_via_smtp
-
-
-def generate_token() -> tuple[str, str]:
-    """Retourne (token_clair, token_hash). Seul le hash est stocké."""
-    raw = secrets.token_urlsafe(32)
-    return raw, hash_token(raw)
-
-
-def hash_token(raw: str) -> str:
-    return hashlib.sha256(raw.encode()).hexdigest()
+from app.utils.tokens import generate_token, hash_token  # noqa: F401 — ré-export, compat imports existants
 
 
 def build_accept_url(token: str) -> str:

@@ -83,6 +83,22 @@ export const userService = {
   resetPassword(id, new_password) {
     return apiClient.patch(`${USERS}/${id}/password`, { new_password });
   },
+
+  /**
+   * Renvoie l'email d'onboarding (uniquement si onboarding_status === "pending").
+   * @param {number|string} id
+   */
+  resendOnboarding(id) {
+    return apiClient.post(`${USERS}/${id}/onboarding/resend`);
+  },
+
+  /**
+   * Révoque l'onboarding en cours (uniquement si onboarding_status === "pending").
+   * @param {number|string} id
+   */
+  revokeOnboarding(id) {
+    return apiClient.delete(`${USERS}/${id}/onboarding`);
+  },
   /**
    * Récupère les rôles disponibles (pour le select du formulaire).
    * Réponse attendue : { roles: [{ value, label }] }

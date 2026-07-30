@@ -1,4 +1,5 @@
 import logging
+import secrets
 import uuid
 from datetime import datetime
 import json
@@ -12,7 +13,9 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 
 from app import db
 from app.models import User, UserRole
+from app.models.user_token import UserToken, PURPOSE_ONBOARDING, STATUS_PENDING, STATUS_REVOKED
 from app.utils.auth import role_required
+from app.utils.onboarding import trigger_onboarding
 from app.utils.validators import password_error, email_error
 
 users_bp = Blueprint("users", __name__, url_prefix="/api/users")
@@ -220,7 +223,9 @@ def create_user():
     if error:
         return error
     # username = email (bascule globale) : le champ username n'est plus demandé.
-    required_fields = ["email", "nom", "prenom", "role", "password"]
+    # `password` n'est PAS dans cette liste : requis seulement si l'onboarding
+    # par email n'est pas déclenché (voir plus bas — mutuellement exclusif).
+    required_fields = ["email", "nom", "prenom", "role"]
     missing_fields = [field for field in required_fields if not data.get(field)]
 
     if missing_fields:
@@ -228,6 +233,19 @@ def create_user():
             "message": "Champs obligatoires manquants",
             "missing_fields": missing_fields
         }), 400
+
+    # Le toggle "Envoyer un email d'onboarding" est coché par défaut CÔTÉ UI
+    # (comportement demandé) — mais l'API elle-même retombe sur False en
+    # l'absence du champ, pour ne jamais changer de comportement pour un
+    # appelant qui fournit déjà `password` sans connaître ce champ (rétro-
+    # compatibilité). C'est au frontend d'envoyer explicitement `true`.
+    send_onboarding = bool(data.get("send_onboarding", False))
+    password = data.get("password")
+
+    if send_onboarding and password:
+        return jsonify({"message": "Fournissez soit un mot de passe, soit l'onboarding par email — pas les deux."}), 400
+    if not send_onboarding and not password:
+        return jsonify({"message": "Mot de passe requis lorsque l'onboarding par email est désactivé."}), 400
 
     email = data["email"].strip().lower()
     username = email
@@ -237,10 +255,14 @@ def create_user():
     if User.query.filter_by(email=email).first():
         return jsonify({"message": "Email déjà utilisé"}), 409
 
-    # Politique de mot de passe (SEC-01) — appliquée dès la création.
-    pwd_err = password_error(data.get("password"))
-    if pwd_err:
-        return jsonify({"message": pwd_err}), 400
+    # Politique de mot de passe (SEC-01) — appliquée dès la création, uniquement
+    # quand un mot de passe est effectivement fourni par l'appelant (sinon un
+    # mot de passe aléatoire inutilisable est généré plus bas, jamais soumis à
+    # cette validation car jamais destiné à être tapé par un humain).
+    if not send_onboarding:
+        pwd_err = password_error(password)
+        if pwd_err:
+            return jsonify({"message": pwd_err}), 400
 
     try:
         role = UserRole(data["role"])
@@ -269,7 +291,14 @@ def create_user():
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
-    user.set_password(data["password"])
+    if send_onboarding:
+        # Mot de passe aléatoire jamais communiqué — le compte reste is_active
+        # tel que demandé, mais inutilisable tant que l'onboarding n'est pas
+        # complété via le lien envoyé par email (ou jusqu'au sweep 24h qui
+        # désactive le compte si le lien n'est jamais utilisé).
+        user.set_password(secrets.token_urlsafe(32))
+    else:
+        user.set_password(password)
 
     db.session.add(user)
     db.session.flush()  # Obtenir user.id pour le nom de fichier de l'avatar
@@ -286,6 +315,7 @@ def create_user():
             logger.error(f"Erreur lors de la sauvegarde de l'avatar pour la création d'utilisateur : {e}")
             return jsonify({"message": "Erreur interne lors de la sauvegarde de l'avatar."}), 500
 
+    tenants = []
     if tenant_ids:
         from app.models import Tenant
         from app.models.tenant_user import TenantUser, MEMBERSHIP_MEMBER
@@ -304,12 +334,69 @@ def create_user():
                 membership_role=MEMBERSHIP_MEMBER, is_active=True,
             ))
 
+    if send_onboarding:
+        # role != ADMIN est garanti à ce stade (bloqué plus haut), donc
+        # tenant_ids était requis et `tenants` est non vide. L'email utilise
+        # le SMTP/nom du PREMIER tenant rattaché — décision documentée, pas
+        # un choix arbitraire caché : un utilisateur multi-tenant ne reçoit
+        # qu'un seul email d'onboarding, pas un par tenant.
+        try:
+            trigger_onboarding(user, tenants[0], created_by_user_id=int(get_jwt_identity()))
+        except Exception as exc:  # noqa: BLE001
+            db.session.rollback()
+            return jsonify({"message": f"Utilisateur non créé — échec de l'envoi de l'email d'onboarding : {exc}"}), 502
+
     db.session.commit()
 
     return jsonify({
         "message": "Utilisateur créé",
         "user": _serialize_user(user, include_tenants=True)
     }), 201
+
+
+@users_bp.post("/<int:user_id>/onboarding/resend")
+@jwt_required()
+@role_required(UserRole.ADMIN)
+def resend_onboarding(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"message": "Utilisateur introuvable"}), 404
+    if user.onboarding_status != STATUS_PENDING:
+        return jsonify({"message": "Seul un onboarding en attente peut être relancé."}), 400
+
+    tenant = user.tenants[0] if user.tenants else None
+    if not tenant:
+        return jsonify({"message": "Aucun tenant rattaché à cet utilisateur — impossible d'envoyer l'email."}), 400
+
+    try:
+        trigger_onboarding(user, tenant, created_by_user_id=int(get_jwt_identity()))
+    except Exception as exc:  # noqa: BLE001
+        db.session.rollback()
+        return jsonify({"message": f"Échec de l'envoi : {exc}"}), 502
+
+    db.session.commit()
+    return jsonify({"message": "Email d'onboarding renvoyé.", "user": _serialize_user(user)}), 200
+
+
+@users_bp.delete("/<int:user_id>/onboarding")
+@jwt_required()
+@role_required(UserRole.ADMIN)
+def revoke_onboarding(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"message": "Utilisateur introuvable"}), 404
+    if user.onboarding_status != STATUS_PENDING:
+        return jsonify({"message": "Aucun onboarding en attente pour cet utilisateur."}), 400
+
+    pending_tokens = UserToken.query.filter_by(
+        user_id=user.id, purpose=PURPOSE_ONBOARDING, status=STATUS_PENDING,
+    ).all()
+    for t in pending_tokens:
+        t.status = STATUS_REVOKED
+    user.onboarding_status = STATUS_REVOKED
+
+    db.session.commit()
+    return jsonify({"message": "Onboarding révoqué.", "user": _serialize_user(user)}), 200
 
 
 @users_bp.put("/<int:user_id>")

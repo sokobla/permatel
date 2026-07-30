@@ -190,6 +190,14 @@ def create_app(config_object=None):
             f"Entrées blocklist purgées : {result['purged']}"
         )
 
+    @click.command("onboarding-sweep")
+    @with_appcontext
+    def onboarding_sweep_command():
+        """Expire les jetons d'onboarding dépassés (24h) et désactive les comptes correspondants."""
+        from app.scripts.onboarding_sweep import sweep_onboarding
+        result = sweep_onboarding(db)
+        click.echo(f"Onboardings expirés : {result['expired']}")
+
     @click.command("sla-backfill")
     @with_appcontext
     def sla_backfill_command():
@@ -263,6 +271,7 @@ def create_app(config_object=None):
     app.cli.add_command(init_db_command, "init-db")
     app.cli.add_command(seed_command, "seed")
     app.cli.add_command(sessions_sweep_command, "sessions-sweep")
+    app.cli.add_command(onboarding_sweep_command, "onboarding-sweep")
     app.cli.add_command(sla_backfill_command, "sla-backfill")
     app.cli.add_command(sla_sweep_command, "sla-sweep")
     app.cli.add_command(notifications_dispatch_command, "notifications-dispatch")
@@ -324,6 +333,12 @@ def create_app(config_object=None):
 
     from app.routes.invitations import invitations_bp
     app.register_blueprint(invitations_bp)
+
+    from app.routes.email_templates import email_templates_bp
+    app.register_blueprint(email_templates_bp)
+
+    from app.routes.onboarding import onboarding_bp
+    app.register_blueprint(onboarding_bp)
 
     from app.routes.notifications import notifications_bp
     app.register_blueprint(notifications_bp)

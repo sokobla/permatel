@@ -12,6 +12,7 @@
     <v-tabs v-model="tab" color="#00a8a8" density="comfortable" class="set-tabs">
       <v-tab value="general" class="text-none"><v-icon start size="16">mdi-tune</v-icon>Général</v-tab>
       <v-tab value="smtp" class="text-none"><v-icon start size="16">mdi-email-arrow-right-outline</v-icon>SMTP</v-tab>
+      <v-tab value="emails" class="text-none"><v-icon start size="16">mdi-email-edit-outline</v-icon>Emails</v-tab>
       <v-tab v-if="sections.imap" value="imap" class="text-none"><v-icon start size="16">mdi-email-arrow-left-outline</v-icon>IMAP</v-tab>
       <v-tab value="reference" class="text-none"><v-icon start size="16">mdi-format-list-bulleted</v-icon>Valeurs de référence</v-tab>
       <v-tab value="sla" class="text-none"><v-icon start size="16">mdi-timer-alert-outline</v-icon>SLA</v-tab>
@@ -25,6 +26,9 @@
       </v-window-item>
       <v-window-item value="smtp" transition="fade-transition">
         <SettingsSmtp />
+      </v-window-item>
+      <v-window-item value="emails" transition="fade-transition">
+        <SettingsEmails />
       </v-window-item>
       <v-window-item v-if="sections.imap" value="imap" transition="fade-transition">
         <SettingsImap />
@@ -48,6 +52,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "@/store/auth";
 import SettingsGeneral from "@/components/settings/SettingsGeneral.vue";
 import SettingsSmtp from "@/components/settings/SettingsSmtp.vue";
+import SettingsEmails from "@/components/settings/SettingsEmails.vue";
 import SettingsImap from "@/components/settings/SettingsImap.vue";
 import SettingsReferenceValues from "@/components/settings/SettingsReferenceValues.vue";
 import SettingsSla from "@/components/settings/SettingsSla.vue";
@@ -62,7 +67,7 @@ const authStore = useAuthStore();
 // panneau « Configurer » de l'onglet Intégrations (voir SettingsIntegrations.vue).
 const sections = computed(() => authStore.featureMap.settings_sections || {});
 const availableTabs = computed(() => [
-  "general", "smtp",
+  "general", "smtp", "emails",
   ...(sections.value.imap ? ["imap"] : []),
   "reference", "sla",
   ...(sections.value.integrations ? ["integrations"] : []),

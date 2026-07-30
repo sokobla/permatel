@@ -136,6 +136,10 @@
           </v-card-text>
 
           <v-card-text class="text-center login-footer">
+            <a href="#" @click.prevent="forgotOpen = true">Mot de passe oublié ?</a>
+          </v-card-text>
+
+          <v-card-text class="text-center login-footer">
             Problème de connexion ?
             <a href="#" @click.prevent="supportOpen = true">Contacter le support</a>.
           </v-card-text>
@@ -147,6 +151,11 @@
     <v-dialog v-model="supportOpen" max-width="600" transition="dialog-bottom-transition">
       <ContactSupportView @close="supportOpen = false" />
     </v-dialog>
+
+    <!-- Dialog : mot de passe oublié -->
+    <v-dialog v-model="forgotOpen" max-width="480" transition="dialog-bottom-transition">
+      <ForgotPasswordDialog @close="forgotOpen = false" />
+    </v-dialog>
   </div>
 </template>
 
@@ -155,12 +164,14 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/store/auth";
 import ContactSupportView from "@/components/auth/ContactSupportView.vue";
+import ForgotPasswordDialog from "@/components/auth/ForgotPasswordDialog.vue";
 
 const username = ref("");
 const password = ref("");
 const errorMessage = ref(null);
 const loading = ref(false);
 const supportOpen = ref(false);
+const forgotOpen = ref(false);
 
 const router = useRouter();
 const authStore = useAuthStore();

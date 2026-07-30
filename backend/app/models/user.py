@@ -30,6 +30,14 @@ class User(Base):
     agent_login = Column(String(50), nullable=True)
     station_extension = Column(String(20), nullable=True)
     last_login_at = db.Column(db.DateTime, nullable=True)
+
+    # Onboarding par email (déclenché à la création par un admin) — dénormalisé
+    # depuis le dernier UserToken(purpose="onboarding") pour éviter une jointure
+    # à chaque rendu du tableau utilisateurs. Valeurs : null (jamais déclenché,
+    # mot de passe fourni directement) | "pending" | "completed" | "expired" |
+    # "revoked". Mis à jour uniquement par le service onboarding, jamais recalculé
+    # côté frontend.
+    onboarding_status = Column(String(20), nullable=True)
     
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -68,6 +76,7 @@ class User(Base):
             "agent_login": self.agent_login,
             "station_extension": self.station_extension,
             "is_active": self.is_active,
+            "onboarding_status": self.onboarding_status,
             "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),

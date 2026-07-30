@@ -182,10 +182,19 @@
 
             <!-- ── Colonne STATUT ── -->
             <template v-slot:[`item.status`]="{ item }">
-              <span :class="['status-badge', `status-badge--${item.status}`]">
-                <span class="status-badge__dot"></span>
-                {{ STATUS_LABELS[item.status] ?? item.status }}
-              </span>
+              <div class="status-cell">
+                <span :class="['status-badge', `status-badge--${item.status}`]">
+                  <span class="status-badge__dot"></span>
+                  {{ STATUS_LABELS[item.status] ?? item.status }}
+                </span>
+                <span
+                  v-if="item.onboarding_status === 'pending'"
+                  class="status-badge status-badge--pending"
+                >
+                  <span class="status-badge__dot"></span>
+                  ONBOARDING EN ATTENTE
+                </span>
+              </div>
             </template>
 
             <!-- ── Colonne ACTIONS ── -->
@@ -204,6 +213,22 @@
                   @click="onResetPassword(item)"
                 >
                   <v-icon size="13">mdi-key-variant</v-icon>
+                </button>
+                <button
+                  v-if="item.onboarding_status === 'pending'"
+                  class="act-btn act-btn--resend"
+                  title="Renvoyer l'email d'onboarding"
+                  @click="onResendOnboarding(item)"
+                >
+                  <v-icon size="13">mdi-email-sync-outline</v-icon>
+                </button>
+                <button
+                  v-if="item.onboarding_status === 'pending'"
+                  class="act-btn act-btn--revoke"
+                  title="Révoquer l'onboarding"
+                  @click="onRevokeOnboarding(item)"
+                >
+                  <v-icon size="13">mdi-email-remove-outline</v-icon>
                 </button>
                 <button
                   class="act-btn act-btn--delete"
@@ -480,73 +505,86 @@
               <span>SÉCURITÉ</span>
             </div>
 
-            <!-- MOT DE PASSE -->
-            <div class="form-group">
-              <label class="form-label"
-                >MOT DE PASSE
-                <span v-if="panelMode !== 'edit'" class="form-req"
-                  >*</span
-                ></label
-              >
-              <div class="input-eye-wrapper">
-                <input
-                  v-model="form.password"
-                  :type="showPwd ? 'text' : 'password'"
-                  class="form-input"
-                  :class="{ 'form-input--err': formErrors.password }"
-                  placeholder="••••••••"
-                  autocomplete="new-password"
-                />
-                <button
-                  type="button"
-                  class="eye-btn"
-                  @click="showPwd = !showPwd"
-                  :title="showPwd ? 'Masquer' : 'Afficher'"
-                >
-                  <v-icon size="14" color="#888">
-                    {{ showPwd ? "mdi-eye-off-outline" : "mdi-eye-outline" }}
-                  </v-icon>
-                </button>
-              </div>
-              <span v-if="formErrors.password" class="form-errmsg">{{
-                formErrors.password
-              }}</span>
+            <!-- ONBOARDING (création uniquement) -->
+            <div v-if="panelMode === 'create'" class="form-group">
+              <v-switch
+                v-model="form.send_onboarding"
+                color="#00a8a8"
+                density="compact"
+                hide-details
+                label="Envoyer un email d'onboarding (le mot de passe sera défini par l'utilisateur)"
+              />
             </div>
 
-            <!-- CONFIRMER MOT DE PASSE -->
-            <div class="form-group">
-              <label class="form-label"
-                >CONFIRMER MDP
-                <span v-if="panelMode !== 'edit'" class="form-req"
-                  >*</span
-                ></label
-              >
-              <div class="input-eye-wrapper">
-                <input
-                  v-model="form.confirmPassword"
-                  :type="showPwdConfirm ? 'text' : 'password'"
-                  class="form-input"
-                  :class="{ 'form-input--err': formErrors.confirmPassword }"
-                  placeholder="••••••••"
-                  autocomplete="new-password"
-                />
-                <button
-                  type="button"
-                  class="eye-btn"
-                  @click="showPwdConfirm = !showPwdConfirm"
-                  :title="showPwdConfirm ? 'Masquer' : 'Afficher'"
+            <template v-if="!(panelMode === 'create' && form.send_onboarding)">
+              <!-- MOT DE PASSE -->
+              <div class="form-group">
+                <label class="form-label"
+                  >MOT DE PASSE
+                  <span v-if="panelMode !== 'edit'" class="form-req"
+                    >*</span
+                  ></label
                 >
-                  <v-icon size="14" color="#888">
-                    {{
-                      showPwdConfirm ? "mdi-eye-off-outline" : "mdi-eye-outline"
-                    }}
-                  </v-icon>
-                </button>
+                <div class="input-eye-wrapper">
+                  <input
+                    v-model="form.password"
+                    :type="showPwd ? 'text' : 'password'"
+                    class="form-input"
+                    :class="{ 'form-input--err': formErrors.password }"
+                    placeholder="••••••••"
+                    autocomplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    class="eye-btn"
+                    @click="showPwd = !showPwd"
+                    :title="showPwd ? 'Masquer' : 'Afficher'"
+                  >
+                    <v-icon size="14" color="#888">
+                      {{ showPwd ? "mdi-eye-off-outline" : "mdi-eye-outline" }}
+                    </v-icon>
+                  </button>
+                </div>
+                <span v-if="formErrors.password" class="form-errmsg">{{
+                  formErrors.password
+                }}</span>
               </div>
-              <span v-if="formErrors.confirmPassword" class="form-errmsg">{{
-                formErrors.confirmPassword
-              }}</span>
-            </div>
+
+              <!-- CONFIRMER MOT DE PASSE -->
+              <div class="form-group">
+                <label class="form-label"
+                  >CONFIRMER MDP
+                  <span v-if="panelMode !== 'edit'" class="form-req"
+                    >*</span
+                  ></label
+                >
+                <div class="input-eye-wrapper">
+                  <input
+                    v-model="form.confirmPassword"
+                    :type="showPwdConfirm ? 'text' : 'password'"
+                    class="form-input"
+                    :class="{ 'form-input--err': formErrors.confirmPassword }"
+                    placeholder="••••••••"
+                    autocomplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    class="eye-btn"
+                    @click="showPwdConfirm = !showPwdConfirm"
+                    :title="showPwdConfirm ? 'Masquer' : 'Afficher'"
+                  >
+                    <v-icon size="14" color="#888">
+                      {{
+                        showPwdConfirm ? "mdi-eye-off-outline" : "mdi-eye-outline"
+                      }}
+                    </v-icon>
+                  </button>
+                </div>
+                <span v-if="formErrors.confirmPassword" class="form-errmsg">{{
+                  formErrors.confirmPassword
+                }}</span>
+              </div>
+            </template>
 
             <!-- Feedback création -->
             <div
@@ -645,6 +683,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from "vue";
 import { useUsers } from "@/composables/useUsers";
+import { userService } from "@/services/userService";
 import apiClient from "@/services/http/axios";
 import "@/assets/styles/crud-view.css";
 
@@ -803,6 +842,9 @@ function handleOpenCreatePanel() {
   resetSubmissionState();
   panelMode.value = "create";
   selectedUser.value = null;
+  // Défaut UI (pas un défaut API) : l'onboarding par email est activé par
+  // défaut pour toute nouvelle création, l'admin peut le désactiver.
+  form.send_onboarding = true;
   panelOpen.value = true;
 }
 
@@ -863,6 +905,7 @@ const form = reactive({
   tenant_ids: [],
   password: "",
   confirmPassword: "",
+  send_onboarding: false,
 });
 
 const formErrors = reactive({
@@ -884,6 +927,9 @@ function resetForm() {
     form[k] = "";
   });
   form.tenant_ids = [];
+  // `send_onboarding` n'a de sens qu'en mode 'create' (voir handleOpenCreatePanel,
+  // qui le repasse à true juste après cet appel pour ce mode spécifiquement).
+  form.send_onboarding = false;
   Object.keys(formErrors).forEach((k) => {
     formErrors[k] = "";
   });
@@ -939,8 +985,11 @@ function validateForm() {
   }
 
   // --- Validation du mot de passe (logique différente par mode) ---
+  // Onboarding activé en création : le mot de passe est auto-généré côté
+  // backend et jamais saisi dans ce formulaire (les champs sont masqués).
   const isPasswordRequired =
-    panelMode.value === "create" || panelMode.value === "reset_password";
+    (panelMode.value === "create" && !form.send_onboarding) ||
+    panelMode.value === "reset_password";
   const isPasswordFilled = form.password || form.confirmPassword;
 
   if (isPasswordRequired || isPasswordFilled) {
@@ -1030,6 +1079,31 @@ async function onResetPassword(user) {
   panelOpen.value = true;
 }
 
+// ─── Onboarding (renvoi / révocation) ───────────────────────────────────────────
+async function onResendOnboarding(user) {
+  try {
+    await userService.resendOnboarding(user.id);
+    await loadUsers();
+  } catch (err) {
+    listError.value =
+      err.response?.data?.error ||
+      err.response?.data?.message ||
+      "Échec du renvoi de l'email d'onboarding.";
+  }
+}
+
+async function onRevokeOnboarding(user) {
+  try {
+    await userService.revokeOnboarding(user.id);
+    await loadUsers();
+  } catch (err) {
+    listError.value =
+      err.response?.data?.error ||
+      err.response?.data?.message ||
+      "Échec de la révocation de l'onboarding.";
+  }
+}
+
 // ─── Suppression ───────────────────────────────────────────────────────────────
 const deleteTarget = ref(null);
 const deleteInProgress = ref(false);
@@ -1085,4 +1159,19 @@ onMounted(() => {
 
 <style scoped>
 @import "@/assets/styles/crud-view.css";
+
+.status-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.act-btn--resend:hover {
+  color: #00a8a8;
+}
+.act-btn--revoke:hover {
+  background: rgba(231, 76, 60, 0.06);
+  color: #e74c3c;
+}
 </style>

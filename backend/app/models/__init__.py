@@ -30,6 +30,8 @@ from .pbx import PbxConnector, PbxConnectorDomain, PBX_TYPES
 from .tenant import Tenant
 from .tenant_user import TenantUser, MEMBERSHIP_ADMIN, MEMBERSHIP_MEMBER
 from .tenant_invitation import TenantInvitation
+from .user_token import UserToken, PURPOSE_ONBOARDING, PURPOSE_PASSWORD_RESET
+from .email_template import EmailTemplate, KNOWN_TEMPLATE_KEYS
 from .prestataire import Prestataire
 from .setting import SmtpSetting, ReferenceValue
 from .sla import SlaPolicy
@@ -72,5 +74,9 @@ __all__ = [
     'PbxConnector', 'PbxConnectorDomain', 'PBX_TYPES',
 
     # Prestataires
-    'Prestataire'
+    'Prestataire',
+
+    # Onboarding & modèles d'email
+    'UserToken', 'PURPOSE_ONBOARDING', 'PURPOSE_PASSWORD_RESET',
+    'EmailTemplate', 'KNOWN_TEMPLATE_KEYS',
 ]
