@@ -92,236 +92,214 @@
           <div v-if="loading" class="table-loader">
             <div class="table-loader__bar"></div>
           </div>
-          <div class="users-table">
-            <div class="v-table__wrapper">
-              <table>
-                <thead>
-                  <tr>
-                    <th style="width: 28%">NOM DU SITE</th>
-                    <th>ADRESSE</th>
-                    <th>VILLE</th>
-                    <th style="width: 120px">CODE POSTAL</th>
-                    <th>TÉLÉPHONE</th>
-                    <th style="text-align: center">EFFECTIF</th>
-                    <th style="text-align: center">STATUT</th>
-                    <th style="text-align: center; width: 100px">ACTIONS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <template v-if="groupEnabled">
-                    <template v-for="group in groupedSites" :key="group.key">
-                      <tr class="group-row" @click="toggleGroup(group.key)">
-                        <td colspan="8" class="group-row__cell">
-                          <div class="group-row__inner">
-                            <v-icon
-                              size="12"
-                              :class="[
-                                'group-row__chevron',
-                                openGroups.has(group.key)
-                                  ? 'group-row__chevron--open'
-                                  : '',
-                              ]"
-                              >mdi-chevron-right</v-icon
-                            >
-                            <span
-                              class="group-row__swatch"
-                              :style="{ background: group.color }"
-                              >{{ getInitials(group.name) }}</span
-                            >
-                            <span class="group-row__name">{{ group.name }}</span>
-                            <span class="group-row__count">{{
-                              group.items.length
-                            }}</span>
-                            <span class="group-row__spacer"></span>
-                            <button
-                              class="group-row__link"
-                              @click.stop="goToClientFiche(group)"
-                            >
-                              Voir la fiche client
-                              <v-icon size="11">mdi-arrow-right</v-icon>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                      <template v-if="openGroups.has(group.key)">
-                        <tr v-for="item in group.items" :key="item.id">
-                          <td>
-                            <div class="user-cell">
-                              <div class="user-cell__avatar">
-                                <img
-                                  v-if="item.logo_url"
-                                  :src="getLogoFullUrl(item.logo_url)"
-                                  alt="logo"
-                                  class="user-cell__avatar-img"
-                                />
-                                <div
-                                  v-else
-                                  class="user-cell__avatar-initials"
-                                  :style="{ background: avatarColor(item.nom) }"
-                                >
-                                  {{ getInitials(item.nom) }}
-                                </div>
-                              </div>
-                              <div class="user-cell__info">
-                                <span class="user-cell__handle">{{
-                                  item.nom
-                                }}</span>
-                                <span class="mono-text cell-email">{{
-                                  item.code_site
-                                }}</span>
-                                <div v-if="item.client?.nom" class="user-cell__meta">
-                                  <span class="user-cell__meta-item">{{
-                                    item.client.nom
-                                  }}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td>{{ item.adresse }}</td>
-                          <td>{{ item.ville || "—" }}</td>
-                          <td class="mono-text">{{ item.code_postal || "—" }}</td>
-                          <td>{{ item.telephone }}</td>
-                          <td style="text-align: center">{{ item.effectif_requis }}</td>
-                          <td style="text-align: center">
-                            <span
-                              :class="[
-                                'status-badge',
-                                item.is_active
-                                  ? 'status-badge--active'
-                                  : 'status-badge--inactive',
-                              ]"
-                            >
-                              <span class="status-badge__dot"></span>
-                              {{ item.is_active ? "ACTIF" : "INACTIF" }}
-                            </span>
-                          </td>
-                          <td style="text-align: center">
-                            <div class="actions-cell">
-                              <button
-                                class="act-btn act-btn--edit"
-                                title="Modifier"
-                                @click="openEditPanel(item)"
-                              >
-                                <v-icon size="13">mdi-pencil-outline</v-icon>
-                              </button>
-                              <button
-                                class="act-btn"
-                                title="Gérer les contacts"
-                                @click="manageContacts(item)"
-                              >
-                                <v-icon size="13">mdi-account-group</v-icon>
-                              </button>
-                              <button
-                                class="act-btn act-btn--delete"
-                                title="Désactiver"
-                                @click="confirmDelete(item)"
-                              >
-                                <v-icon size="13">mdi-delete-outline</v-icon>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      </template>
-                    </template>
-                  </template>
-
-                  <template v-else>
-                    <tr v-for="item in sites" :key="item.id">
-                      <td>
-                        <div class="user-cell">
-                          <div class="user-cell__avatar">
-                            <img
-                              v-if="item.logo_url"
-                              :src="getLogoFullUrl(item.logo_url)"
-                              alt="logo"
-                              class="user-cell__avatar-img"
-                            />
-                            <div
-                              v-else
-                              class="user-cell__avatar-initials"
-                              :style="{ background: avatarColor(item.nom) }"
-                            >
-                              {{ getInitials(item.nom) }}
-                            </div>
-                          </div>
-                          <div class="user-cell__info">
-                            <span class="user-cell__handle">{{ item.nom }}</span>
-                            <span class="mono-text cell-email">{{
-                              item.code_site
-                            }}</span>
-                            <div v-if="item.client?.nom" class="user-cell__meta">
-                              <span class="user-cell__meta-item">{{
-                                item.client.nom
-                              }}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td>{{ item.adresse }}</td>
-                      <td>{{ item.ville || "—" }}</td>
-                      <td class="mono-text">{{ item.code_postal || "—" }}</td>
-                      <td>{{ item.telephone }}</td>
-                      <td style="text-align: center">{{ item.effectif_requis }}</td>
-                      <td style="text-align: center">
-                        <span
-                          :class="[
-                            'status-badge',
-                            item.is_active
-                              ? 'status-badge--active'
-                              : 'status-badge--inactive',
-                          ]"
-                        >
-                          <span class="status-badge__dot"></span>
-                          {{ item.is_active ? "ACTIF" : "INACTIF" }}
-                        </span>
-                      </td>
-                      <td style="text-align: center">
-                        <div class="actions-cell">
-                          <button
-                            class="act-btn act-btn--edit"
-                            title="Modifier"
-                            @click="openEditPanel(item)"
+          <div class="sv-table-wrap">
+            <table class="sv-table">
+              <thead>
+                <tr>
+                  <th class="sv-th" style="width: 34%">Site</th>
+                  <th class="sv-th" style="width: 20%">Contact</th>
+                  <th class="sv-th" style="width: 20%">Ville / Code postal</th>
+                  <th class="sv-th" style="width: 16%">Contacts</th>
+                  <th class="sv-th" style="width: 100px; text-align: right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template v-if="groupEnabled">
+                  <template v-for="group in groupedSites" :key="group.key">
+                    <tr class="sv-group-row" @click="toggleGroup(group.key)">
+                      <td colspan="5" class="sv-group-row__cell">
+                        <div class="sv-group-row__inner">
+                          <v-icon
+                            size="12"
+                            :class="[
+                              'sv-group-row__chevron',
+                              openGroups.has(group.key)
+                                ? 'sv-group-row__chevron--open'
+                                : '',
+                            ]"
+                            >mdi-chevron-right</v-icon
                           >
-                            <v-icon size="13">mdi-pencil-outline</v-icon>
-                          </button>
+                          <span
+                            class="sv-group-row__dot"
+                            :style="{ background: group.color }"
+                          ></span>
+                          <span class="sv-group-row__name">{{ group.name }}</span>
+                          <span class="sv-group-row__count">{{
+                            group.items.length
+                          }}</span>
+                          <span class="sv-group-row__spacer"></span>
                           <button
-                            class="act-btn"
-                            title="Gérer les contacts"
-                            @click="manageContacts(item)"
+                            class="sv-group-row__link"
+                            @click.stop="goToClientFiche(group)"
                           >
-                            <v-icon size="13">mdi-account-group</v-icon>
-                          </button>
-                          <button
-                            class="act-btn act-btn--delete"
-                            title="Désactiver"
-                            @click="confirmDelete(item)"
-                          >
-                            <v-icon size="13">mdi-delete-outline</v-icon>
+                            Voir la fiche client
+                            <v-icon size="10">mdi-arrow-right</v-icon>
                           </button>
                         </div>
                       </td>
                     </tr>
+                    <template v-if="openGroups.has(group.key)">
+                      <tr
+                        v-for="item in group.items"
+                        :key="item.id"
+                        class="sv-data-row"
+                      >
+                        <td class="sv-td sv-td--site">
+                          <div class="sv-name-cell">
+                            <span class="sv-type-icon" :style="{ background: group.color }">
+                              <v-icon size="14" color="#fff">mdi-domain</v-icon>
+                            </span>
+                            <div class="sv-name-text-block">
+                              <span class="sv-titre">{{ item.nom }}</span>
+                              <span class="sv-name-sub">
+                                <span class="sv-client-dot" :style="{ background: group.color }"></span>
+                                {{ item.client?.nom ?? "Sans client" }}
+                                <template v-if="item.ville"> · {{ item.ville }}</template>
+                              </span>
+                              <div class="sv-cell-flex sv-name-status">
+                                <span :class="['sv-statut-chip', item.is_active ? 'sv-statut-chip--actif' : 'sv-statut-chip--inactif']">
+                                  <span class="sv-statut-chip__dot"></span>
+                                  {{ item.is_active ? "Actif" : "Inactif" }}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td class="sv-td">
+                          <span class="sv-nature-badge">{{ item.code_site }}</span>
+                          <div class="sv-cat-sub">{{ item.telephone || "—" }}</div>
+                        </td>
+                        <td class="sv-td sv-td--date">
+                          {{ item.ville || "—" }}
+                          <div class="sv-date-sub">{{ item.code_postal || "—" }}</div>
+                        </td>
+                        <td class="sv-td">
+                          <div class="sv-avatar-stack">
+                            <span
+                              v-if="item.contact_principal"
+                              class="sv-avatar sv-avatar--stack"
+                              :title="item.contact_principal.nom"
+                            >{{ contactInitials(item.contact_principal.nom) }}</span>
+                            <span v-else class="sv-muted">—</span>
+                          </div>
+                        </td>
+                        <td class="sv-td" style="text-align: right">
+                          <div class="sv-row-actions">
+                            <button
+                              class="sv-action-btn"
+                              title="Modifier"
+                              @click="openEditPanel(item)"
+                            >
+                              <v-icon size="15">mdi-pencil-outline</v-icon>
+                            </button>
+                            <button
+                              class="sv-action-btn"
+                              title="Gérer les contacts"
+                              @click="manageContacts(item)"
+                            >
+                              <v-icon size="15">mdi-account-group</v-icon>
+                            </button>
+                            <button
+                              class="sv-action-btn"
+                              title="Désactiver"
+                              @click="confirmDelete(item)"
+                            >
+                              <v-icon size="15">mdi-delete-outline</v-icon>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    </template>
                   </template>
+                </template>
 
-                  <tr
-                    v-if="
-                      !loading &&
-                      (groupEnabled ? groupedSites : sites).length === 0
-                    "
-                  >
-                    <td colspan="8">
-                      <div class="table-empty">
-                        <v-icon size="36" color="#ddd">mdi-domain-off</v-icon>
-                        <p class="table-empty__text">AUCUN SITE TROUVÉ</p>
-                        <p class="table-empty__sub">
-                          Modifiez les filtres ou créez un nouveau site
-                        </p>
+                <template v-else>
+                  <tr v-for="item in sites" :key="item.id" class="sv-data-row">
+                    <td class="sv-td sv-td--site">
+                      <div class="sv-name-cell">
+                        <span class="sv-type-icon" :style="{ background: avatarColor(item.client?.nom ?? 'Sans client') }">
+                          <v-icon size="14" color="#fff">mdi-domain</v-icon>
+                        </span>
+                        <div class="sv-name-text-block">
+                          <span class="sv-titre">{{ item.nom }}</span>
+                          <span class="sv-name-sub">
+                            <span class="sv-client-dot" :style="{ background: avatarColor(item.client?.nom ?? 'Sans client') }"></span>
+                            {{ item.client?.nom ?? "Sans client" }}
+                            <template v-if="item.ville"> · {{ item.ville }}</template>
+                          </span>
+                          <div class="sv-cell-flex sv-name-status">
+                            <span :class="['sv-statut-chip', item.is_active ? 'sv-statut-chip--actif' : 'sv-statut-chip--inactif']">
+                              <span class="sv-statut-chip__dot"></span>
+                              {{ item.is_active ? "Actif" : "Inactif" }}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="sv-td">
+                      <span class="sv-nature-badge">{{ item.code_site }}</span>
+                      <div class="sv-cat-sub">{{ item.telephone || "—" }}</div>
+                    </td>
+                    <td class="sv-td sv-td--date">
+                      {{ item.ville || "—" }}
+                      <div class="sv-date-sub">{{ item.code_postal || "—" }}</div>
+                    </td>
+                    <td class="sv-td">
+                      <div class="sv-avatar-stack">
+                        <span
+                          v-if="item.contact_principal"
+                          class="sv-avatar sv-avatar--stack"
+                          :title="item.contact_principal.nom"
+                        >{{ contactInitials(item.contact_principal.nom) }}</span>
+                        <span v-else class="sv-muted">—</span>
+                      </div>
+                    </td>
+                    <td class="sv-td" style="text-align: right">
+                      <div class="sv-row-actions">
+                        <button
+                          class="sv-action-btn"
+                          title="Modifier"
+                          @click="openEditPanel(item)"
+                        >
+                          <v-icon size="15">mdi-pencil-outline</v-icon>
+                        </button>
+                        <button
+                          class="sv-action-btn"
+                          title="Gérer les contacts"
+                          @click="manageContacts(item)"
+                        >
+                          <v-icon size="15">mdi-account-group</v-icon>
+                        </button>
+                        <button
+                          class="sv-action-btn"
+                          title="Désactiver"
+                          @click="confirmDelete(item)"
+                        >
+                          <v-icon size="15">mdi-delete-outline</v-icon>
+                        </button>
                       </div>
                     </td>
                   </tr>
-                </tbody>
-              </table>
-            </div>
+                </template>
+
+                <tr
+                  v-if="
+                    !loading &&
+                    (groupEnabled ? groupedSites : sites).length === 0
+                  "
+                >
+                  <td colspan="5">
+                    <div class="table-empty">
+                      <v-icon size="36" color="#ddd">mdi-domain-off</v-icon>
+                      <p class="table-empty__text">AUCUN SITE TROUVÉ</p>
+                      <p class="table-empty__sub">
+                        Modifiez les filtres ou créez un nouveau site
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </main>
@@ -859,8 +837,11 @@ function removeLogo() {
   if (panelMode.value === "edit") form.logo_url = null;
 }
 
-function getInitials(name) {
-  return (name || "").substring(0, 2).toUpperCase();
+// Initiales "prénom + nom" pour la pile d'avatars du contact principal d'un
+// site (ex. "Jean Dupont" -> "JD"), même logique que AnomaliesView.initials().
+function contactInitials(name) {
+  if (!name) return "?";
+  return name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
 }
 function avatarColor(name) {
   let hash = 0;
@@ -938,3 +919,222 @@ watch(
   },
 );
 </script>
+
+<style scoped>
+/* ══ TABLE (av-* visual language, "sv-" prefix — cf. AnomaliesView.vue) ══ */
+.sv-table-wrap {
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.sv-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.sv-th {
+  padding: 9px 12px;
+  text-align: left;
+  font-family: "Fira Sans", sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #bbb;
+  text-transform: uppercase;
+  background: #fafafa;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* Ligne de groupe accordéon */
+.sv-group-row { cursor: pointer; }
+.sv-group-row:hover .sv-group-row__cell { background: rgba(0, 168, 168, 0.04); }
+
+.sv-group-row__cell {
+  padding: 7px 12px;
+  background: rgba(0, 11, 35, 0.02);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  transition: background 0.1s;
+}
+
+.sv-group-row__inner {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.sv-group-row__chevron {
+  color: #bbb;
+  transition: transform 0.18s;
+  flex-shrink: 0;
+}
+.sv-group-row__chevron--open { transform: rotate(90deg); }
+
+.sv-group-row__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.sv-group-row__name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #000b23;
+  letter-spacing: 0.01em;
+}
+
+.sv-group-row__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.07);
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: #555;
+}
+
+.sv-group-row__spacer { flex: 1; }
+
+.sv-group-row__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #00a8a8;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  white-space: nowrap;
+}
+
+/* Lignes de données */
+.sv-data-row {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  transition: background 0.1s;
+}
+.sv-data-row:hover { background: rgba(0, 168, 168, 0.025); }
+.sv-data-row:last-child { border-bottom: none; }
+
+.sv-td {
+  padding: 10px 12px;
+  font-size: 11.5px;
+  color: #333;
+  vertical-align: top;
+}
+
+.sv-td--site { max-width: 0; }
+.sv-td--date {
+  font-family: "Fira Code", monospace;
+  font-size: 11px;
+  color: #333;
+  white-space: nowrap;
+}
+.sv-date-sub { font-family: "Fira Sans", sans-serif; font-size: 10.5px; color: #9aa0aa; margin-top: 2px; }
+.sv-cat-sub { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; margin-top: 4px; color: #9aa0aa; }
+.sv-muted { color: #9aa0aa; font-size: 11px; }
+
+/* Cellule "Site" (icône + titre + client/ville + statut) */
+.sv-name-cell { display: flex; align-items: flex-start; gap: 10px; }
+.sv-type-icon {
+  width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0; margin-top: 1px;
+}
+.sv-name-text-block { min-width: 0; }
+.sv-name-sub {
+  display: flex; align-items: center; gap: 4px; font-size: 11px; color: #9aa0aa;
+  margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sv-name-status { margin-top: 5px; }
+
+.sv-cell-flex {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.sv-client-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+.sv-titre { font-weight: 600; color: #000b23; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+
+/* Badge "Contact" (code site) */
+.sv-nature-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 2px;
+  background: rgba(0, 11, 35, 0.06);
+  font-family: "Fira Code", monospace;
+  font-size: 9px;
+  font-weight: 700;
+  color: #555;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+/* Statut */
+.sv-statut-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.sv-statut-chip__dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.sv-statut-chip--actif   { background: rgba(39, 174, 96, 0.1); color: #27ae60; }
+.sv-statut-chip--inactif { background: rgba(0, 0, 0, 0.06);   color: #95a5a6; }
+
+/* Pile d'avatars "Contacts" */
+.sv-avatar-stack { display: flex; align-items: center; }
+.sv-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(0, 11, 35, 0.08);
+  font-family: "Fira Code", monospace;
+  font-size: 8px;
+  font-weight: 700;
+  color: #000b23;
+  flex-shrink: 0;
+}
+.sv-avatar--stack { margin-left: -7px; border: 2px solid #fff; }
+.sv-avatar--stack:first-child { margin-left: 0; }
+
+/* Actions de ligne */
+.sv-row-actions { display: inline-flex; align-items: center; gap: 4px; justify-content: flex-end; }
+.sv-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  color: #ccc;
+  transition: background 0.1s, color 0.1s;
+}
+.sv-action-btn:hover { background: rgba(0, 0, 0, 0.06); color: #555; }
+</style>
+

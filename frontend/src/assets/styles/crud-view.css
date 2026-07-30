@@ -294,6 +294,16 @@
   overflow-y: auto; /* This internal wrapper should scroll */
 }
 
+/* Vuetify appliquait table-layout:fixed + width:100% en interne sur son
+   <table> généré — perdu depuis le passage à une <table> HTML brute
+   (Sites/Agents groupés) : sans ça, les largeurs de colonnes fixées via
+   style="width: X" sur les <th> ne sont plus respectées (le navigateur
+   redimensionne selon le contenu au lieu d'honorer les proportions). */
+.table-wrapper .users-table table {
+  width: 100%;
+  table-layout: fixed;
+}
+
 /* En-têtes */
 .table-wrapper .users-table thead tr th {
   background: #f8f8f8 !important;

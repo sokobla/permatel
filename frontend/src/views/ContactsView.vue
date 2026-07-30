@@ -127,139 +127,123 @@
             <div class="table-loader__bar"></div>
           </div>
 
-          <v-data-table-server
-            v-model:page="page"
-            v-model:items-per-page="itemsPerPage"
-            :headers="headers"
-            :items="contacts"
-            :items-length="totalItems"
-            :loading="loading"
-            density="compact"
-            class="users-table"
-            item-value="id"
-            hide-default-footer
-            @update:options="loadContacts"
-          >
-            <!-- Colonne Contact (Avatar + Nom/Prénom) -->
-            <template v-slot:[`item.contact`]="{ item }">
-              <div class="user-cell">
-                <div class="user-cell__avatar">
-                  <img
-                    v-if="item.avatar_url"
-                    :src="getAvatarFullUrl(item.avatar_url)"
-                    alt="avatar"
-                    class="user-cell__avatar-img"
-                  />
-                  <div
-                    v-else
-                    class="user-cell__avatar-initials"
-                    :style="{ background: userAvatarColor(item.nom) }"
-                  >
-                    {{ getInitials(item.nom, item.prenom) }}
-                  </div>
-                </div>
-                <div class="user-cell__info">
-                  <span class="mono-text user-cell__handle"
-                    >{{ item.nom }} {{ item.prenom }}</span
-                  >
-                  <span v-if="item.ville" class="user-cell__seen">{{
-                    item.ville
-                  }}</span>
-                  <div v-if="item.telephone || item.email" class="user-cell__meta">
-                    <span v-if="item.telephone" class="user-cell__meta-item">
-                      <v-icon size="10">mdi-phone-outline</v-icon>{{ item.telephone }}
-                    </span>
-                    <span v-if="item.email" class="user-cell__meta-item">
-                      <v-icon size="10">mdi-email-outline</v-icon>{{ item.email }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </template>
+          <div class="cv-table-wrap">
+            <table class="cv-table">
+              <thead>
+                <tr>
+                  <th class="cv-th" style="width: 32%">Contact</th>
+                  <th class="cv-th" style="width: 20%">Type / Fonction</th>
+                  <th class="cv-th" style="width: 28%">Liens (CL/PR)</th>
+                  <th class="cv-th" style="width: 130px; text-align: right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in contacts" :key="item.id" class="cv-data-row">
+                  <!-- Colonne Contact (icône + nom/prénom + coordonnées) -->
+                  <td class="cv-td cv-td--contact">
+                    <div class="cv-name-cell">
+                      <span class="cv-type-icon" :style="{ background: userAvatarColor(item.nom) }">
+                        <v-icon size="14" color="#fff">mdi-account-outline</v-icon>
+                      </span>
+                      <div class="cv-name-text-block">
+                        <span class="cv-titre">{{ item.nom }} {{ item.prenom }}</span>
+                        <span v-if="item.telephone || item.email" class="cv-name-sub">
+                          <template v-if="item.telephone">
+                            <v-icon size="10">mdi-phone-outline</v-icon>{{ item.telephone }}
+                          </template>
+                          <template v-if="item.telephone && item.email"> · </template>
+                          <template v-if="item.email">
+                            <v-icon size="10">mdi-email-outline</v-icon>{{ item.email }}
+                          </template>
+                        </span>
+                        <span v-else-if="item.ville" class="cv-name-sub">{{ item.ville }}</span>
+                      </div>
+                    </div>
+                  </td>
 
+                  <!-- Colonne Type / Fonction -->
+                  <td class="cv-td">
+                    <span class="cv-nature-badge">{{ item.type || "—" }}</span>
+                    <div class="cv-cat-sub">{{ item.fonction || "—" }}</div>
+                  </td>
 
-            <!-- Colonne Type -->
-            <template v-slot:[`item.type`]="{ item }">
-              <span class="role-badge">{{ item.type || "—" }}</span>
-            </template>
+                  <!-- Colonne Liens (inchangée, chip-row déjà stylée) -->
+                  <td class="cv-td">
+                    <div
+                      v-if="
+                        item.type === 'Client' && item.clients && item.clients.length
+                      "
+                      class="chip-row"
+                    >
+                      <span class="chip" v-for="c in item.clients" :key="c.id">{{
+                        c.nom
+                      }}</span>
+                    </div>
+                    <div
+                      v-else-if="item.type === 'Prestataire' && item.prestataire"
+                      class="chip-row"
+                    >
+                      <span class="chip">{{ item.prestataire.nom }}</span>
+                    </div>
+                    <span v-else class="tenant-badge">—</span>
+                  </td>
 
-            <!-- Colonne Fonction -->
-            <template v-slot:[`item.fonction`]="{ item }">
-              <span class="mono-tag">{{ item.fonction || "—" }}</span>
-            </template>
+                  <!-- Actions -->
+                  <td class="cv-td" style="text-align: right">
+                    <div class="cv-row-actions">
+                      <button
+                        class="cv-action-btn"
+                        title="Modifier"
+                        :disabled="item.type === 'Agent de sécurité'"
+                        @click="openEditPanel(item)"
+                      >
+                        <v-icon size="15">mdi-pencil-outline</v-icon>
+                      </button>
+                      <button
+                        v-if="canDelete"
+                        class="cv-action-btn"
+                        title="Supprimer"
+                        :disabled="item.type === 'Agent de sécurité'"
+                        @click="deleteContact(item)"
+                      >
+                        <v-icon size="15">mdi-delete-outline</v-icon>
+                      </button>
+                      <button
+                        class="cv-action-btn"
+                        title="Suivi des anomalies"
+                        @click="router.push(`/issues?contact_id=${item.id}`)"
+                      >
+                        <v-icon size="15">mdi-alert-circle-outline</v-icon>
+                      </button>
+                      <button
+                        v-if="item.type !== 'Agent de sécurité'"
+                        class="cv-action-btn"
+                        title="Suivi des commandes"
+                        @click="router.push(`/orders?contact_id=${item.id}`)"
+                      >
+                        <v-icon size="15">mdi-package-variant-outline</v-icon>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
 
-            <!-- Colonne Liens -->
-            <template v-slot:[`item.liens`]="{ item }">
-              <div
-                v-if="
-                  item.type === 'Client' && item.clients && item.clients.length
-                "
-                class="chip-row"
-              >
-                <span class="chip" v-for="c in item.clients" :key="c.id">{{
-                  c.nom
-                }}</span>
-              </div>
-              <div
-                v-else-if="item.type === 'Prestataire' && item.prestataire"
-                class="chip-row"
-              >
-                <span class="chip">{{ item.prestataire.nom }}</span>
-              </div>
-              <span v-else class="tenant-badge">—</span>
-            </template>
-
-            <!-- Actions -->
-            <template v-slot:[`item.actions`]="{ item }">
-              <div class="actions-cell">
-                <button
-                  class="act-btn act-btn--edit"
-                  title="Modifier"
-                  :disabled="item.type === 'Agent de sécurité'"
-                  @click="openEditPanel(item)"
-                >
-                  <v-icon size="13">mdi-pencil-outline</v-icon>
-                </button>
-                <button
-                  v-if="canDelete"
-                  class="act-btn act-btn--delete"
-                  title="Supprimer"
-                  :disabled="item.type === 'Agent de sécurité'"
-                  @click="deleteContact(item)"
-                >
-                  <v-icon size="13">mdi-delete-outline</v-icon>
-                </button>
-                <button
-                  class="act-btn act-btn--anomalie"
-                  title="Suivi des anomalies"
-                  @click="router.push(`/issues?contact_id=${item.id}`)"
-                >
-                  <v-icon size="13">mdi-alert-circle-outline</v-icon>
-                </button>
-                <button
-                  v-if="item.type !== 'Agent de sécurité'"
-                  class="act-btn act-btn--commande"
-                  title="Suivi des commandes"
-                  @click="router.push(`/orders?contact_id=${item.id}`)"
-                >
-                  <v-icon size="13">mdi-package-variant-outline</v-icon>
-                </button>
-              </div>
-            </template>
-
-            <!-- Empty state -->
-            <template v-slot:no-data>
-              <div class="table-empty">
-                <v-icon size="36" color="#ddd"
-                  >mdi-card-account-mail-outline</v-icon
-                >
-                <p class="table-empty__text">AUCUN CONTACT TROUVÉ</p>
-                <p class="table-empty__sub">
-                  Modifiez les filtres ou créez un contact
-                </p>
-              </div>
-            </template>
-          </v-data-table-server>
+                <!-- État vide -->
+                <tr v-if="!loading && contacts.length === 0">
+                  <td colspan="4">
+                    <div class="table-empty">
+                      <v-icon size="36" color="#ddd"
+                        >mdi-card-account-mail-outline</v-icon
+                      >
+                      <p class="table-empty__text">AUCUN CONTACT TROUVÉ</p>
+                      <p class="table-empty__sub">
+                        Modifiez les filtres ou créez un contact
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
           <!-- Pagination -->
           <div class="table-pagination">
@@ -643,44 +627,6 @@ const router = useRouter();
 const authStore = useAuthStore();
 const canDelete = computed(() => authStore.canDelete);
 
-const headers = [
-  {
-    title: "CONTACT",
-    key: "contact",
-    align: "start",
-    sortable: true,
-    width: "250px",
-  },
-  {
-    title: "TYPE",
-    key: "type",
-    align: "start",
-    sortable: true,
-    width: "120px",
-  },
-  {
-    title: "FONCTION",
-    key: "fonction",
-    align: "start",
-    sortable: false,
-    width: "180px",
-  },
-  {
-    title: "LIENS (CL/PR)",
-    key: "liens",
-    align: "start",
-    sortable: false,
-    width: "200px",
-  },
-  {
-    title: "ACTIONS",
-    key: "actions",
-    align: "center",
-    sortable: false,
-    width: "130px",
-  },
-];
-
 // ─── ÉTAT DU TABLEAU ──────────────────────────────────────────────────────────
 const contacts = ref([]);
 const loading = ref(false);
@@ -1040,11 +986,6 @@ const deleteContact = async (item) => {
 };
 
 // ─── HELPERS AFFICHAGE ────────────────────────────────────────────────────────
-function getInitials(nom, prenom) {
-  return (
-    `${(prenom || "").charAt(0)}${(nom || "").charAt(0)}`.toUpperCase() || "CT"
-  );
-}
 function userAvatarColor(nom) {
   let hash = 0;
   const str = nom || "Contact";
@@ -1119,4 +1060,97 @@ onMounted(() => {
 <style scoped>
 @import "@/assets/styles/crud-view.css";
 
+/* ══ TABLE (av-* visual language, "cv-" prefix — cf. AnomaliesView.vue) ══ */
+.cv-table-wrap {
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.cv-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.cv-th {
+  padding: 9px 12px;
+  text-align: left;
+  font-family: "Fira Sans", sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #bbb;
+  text-transform: uppercase;
+  background: #fafafa;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.cv-data-row {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  transition: background 0.1s;
+}
+.cv-data-row:hover { background: rgba(0, 168, 168, 0.025); }
+.cv-data-row:last-child { border-bottom: none; }
+
+.cv-td {
+  padding: 10px 12px;
+  font-size: 11.5px;
+  color: #333;
+  vertical-align: top;
+}
+.cv-td--contact { max-width: 0; }
+
+.cv-cat-sub { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; margin-top: 4px; color: #9aa0aa; }
+
+/* Cellule "Contact" (icône + nom/prénom + coordonnées) */
+.cv-name-cell { display: flex; align-items: flex-start; gap: 10px; }
+.cv-type-icon {
+  width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0; margin-top: 1px;
+}
+.cv-name-text-block { min-width: 0; }
+.cv-name-sub {
+  display: flex; align-items: center; gap: 4px; font-size: 11px; color: #9aa0aa;
+  margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.cv-titre { font-weight: 600; color: #000b23; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+
+/* Badge "Type" */
+.cv-nature-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 2px;
+  background: rgba(0, 11, 35, 0.06);
+  font-family: "Fira Code", monospace;
+  font-size: 9px;
+  font-weight: 700;
+  color: #555;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+/* Actions de ligne */
+.cv-row-actions { display: inline-flex; align-items: center; gap: 4px; justify-content: flex-end; }
+.cv-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  color: #ccc;
+  transition: background 0.1s, color 0.1s;
+}
+.cv-action-btn:hover { background: rgba(0, 0, 0, 0.06); color: #555; }
+.cv-action-btn:disabled { opacity: 0.4; cursor: default; }
 </style>
