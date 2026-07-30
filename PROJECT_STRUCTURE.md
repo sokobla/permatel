@@ -1,6 +1,7 @@
 # Permatel - Architecture et Structure du Projet
 
-**Version** : 1.4.0 | **Statut** : Backend ✅ / Frontend ✅ | **Tests** : 172 ✅
+**Version** : 1.9.0 | **Statut** : Backend ✅ / Frontend ✅ | **Tests** : 252 (backend) + 58 (connecteur) ✅
+> ⚠️ Ce numéro de version suit désormais celui de `README.md` (source de vérité la plus à jour) — les sections "Changelog" ci-dessous n'ont pas été renumérotées rétroactivement, voir `README.md` pour l'historique complet et à jour.
 
 ### 🚧 TODO planifié — Intégration Odoo (add-on activable par tenant, non démarré)
 > Plan détaillé : [`ODOO_INTEGRATION_PLAN.md`](ODOO_INTEGRATION_PLAN.md) · Suivi tâche-par-tâche : `docs/suivi_taches_permatel.xlsx` (Phases 6-10).
@@ -46,14 +47,27 @@ FusionPBX réel (root cause finale : FusionPBX interpole des en-têtes SIP
 bruts non échappés dans le JSON) — voir §8.6 du plan pour le détail
 complet. Trace diagnostique disponible (`TELEPHONY_CDR_TRACE=true`).
 
-Deux points toujours à confirmer contre du trafic réel (non bloquants,
-suivis dans le plan) : l'écart d'en-têtes ESL live
-(`variable_domain_name`/`Caller-Caller-ID-Number`, capturés jusqu'ici
-uniquement sur du trafic de scan — §8.3), et l'exposition des
-enregistrements par FusionPBX (`recording_url` est aujourd'hui un chemin de
-fichier local FreeSWITCH, pas une URL http(s) exploitable par PERMATEL tant
-que la configuration côté PBX n'est pas confirmée — §8.6). → **15**
-(connecteur Asterisk/AMI), non démarrée.
+**Corrélation de legs et identité agent, confirmées contre plusieurs traces
+réelles (29-30/07)** : `Other-Leg-Unique-ID` fusionne fiablement les deux
+legs d'un pont direct **et** d'un pont de file (juste plus tardif dans ce
+second cas — peuplé une fois le pont établi, pas dès `CHANNEL_ANSWER`) ;
+les tentatives de sonnerie d'agent non abouties (jamais bridgées) sont
+désormais corrélées et fusionnées via une courte mémoire côté connecteur
+(extension → session membre), posée à `agent-offering`. `User.agent_login`
+stocke maintenant l'UUID FusionPBX `CC-Agent` (identité stable), plus une
+extension — l'annuaire du connecteur filtre par cet UUID, jamais par poste
+physique. `bridge-agent-start` (`variable_execute_on_pre_bridge`) est la
+seule source confirmée du chemin d'enregistrement d'un appel de file —
+`variable_record_file_path` ne se peuple **jamais**, variable à abandonner.
+Agent/file habillés d'un nom lisible (Supervision + CDR), tableau "Appels
+en cours" refondu (Agent/Appelant/Destination/Queue/Statut/Durée) avec
+animations, et nouveau bandeau d'appel actif (`CallCardBar`, ancré sous la
+barre d'appli, visible sur toutes les pages). Détails : §8.9 du plan.
+
+Reste à confirmer contre du trafic réel (non bloquant) : l'exposition des
+enregistrements par FusionPBX en dehors du chemin de fichier local
+FreeSWITCH (URL http(s) exploitable par PERMATEL, configuration PBX non
+confirmée — §8.6). → **15** (connecteur Asterisk/AMI), non démarrée.
 
 ### Changelog v1.4.0 (22 juin 2026)
 > ⚠️ Les sections détaillées plus bas datent de v1.1.0 (mai 2026). Les changelogs font foi pour l'état courant.

@@ -75,7 +75,7 @@ Ce document décrit fidèlement la structure de la base de données selon les mo
 - `username`, `email` : String, UNIQUE, NOT NULL
 - `password_hash`, `nom`, `prenom` : String, NOT NULL
 - `role` : Enum (PERMANENCIER, MANAGER, ADMIN)
-- `telephone`, `agent_login`, `station_extension` : String, nullable
+- `telephone`, `agent_login`, `station_extension` : String, nullable — **`agent_login` stocke désormais l'UUID FusionPBX de l'agent (`CC-Agent`), pas une extension** (confirmé 30/07 — voir `telephony_events.agent_login` plus bas pour le détail) ; `station_extension` reste le poste physique déclaré (peut différer du poste réellement utilisé à un instant T, qui est lui dérivé en direct du trafic PBX)
 - `last_login_at` : DateTime, nullable
 - `is_active` : Boolean, default True
 - `created_at`, `updated_at` : DateTime
@@ -971,12 +971,12 @@ LIMIT 50;
 - `call_direction` : String(10), nullable (`inbound`/`outbound`)
 - `call_status` : String(30), nullable (`ringing`/`early_media`/`answered`/`missed`/`abandoned`/`technical_failure`/`on_hold`/`ended`)
 - `caller_number` / `callee_number` : String(20), nullable — source CDR : `callflow[0].caller_profile.{caller_id_number,destination_number}` (confirmé plus fiable que les variables `caller_id_number`/`destination_number`, absentes selon le type d'appel)
-- `agent_login` : String(50), nullable, indexé — source CDR (appel en file d'attente uniquement) : `callflow[0].caller_profile.originatee.originatee_caller_profiles[0].destination_number` (l'extension réellement bridgée par mod_callcenter) ; **jamais** la variable `cc_agent`, confirmée être un UUID interne FusionPBX sans rapport avec un login exploitable
+- `agent_login` : String(50), nullable, indexé — **deux canaux d'ingestion, deux sémantiques distinctes pour la même colonne** (confirmé 30/07) : le webhook CDR (appel en file d'attente uniquement) source depuis `callflow[0].caller_profile.originatee.originatee_caller_profiles[0].destination_number` (l'extension réellement bridgée par mod_callcenter), **jamais** `cc_agent` ; le connecteur ESL live, lui, transmet désormais délibérément l'UUID FusionPBX `CC-Agent` — confirmé être la seule identité *stable* par agent (l'extension physique, elle, peut changer de poste sans changement d'agent), et **garanti par construction de correspondre à un `User.agent_login` réel** (voir ci-dessous — l'annuaire du connecteur écarte tout agent PBX non déclaré). `User.agent_login` (voir plus bas) stocke donc désormais cet UUID, pas une extension — les deux canaux peuvent produire des valeurs différentes pour le même agent physique tant que le webhook CDR n'a pas été aligné sur la même convention.
 - `agent_status` : String(50), nullable — statut brut FreeSWITCH (`CC-Agent-Status`, mod_callcenter), normalisé en présence disponible/pause/hors-ligne par `GET /telephony/agents/status` (Phase 13)
 - `queue_id` : String(100), nullable, indexé
 - `duration` : Integer, nullable (secondes)
 - `call_uuid` : String(100), nullable, indexé
-- `recording_url` : String(500), nullable — chemin/URL rapporté par le PBX (`variable_record_file_path`), le plus souvent un **chemin de fichier local FreeSWITCH**, pas une URL http(s) exploitable par PERMATEL (non confirmé) ; pas de stockage physique côté PERMATEL
+- `recording_url` : String(500), nullable — chemin/URL rapporté par le PBX ; **confirmé (30/07) sur trafic réel : `variable_record_file_path` ne se peuple JAMAIS**, y compris sur un appel de file dont l'enregistrement existe bien sur disque — variable non fiable, à ne plus utiliser comme source. Pour un appel de file, le seul chemin exploitable vient de l'événement `bridge-agent-start` (`variable_execute_on_pre_bridge`, déjà résolu par FreeSWITCH). Reste le plus souvent un **chemin de fichier local FreeSWITCH**, pas une URL http(s) exploitable par PERMATEL ; pas de stockage physique côté PERMATEL
 - `raw_payload` : JSONB (JSON sous SQLite), nullable — payload complet de l'événement ingéré
 - `created_at` : DateTime
 - **Contraintes** : `FK(tenant_id, demande_id) -> demandes(tenant_id, id) ON DELETE SET NULL`

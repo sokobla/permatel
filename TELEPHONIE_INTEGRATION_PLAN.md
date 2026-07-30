@@ -1,7 +1,7 @@
 # PERMATEL — Module Téléphonie : Plan d'intégration
 
-**Statut** : Phases 11 à 14 implémentées et connectées en production (236/236 tests backend). Phase 12 (Core Connector ESL, connecteur **tenant-scopé** — §8.4) raccordée à un FusionPBX réel (`fusion.cloud228.com`) — deux bugs de production détectés et corrigés (deadlock de reconnexion concurrente, route Nginx manquante pour le WebSocket) — voir §8.5. Phase 13 (config relocalisée sous `Paramètres > Intégrations`, `Supervision > Téléphonie` avec grille d'état des agents via `CC-Agent-Status`) et Phase 14 (webhook CDR `POST /telephony/cdr/ingest/<token>` + onglet `Rapports > Téléphonie`) **faites** — voir §8.6, qui documente aussi les six correctifs successifs du webhook CDR, chacun validé contre du trafic FusionPBX réel. Validation des en-têtes ESL réels contre `normalizer.py` toujours en cours (un écart déjà confirmé, `Hangup-Cause: WRONG_CALL_STATE` non catégorisé, capturé sur du trafic de scan, pas encore sur un appel légitime), voir §8.3 — de même, l'exposition des enregistrements par FusionPBX (URL http(s) exploitable ou chemin local) reste à confirmer, voir §8.6. Phase 15 (connecteur Asterisk/AMI) non démarrée.
-**Date** : 29 juillet 2026
+**Statut** : Phases 11 à 14 implémentées et connectées en production (252 tests backend + 58 tests connecteur). Phase 12 (Core Connector ESL, connecteur **tenant-scopé** — §8.4) raccordée à un FusionPBX réel (`fusion.cloud228.com`) — deux bugs de production détectés et corrigés (deadlock de reconnexion concurrente, route Nginx manquante pour le WebSocket) — voir §8.5. Phase 13 (config relocalisée sous `Paramètres > Intégrations`, `Supervision > Téléphonie` avec grille d'état des agents via `CC-Agent-Status`) et Phase 14 (webhook CDR `POST /telephony/cdr/ingest/<token>` + onglet `Rapports > Téléphonie`) **faites** — voir §8.6, qui documente aussi les six correctifs successifs du webhook CDR, chacun validé contre du trafic FusionPBX réel. **Corrélation de files d'attente, identité agent (`agent_login` = UUID `CC-Agent`, pas une extension) et enregistrement, confirmées contre plusieurs traces réelles supplémentaires (29-30/07)** — voir §8.7-§8.9, qui documentent aussi le nouveau bandeau d'appel actif (`CallCardBar`). L'exposition des enregistrements par FusionPBX en dehors du chemin de fichier local (URL http(s) exploitable) reste à confirmer, voir §8.6/§8.9. Phase 15 (connecteur Asterisk/AMI) non démarrée.
+**Date** : 30 juillet 2026
 **Source** : `docs/cdc/CDC-Module-Telephonie.md` (v1.0, 27 juillet 2026)
 **Suivi des tâches** : `docs/suivi_taches_permatel.xlsx` (Phases 11 à 14)
 
@@ -595,3 +595,85 @@ corrections :
   (jamais utilisé côté téléphonie) — remplacé par **"Login Agent CC"**,
   qui édite directement `agent_login`, le vrai champ de corrélation avec
   `TelephonyEvent.agent_login`.
+
+### 8.9 Corrélation de files d'attente, identité agent, enregistrement — traces réelles (29-30/07)
+
+Suite de tests réels ciblant spécifiquement un appel de file **abouti**
+(bridge réussi vers un agent, contrairement à tous les essais précédents
+qui échouaient faute d'agent réellement enregistré) et les tentatives
+échouées qui le précèdent.
+
+- **`Other-Leg-Unique-ID` fusionne aussi les ponts de file, pas seulement
+  les ponts directs** — confirmé sur trace réelle : encore vide à
+  `CHANNEL_ANSWER` du leg agent (comme pour un pont direct avant
+  établissement), mais peuplé symétriquement sur les deux legs à
+  `CHANNEL_HANGUP_COMPLETE` une fois le pont mod_callcenter effectivement
+  établi. Aucune logique de fusion spécifique aux appels de file n'était
+  donc nécessaire — la règle déjà en place (basée sur `linked_call_uuid`)
+  fonctionne pour les deux cas, juste avec un délai de peuplement différent.
+- **Bug confirmé, appels fantômes** : chaque tentative de sonnerie d'agent
+  pour un appel de file (`agent-offering` suivi d'un `CHANNEL_CREATE`
+  outbound vers l'extension de cet agent) crée un leg FreeSWITCH à part
+  entière, jamais rattaché par aucun header `CC-*` et jamais bridgé si
+  l'agent ne répond pas (`bridge-agent-fail` : `Other-Leg-Unique-ID` reste
+  vide). Sans corrélation, ce leg apparaissait comme un appel distinct dans
+  `/active-calls` — un appel de file réel avec 2 tentatives infructueuses
+  avant un 3e agent qui décroche montrait 3 lignes au lieu de 2. **Solution** :
+  `agent-offering` pose une entrée de courte durée (extension → session
+  membre, `_pending_agent_rings`, TTL 30s) ; le prochain `CHANNEL_CREATE`
+  outbound vers cette extension la consomme et se fait tagger
+  `linked_call_uuid` — fusionné/supprimé par la règle déjà existante, sans
+  nouvelle logique côté backend.
+- **`bridge-agent-start` est la seule source confirmée du chemin
+  d'enregistrement d'un appel de file** — `variable_record_file_path` ne
+  se peuple **jamais**, y compris sur un appel dont l'enregistrement existe
+  bien sur disque (confirmé par vérification directe du système de
+  fichiers FusionPBX). Le chemin réel vit dans
+  `variable_execute_on_pre_bridge` (déjà résolu par FreeSWITCH, porté par
+  le leg agent), nommé d'après `variable_cc_member_session_uuid` (== l'
+  Unique-ID du leg membre déjà en base). Cet événement, jusque-là abandonné
+  comme CC-Action non reconnue, est désormais routé à part
+  (`_on_bridge_recording_event`) pour en extraire ce chemin.
+- **`CC-Agent-UUID` (documenté génériquement comme "l'uuid de l'agent")
+  n'est PAS une identité stable** — confirmé sur deux occurrences réelles :
+  sa valeur est systématiquement identique à l'`Unique-ID`/
+  `Channel-Call-UUID` de CET événement précis (un uuid de canal, par appel),
+  pas une identité d'agent. `CC-Agent` reste la seule identité stable
+  confirmée.
+- **Pivot délibéré : `User.agent_login`/l'annuaire du connecteur filtrent
+  désormais par l'UUID `CC-Agent`, pas par extension.** Décision produit
+  (pas une contrainte technique découverte) : l'extension (`contact`
+  FreeSWITCH) n'est que le poste physique actuellement associé à un agent,
+  qui peut changer sans que ce soit un changement d'agent réel — alors que
+  l'UUID est stable. `_fetch_agent_list` compare désormais l'uuid de chaque
+  ligne (`agent list`, colonne `name`) au roster `known_agent_logins`
+  (désormais des UUIDs) plutôt que l'extension parsée du `contact`, qui ne
+  sert plus qu'à décrire le poste (`entry["extension"]`, transmis nulle
+  part en aval — `agent.login` transmis aux événements est désormais
+  l'UUID lui-même). Un agent PBX découvert non déclaré (uuid absent du
+  roster) est toujours ignoré, comme avant.
+- **Alias lisibles côté PERMATEL** : `agent_login` (uuid, illisible tel
+  quel) est habillé du nom + poste déclarés de l'agent (`_agent_alias_lookup`,
+  jointure `User` par `agent_login`, garanti de résoudre pour tout agent
+  ayant passé le filtre de l'annuaire) sur `/active-calls`, `/agents/status`
+  et l'historique des appels ; le CDR exporté (CSV) n'expose plus que ce
+  nom + le poste, jamais l'uuid brut. `/active-calls` expose de même
+  `queue_label` ("Alias (id)", même principe que l'alias de file déjà
+  existant côté KPI).
+- **Bug de timestamp découvert en cours de route** : tous les timestamps du
+  module (routes + événement WebSocket) sont naïfs-UTC (`datetime.utcnow()`)
+  sans désignateur de fuseau — un navigateur interprète alors une chaîne
+  date-heure sans `Z`/offset comme heure locale, pas UTC, d'où un décalage
+  systématique de +1h sur les durées calculées en Supervision temps réel
+  (confirmé par la correspondance exacte `durée_affichée = durée_réelle +
+  1h`). Suffixe `Z` désormais explicite partout.
+- **Nouveau bandeau d'appel actif** (`CallCardBar`, `frontend/src/
+  components/supervision/CallCardBar.vue`) : se déclenche sur le premier
+  événement WebSocket `/telephony` dont `agent_login` correspond à
+  l'utilisateur connecté (`User.agent_login`), disparaît au statut
+  terminal. Ancré sous la barre d'appli dans `<v-main>` (jamais en
+  superposition), visible sur toutes les pages tant qu'un appel est actif.
+  Action rapide "Créer une demande" : navigue vers `/workspace` avec
+  `caller`/`callee` en query params — **le prefill réel du formulaire
+  (recherche de contact par numéro) n'est pas implémenté côté
+  `WorkspaceView`, limitation connue, pas silencieusement contournée.**
