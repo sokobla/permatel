@@ -223,13 +223,14 @@ def normalize_agent_status_change(headers: dict, pbx_domain: str, agent_login: s
     Confirmé sur trafic FusionPBX réel (29/07) : cet événement ne porte
     AUCUN contexte de canal (pas de `Unique-ID`, pas de `variable_domain_name`
     — contrairement aux autres événements callcenter::info comme
-    `queue-enter`, qui restent liés à un appel actif). `CC-Agent` s'y est
-    aussi révélé être un UUID interne FusionPBX, pas un login exploitable.
-    `pbx_domain` et `agent_login` sont donc résolus EN AMONT par
-    `ESLAdapter` via l'annuaire construit depuis
-    `api callcenter_config agent list <queue>@<domain>` (voir
-    `esl_adapter.py::_refresh_agent_directory`), pas extraits des en-têtes
-    ici — d'où la signature différente de `normalize_callcenter_info`.
+    `queue-enter`, qui restent liés à un appel actif). `pbx_domain` est donc
+    résolu EN AMONT par `ESLAdapter` via l'annuaire construit depuis
+    `api callcenter_config agent list` (voir
+    `esl_adapter.py::_refresh_agent_directory`), pas extrait des en-têtes ici
+    — d'où la signature différente de `normalize_callcenter_info`.
+    `agent_login` transmis EST l'UUID `CC-Agent` (== `User.agent_login`
+    désormais, identité stable) — PAS l'extension/poste physique, qui peut
+    changer sans que ce soit un changement d'agent.
     """
     payload = _base_payload(headers, pbx_domain, "CALLCENTER_AGENT_STATE_CHANGE")
     payload["call"]["status"] = "on_hold"

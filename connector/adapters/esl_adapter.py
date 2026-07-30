@@ -86,19 +86,24 @@ class ESLAdapter(PBXAdapter):
                         queues.add(part)
             self._supervised_queues[d["pbx_domain"]] = queues
 
-        # uuid FreeSWITCH (CC-Agent) -> {"domain":..., "extension":..., "queue":...}
-        # — construit via _refresh_agent_directory(), nécessaire car les
-        # événements agent-status-change ne portent ni domaine ni extension
+        # uuid FreeSWITCH (CC-Agent) -> {"domain":..., "extension":...} —
+        # construit via _refresh_agent_directory(), nécessaire car les
+        # événements agent-status-change ne portent ni domaine ni identifiant
         # exploitable directement (confirmé sur trafic réel, voir
-        # _on_callcenter_info).
+        # _on_callcenter_info). `extension` n'est que le poste physique
+        # actuellement associé (le `contact` FreeSWITCH, ex. "22101001") —
+        # peut changer si l'agent se loggue sur un autre poste ; l'identité
+        # stable transmise en aval (agent.login) est l'UUID lui-même,
+        # jamais l'extension (voir _on_agent_status_event et consorts).
         self._agent_directory = {}
         self._agent_directory_greenlet = None
-        # Roster faisant autorité côté PERMATEL (User.agent_login peuplé,
-        # cf. GET /connectors/config) — une extension résolue depuis
-        # FreeSWITCH n'est retenue dans l'annuaire QUE si elle y figure,
-        # pour ne jamais attribuer de présence à une extension PBX sans
-        # agent PERMATEL réel derrière (poste de test, agent non nettoyé
-        # côté PBX, etc.).
+        # Roster faisant autorité côté PERMATEL : `User.agent_login` contient
+        # désormais l'UUID FusionPBX de l'agent (CC-Agent / colonne "name" de
+        # 'agent list'), PAS l'extension — un agent PBX découvert via
+        # 'agent list' n'est retenu dans l'annuaire QUE si son UUID figure
+        # dans ce roster, pour ne jamais attribuer de présence à un agent PBX
+        # non déclaré côté PERMATEL (poste de test, agent non nettoyé côté
+        # PBX, etc.).
         self._known_agent_logins = set(connector_config.get("known_agent_logins") or [])
 
     def update_known_agent_logins(self, logins) -> None:
@@ -241,9 +246,10 @@ class ESLAdapter(PBXAdapter):
         else:
             # Journalisé systématiquement (pas seulement si vide) pour pouvoir
             # confirmer, sans deviner, que le roster reçu de PERMATEL contient
-            # bien l'extension attendue — vu en prod (29/07) un cas où
-            # `agent list` résolvait la bonne extension mais où elle était
-            # quand même écartée comme "inconnue" faute de visibilité ici.
+            # bien l'uuid attendu — vu en prod (29/07, avant le passage à un
+            # roster par uuid) un cas où `agent list` résolvait bien l'agent
+            # mais où il était quand même écarté comme "inconnu" faute de
+            # visibilité ici.
             logger.info(
                 "[%s] known_agent_logins courant (%d) : %s",
                 self.connector_config["name"], len(self._known_agent_logins),
@@ -311,11 +317,11 @@ class ESLAdapter(PBXAdapter):
                 # aux côtés du domaine configuré) — on ne garde que ceux du
                 # domaine réellement configuré pour ce connecteur.
                 continue
-            if extension not in self._known_agent_logins:
+            if agent_uuid not in self._known_agent_logins:
                 logger.warning(
-                    "[%s] Extension '%s' (agent PBX uuid=%s) ignorée : aucun User PERMATEL "
-                    "avec ce Login Agent CC pour ce tenant.",
-                    self.connector_config["name"], extension, agent_uuid,
+                    "[%s] Agent PBX uuid=%s (extension=%s) ignoré : non déclaré côté PERMATEL "
+                    "(aucun User.agent_login avec cet uuid pour ce tenant).",
+                    self.connector_config["name"], agent_uuid, extension,
                 )
                 continue
             directory[agent_uuid] = {"domain": domain, "extension": extension}
@@ -464,12 +470,16 @@ class ESLAdapter(PBXAdapter):
         if entry is None:
             logger.warning(
                 "[%s] agent-status-change pour un agent absent de l'annuaire (uuid=%s, statut=%r) — "
-                "annuaire pas encore rafraîchi, ou agent hors des files supervisées.",
+                "annuaire pas encore rafraîchi, ou agent non déclaré côté PERMATEL.",
                 self.connector_config["name"], agent_uuid, headers.get("CC-Agent-Status"),
             )
             return
 
-        payload = normalizer.normalize_agent_status_change(headers, entry["domain"], entry["extension"])
+        # agent.login = l'uuid lui-même (identité stable, == User.agent_login
+        # désormais) — PAS entry["extension"], qui n'est que le poste
+        # physique actuellement associé et peut changer sans que ce soit un
+        # changement d'agent.
+        payload = normalizer.normalize_agent_status_change(headers, entry["domain"], agent_uuid)
         self.ingest_client.send(payload)
 
     def _on_member_enrichment_event(self, headers):
@@ -481,7 +491,9 @@ class ESLAdapter(PBXAdapter):
         agent_uuid = headers.get("CC-Agent")
         entry = self._agent_directory.get(agent_uuid) if agent_uuid else None
         domain = entry["domain"] if entry else None
-        agent_login = entry["extension"] if entry else None
+        # agent.login = l'uuid lui-même (== User.agent_login désormais), pas
+        # l'extension/poste physique — voir _on_agent_status_event.
+        agent_login = agent_uuid if entry else None
 
         if not domain:
             domains = list(self._supervised_queues.keys())
@@ -518,7 +530,9 @@ class ESLAdapter(PBXAdapter):
         agent_uuid = headers.get("CC-Agent")
         entry = self._agent_directory.get(agent_uuid) if agent_uuid else None
         domain = entry["domain"] if entry else None
-        agent_login = entry["extension"] if entry else None
+        # agent.login = l'uuid lui-même (== User.agent_login désormais), pas
+        # l'extension/poste physique — voir _on_agent_status_event.
+        agent_login = agent_uuid if entry else None
 
         if not domain:
             domains = list(self._supervised_queues.keys())

@@ -126,7 +126,9 @@ def test_agent_status_change_resout_via_annuaire_et_transmet():
     ingest_client.send.assert_called_once()
     payload = ingest_client.send.call_args[0][0]
     assert payload["pbx_domain"] == "africallpbx.fusion.cloud228.com"
-    assert payload["agent"]["login"] == "22101005"
+    # login = l'uuid CC-Agent lui-même (== User.agent_login désormais), pas
+    # l'extension/poste physique.
+    assert payload["agent"]["login"] == "e8a58298-87e7-4960-a222-d05763866b15"
     assert payload["agent"]["status"] == "Logged Out"
 
 
@@ -183,7 +185,9 @@ def test_agent_offering_resout_domaine_et_agent_via_annuaire():
     assert payload["pbx_domain"] == "africallpbx.fusion.cloud228.com"
     assert payload["call"]["id"] == "0200801b-3e1f-422c-9335-7fac4f4cc867"
     assert payload["call"]["callee"] == "33186569392"
-    assert payload["agent"]["login"] == "22101010"
+    # login = l'uuid CC-Agent lui-même (== User.agent_login désormais), pas
+    # l'extension/poste physique.
+    assert payload["agent"]["login"] == "fd18b0f6-47f3-4fe2-8e85-fe36ca077b79"
     assert payload["queue"]["id"] == "8004@africallpbx.fusion.cloud228.com"
 
 
@@ -282,7 +286,9 @@ def test_bridge_agent_start_resout_domaine_et_agent_via_annuaire_et_transmet():
     assert payload["pbx_domain"] == "africallpbx.fusion.cloud228.com"
     assert payload["call"]["id"] == "c0fdb4be-a5dd-453c-b456-b84067242923"
     assert payload["recording_url"].endswith("c0fdb4be-a5dd-453c-b456-b84067242923.wav")
-    assert payload["agent"]["login"] == "22101001"
+    # login = l'uuid CC-Agent lui-même (== User.agent_login désormais), pas
+    # l'extension/poste physique.
+    assert payload["agent"]["login"] == "e8a58298-87e7-4960-a222-d05763866b15"
     assert payload["queue"]["id"] == "8004@africallpbx.fusion.cloud228.com"
 
 
@@ -365,11 +371,18 @@ def test_queue_ids_normalement_scindes_restent_inchanges():
 # ne filtre 'agent list' que par nom d'agent, jamais par file. L'annuaire
 # appelle donc désormais 'agent list' SANS scope, une seule fois, pour
 # l'unique domaine du connecteur.
+#
+# `known_agent_logins` contient désormais des UUID FusionPBX (User.agent_login
+# stocke l'uuid CC-Agent, plus l'extension) : le filtre "agent déclaré côté
+# PERMATEL" compare l'uuid de la ligne 'agent list' (colonne "name") à ce
+# roster, PAS l'extension parsée depuis 'contact' (qui n'est que le poste
+# physique, peut changer sans que ce soit un changement d'agent).
 
 def test_refresh_agent_directory_appelle_agent_list_sans_scope():
     domains = [{"pbx_domain": "d1", "queue_ids": ["queue-support"]}]
     adapter = ESLAdapter(
-        _fake_connector_config(domains, known_agent_logins=["22101005"]), ingest_client=MagicMock(),
+        _fake_connector_config(domains, known_agent_logins=["e8a58298-87e7-4960-a222-d05763866b15"]),
+        ingest_client=MagicMock(),
     )
     fake_esl = MagicMock()
     fake_esl.send.return_value = _FakeResponse(
@@ -396,7 +409,8 @@ def test_refresh_agent_directory_ignore_la_ligne_ok_brute():
     seul, sans ligne d'agent) — ne doit pas planter, juste ne rien ajouter."""
     domains = [{"pbx_domain": "d1", "queue_ids": ["queue-support"]}]
     adapter = ESLAdapter(
-        _fake_connector_config(domains, known_agent_logins=["22101005"]), ingest_client=MagicMock(),
+        _fake_connector_config(domains, known_agent_logins=["e8a58298-87e7-4960-a222-d05763866b15"]),
+        ingest_client=MagicMock(),
     )
     fake_esl = MagicMock()
     fake_esl.send.return_value = _FakeResponse("+OK")
@@ -407,12 +421,15 @@ def test_refresh_agent_directory_ignore_la_ligne_ok_brute():
     assert adapter._agent_directory == {}
 
 
-def test_refresh_agent_directory_extension_inconnue_de_permatel_est_ignoree(caplog):
-    """Extension résolue côté FreeSWITCH mais sans User.agent_login
-    correspondant pour ce tenant : écartée de l'annuaire, pas fabriquée."""
+def test_refresh_agent_directory_agent_non_declare_est_ignore(caplog):
+    """Agent PBX résolu côté FreeSWITCH (uuid + extension) mais dont l'uuid
+    ne correspond à AUCUN User.agent_login pour ce tenant : écarté de
+    l'annuaire, pas fabriqué — un agent PBX non déclaré côté PERMATEL n'est
+    jamais suivi, même si mod_callcenter le connaît."""
     domains = [{"pbx_domain": "d1", "queue_ids": ["queue-support"]}]
     adapter = ESLAdapter(
-        _fake_connector_config(domains, known_agent_logins=["99999999"]), ingest_client=MagicMock(),
+        _fake_connector_config(domains, known_agent_logins=["uuid-agent-declare-different"]),
+        ingest_client=MagicMock(),
     )
     fake_esl = MagicMock()
     fake_esl.send.return_value = _FakeResponse(
@@ -425,7 +442,10 @@ def test_refresh_agent_directory_extension_inconnue_de_permatel_est_ignoree(capl
         adapter._refresh_agent_directory()
 
     assert adapter._agent_directory == {}
-    assert any("22101005" in r.message and "ignorée" in r.message for r in caplog.records)
+    assert any(
+        "e8a58298-87e7-4960-a222-d05763866b15" in r.message and "ignoré" in r.message
+        for r in caplog.records
+    )
 
 
 def test_refresh_agent_directory_ignore_la_ligne_d_en_tete():
@@ -434,7 +454,8 @@ def test_refresh_agent_directory_ignore_la_ligne_d_en_tete():
     doit pas être comptée comme une ligne 'ininterprétable'."""
     domains = [{"pbx_domain": "d1", "queue_ids": ["queue-support"]}]
     adapter = ESLAdapter(
-        _fake_connector_config(domains, known_agent_logins=["22101005"]), ingest_client=MagicMock(),
+        _fake_connector_config(domains, known_agent_logins=["e8a58298-87e7-4960-a222-d05763866b15"]),
+        ingest_client=MagicMock(),
     )
     fake_esl = MagicMock()
     fake_esl.send.return_value = _FakeResponse(
@@ -462,7 +483,8 @@ def test_refresh_agent_directory_ignore_agent_d_un_autre_domaine():
     seuls les agents du domaine réellement configuré sont retenus."""
     domains = [{"pbx_domain": "d1", "queue_ids": ["queue-support"]}]
     adapter = ESLAdapter(
-        _fake_connector_config(domains, known_agent_logins=["22101005"]), ingest_client=MagicMock(),
+        _fake_connector_config(domains, known_agent_logins=["e8a58298-87e7-4960-a222-d05763866b15"]),
+        ingest_client=MagicMock(),
     )
     fake_esl = MagicMock()
     fake_esl.send.return_value = _FakeResponse(
