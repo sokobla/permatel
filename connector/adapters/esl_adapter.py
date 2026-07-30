@@ -419,6 +419,15 @@ class ESLAdapter(PBXAdapter):
             self._on_member_enrichment_event(headers)
             return
 
+        # Confirmé sur trafic réel (30/07) : 'bridge-agent-start' est la
+        # SEULE source du chemin d'enregistrement d'un appel de file — porté
+        # par 'variable_execute_on_pre_bridge' sur le leg agent, déjà résolu
+        # par FreeSWITCH avec l'UUID du leg membre comme nom de fichier
+        # ('variable_record_file_path' reste None partout, y compris ici).
+        if action == "bridge-agent-start":
+            self._on_bridge_recording_event(headers)
+            return
+
         domain = self._resolve_domain(headers)
         if not domain:
             logger.warning(
@@ -498,4 +507,41 @@ class ESLAdapter(PBXAdapter):
             return  # queue non supervisée pour ce tenant — pas transmis
 
         payload = normalizer.normalize_member_enrichment(headers, domain, agent_login)
+        self.ingest_client.send(payload)
+
+    def _on_bridge_recording_event(self, headers):
+        """'bridge-agent-start' — même contexte que 'agent-offering' (pas de
+        'variable_domain_name', résolution du domaine/agent via l'annuaire
+        agents ou repli sur l'unique domaine configuré), mais porte le seul
+        chemin d'enregistrement exploitable pour un appel de file (voir
+        normalizer.normalize_bridge_recording)."""
+        agent_uuid = headers.get("CC-Agent")
+        entry = self._agent_directory.get(agent_uuid) if agent_uuid else None
+        domain = entry["domain"] if entry else None
+        agent_login = entry["extension"] if entry else None
+
+        if not domain:
+            domains = list(self._supervised_queues.keys())
+            domain = domains[0] if len(domains) == 1 else None
+
+        if not domain:
+            logger.warning(
+                "[%s] bridge-agent-start abandonné : domaine non résolvable (agent uuid=%r absent de "
+                "l'annuaire, et plusieurs domaines configurés sur ce connecteur).",
+                self.connector_config["name"], agent_uuid,
+            )
+            return
+
+        queue_id = headers.get("CC-Queue")
+        if not self._is_supervised_queue(domain, queue_id):
+            return  # queue non supervisée pour ce tenant — pas transmis
+
+        payload = normalizer.normalize_bridge_recording(headers, domain, agent_login)
+        if payload is None:
+            logger.warning(
+                "[%s] bridge-agent-start sans chemin d'enregistrement exploitable (CC-Member-Session-UUID "
+                "ou variable_execute_on_pre_bridge absent/non reconnu) — abandonné.",
+                self.connector_config["name"],
+            )
+            return
         self.ingest_client.send(payload)

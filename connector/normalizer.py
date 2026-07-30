@@ -20,6 +20,7 @@ CC-Member-Uuid, CC-Agent) sont ceux documentés par FreeSWITCH/FusionPBX au
 moment de l'écriture — à valider/ajuster contre un flux d'événements réel
 (accès FusionPBX de test disponible) avant mise en production du connecteur.
 """
+import re
 from datetime import datetime, timezone
 
 # Causes de raccrochage FreeSWITCH indiquant un échec technique (config PBX,
@@ -35,6 +36,21 @@ _TECHNICAL_FAILURE_CAUSES = {
 
 # Causes indiquant un appel non abouti côté appelé (pas de réponse / rejet).
 _MISSED_CAUSES = {"NO_ANSWER", "USER_BUSY", "USER_NOT_REGISTERED", "CALL_REJECTED", "NO_USER_RESPONSE"}
+
+# Confirmé sur trafic réel (30/07) : 'variable_record_file_path' ne se peuple
+# JAMAIS (ni sur un appel direct sans enregistrement, ni sur un appel de file
+# avec enregistrement confirmé présent sur disque) — variable non fiable.
+# Le seul chemin exploitable est celui, déjà résolu par FreeSWITCH, de
+# 'variable_execute_on_pre_bridge' porté par l'événement 'bridge-agent-start'
+# (ex. "record_session /var/.../<uuid>.wav") — capturé via cette regex.
+_RECORD_SESSION_PATH_RE = re.compile(r"record_session\s+(\S+)")
+
+
+def _extract_recording_path(execute_on_pre_bridge: str | None) -> str | None:
+    if not execute_on_pre_bridge:
+        return None
+    match = _RECORD_SESSION_PATH_RE.search(execute_on_pre_bridge)
+    return match.group(1) if match else None
 
 
 def _fs_timestamp_to_iso(raw_micros) -> str | None:
@@ -143,8 +159,9 @@ def normalize_callcenter_info(headers: dict, pbx_domain: str) -> dict | None:
         payload["queue"]["id"] = queue_id
         return payload
 
-    # Autre action mod_callcenter non mappée à ce jour (ex. bridge-agent-start) :
-    # ignorée plutôt que forcée dans un type approximatif.
+    # Autre action mod_callcenter non mappée à ce jour : ignorée plutôt que
+    # forcée dans un type approximatif ('bridge-agent-start' est routé à part
+    # par ESLAdapter, voir normalize_bridge_recording — jamais atteint ici).
     return None
 
 
@@ -169,6 +186,31 @@ def normalize_member_enrichment(headers: dict, pbx_domain: str, agent_login: str
             "id": headers.get("CC-Member-Session-UUID"),
             "callee": headers.get("CC-Member-DNIS"),
         },
+        "agent": {"login": agent_login} if agent_login else {},
+        "queue": {"id": headers.get("CC-Queue")},
+    }
+
+
+def normalize_bridge_recording(headers: dict, pbx_domain: str, agent_login: str | None) -> dict | None:
+    """Événement callcenter::info 'bridge-agent-start' — seule source
+    confirmée (30/07) du chemin d'enregistrement d'un appel de file :
+    `variable_execute_on_pre_bridge`, porté par le LEG AGENT, déjà résolu par
+    FreeSWITCH avec l'UUID du leg MEMBRE (`variable_cc_member_session_uuid`,
+    == Unique-ID du leg entrant déjà en base) comme nom de fichier. Comme
+    `normalize_member_enrichment`, on n'envoie ici QUE l'enregistrement, sans
+    statut, pour ne jamais écraser un statut d'appel déjà mieux connu.
+    Retourne None si aucun chemin n'a pu être extrait (pas de contenu utile
+    à transmettre)."""
+    member_session_uuid = headers.get("variable_cc_member_session_uuid") or headers.get("CC-Member-Session-UUID")
+    recording_path = _extract_recording_path(headers.get("variable_execute_on_pre_bridge"))
+    if not member_session_uuid or not recording_path:
+        return None
+
+    return {
+        "pbx_domain": pbx_domain,
+        "event_type": "CALLCENTER_BRIDGE_RECORDING",
+        "call": {"id": member_session_uuid},
+        "recording_url": recording_path,
         "agent": {"login": agent_login} if agent_login else {},
         "queue": {"id": headers.get("CC-Queue")},
     }

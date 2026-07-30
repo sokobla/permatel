@@ -59,13 +59,14 @@ def test_callcenter_info_queue_enter_est_transmis():
 
 def test_callcenter_info_action_non_reconnue_est_journalisee_pas_perdue(caplog):
     """Une CC-Action liée à un canal (donc avec variable_domain_name) mais
-    non mappée par normalize_callcenter_info() (ex. bridge-agent-start) doit
-    être journalisée, pas silencieusement perdue."""
+    non mappée par normalize_callcenter_info() (ex. 'agent-contact-change',
+    un dump de reconfiguration en masse des agents, sans intérêt pour la
+    corrélation d'appels) doit être journalisée, pas silencieusement perdue."""
     ingest_client = MagicMock()
     adapter = ESLAdapter(_fake_connector_config(), ingest_client=ingest_client)
     headers = {
         "variable_domain_name": "tenant.pbx.local",
-        "CC-Action": "bridge-agent-start",
+        "CC-Action": "agent-contact-change",
         "CC-Queue": "queue-support",
     }
 
@@ -73,7 +74,7 @@ def test_callcenter_info_action_non_reconnue_est_journalisee_pas_perdue(caplog):
         adapter._on_callcenter_info(_FakeEvent(headers))
 
     ingest_client.send.assert_not_called()
-    assert any("bridge-agent-start" in record.message for record in caplog.records)
+    assert any("agent-contact-change" in record.message for record in caplog.records)
 
 
 def test_callcenter_info_sans_domaine_est_journalise_pas_perdu(caplog):
@@ -237,6 +238,102 @@ def test_agent_offering_queue_non_supervisee_est_ignoree():
     adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=ingest_client)
 
     adapter._on_callcenter_info(_FakeEvent(_offering_headers(**{"CC-Queue": "8004@d1"})))
+
+    ingest_client.send.assert_not_called()
+
+
+# ── _on_callcenter_info : chemin bridge-agent-start (enregistrement) ──────
+# Confirmé en prod (30/07) : seule source du chemin d'enregistrement d'un
+# appel de file — 'variable_record_file_path' reste None partout, y compris
+# ici ; le chemin résolu se trouve dans 'variable_execute_on_pre_bridge',
+# nommé d'après 'variable_cc_member_session_uuid' (== Unique-ID du leg
+# membre déjà en base).
+
+def _bridge_start_headers(**overrides):
+    base = {
+        "CC-Action": "bridge-agent-start",
+        "CC-Queue": "8004@africallpbx.fusion.cloud228.com",
+        "CC-Agent": "e8a58298-87e7-4960-a222-d05763866b15",
+        "variable_cc_member_session_uuid": "c0fdb4be-a5dd-453c-b456-b84067242923",
+        "variable_execute_on_pre_bridge": (
+            "record_session /var/lib/freeswitch/recordings/africallpbx.fusion.cloud228.com/"
+            "archive/2026/Jul/30/c0fdb4be-a5dd-453c-b456-b84067242923.wav"
+        ),
+    }
+    base.update(overrides)
+    return base
+
+
+def test_bridge_agent_start_resout_domaine_et_agent_via_annuaire_et_transmet():
+    domains = [{"pbx_domain": "africallpbx.fusion.cloud228.com", "queue_ids": ["8004"]}]
+    ingest_client = MagicMock()
+    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=ingest_client)
+    adapter._agent_directory = {
+        "e8a58298-87e7-4960-a222-d05763866b15": {
+            "domain": "africallpbx.fusion.cloud228.com", "extension": "22101001",
+        },
+    }
+
+    adapter._on_callcenter_info(_FakeEvent(_bridge_start_headers()))
+
+    ingest_client.send.assert_called_once()
+    payload = ingest_client.send.call_args[0][0]
+    assert payload["event_type"] == "CALLCENTER_BRIDGE_RECORDING"
+    assert payload["pbx_domain"] == "africallpbx.fusion.cloud228.com"
+    assert payload["call"]["id"] == "c0fdb4be-a5dd-453c-b456-b84067242923"
+    assert payload["recording_url"].endswith("c0fdb4be-a5dd-453c-b456-b84067242923.wav")
+    assert payload["agent"]["login"] == "22101001"
+    assert payload["queue"]["id"] == "8004@africallpbx.fusion.cloud228.com"
+
+
+def test_bridge_agent_start_repli_sur_unique_domaine_configure_si_agent_inconnu():
+    domains = [{"pbx_domain": "africallpbx.fusion.cloud228.com", "queue_ids": ["8004"]}]
+    ingest_client = MagicMock()
+    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=ingest_client)
+
+    adapter._on_callcenter_info(_FakeEvent(_bridge_start_headers()))
+
+    ingest_client.send.assert_called_once()
+    payload = ingest_client.send.call_args[0][0]
+    assert payload["pbx_domain"] == "africallpbx.fusion.cloud228.com"
+    assert payload["agent"] == {}
+
+
+def test_bridge_agent_start_abandonne_si_plusieurs_domaines_et_agent_inconnu(caplog):
+    domains = [
+        {"pbx_domain": "d1", "queue_ids": ["8004"]},
+        {"pbx_domain": "d2", "queue_ids": ["8005"]},
+    ]
+    ingest_client = MagicMock()
+    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=ingest_client)
+
+    with caplog.at_level(logging.WARNING, logger="connector.esl"):
+        adapter._on_callcenter_info(_FakeEvent(_bridge_start_headers(**{"CC-Queue": "8004@d1"})))
+
+    ingest_client.send.assert_not_called()
+    assert any("domaine non résolvable" in r.message for r in caplog.records)
+
+
+def test_bridge_agent_start_sans_chemin_exploitable_est_abandonne(caplog):
+    domains = [{"pbx_domain": "d1", "queue_ids": ["8004"]}]
+    ingest_client = MagicMock()
+    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=ingest_client)
+    headers = _bridge_start_headers(**{"CC-Queue": "8004@d1"})
+    del headers["variable_execute_on_pre_bridge"]
+
+    with caplog.at_level(logging.WARNING, logger="connector.esl"):
+        adapter._on_callcenter_info(_FakeEvent(headers))
+
+    ingest_client.send.assert_not_called()
+    assert any("chemin d'enregistrement exploitable" in r.message for r in caplog.records)
+
+
+def test_bridge_agent_start_queue_non_supervisee_est_ignoree():
+    domains = [{"pbx_domain": "d1", "queue_ids": ["8005"]}]  # 8004 pas supervisée
+    ingest_client = MagicMock()
+    adapter = ESLAdapter(_fake_connector_config(domains), ingest_client=ingest_client)
+
+    adapter._on_callcenter_info(_FakeEvent(_bridge_start_headers(**{"CC-Queue": "8004@d1"})))
 
     ingest_client.send.assert_not_called()
 

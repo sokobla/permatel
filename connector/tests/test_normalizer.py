@@ -132,6 +132,49 @@ def test_normalize_member_enrichment_sans_agent_login_resolu():
     assert payload["agent"] == {}
 
 
+def test_normalize_bridge_recording_extrait_le_chemin_de_execute_on_pre_bridge():
+    """Confirmé en prod (30/07) : 'variable_record_file_path' ne se peuple
+    JAMAIS (même sur un appel de file dont l'enregistrement existe bien sur
+    disque) — seul 'variable_execute_on_pre_bridge' (leg agent) porte le
+    chemin, déjà résolu par FreeSWITCH avec l'UUID du leg MEMBRE
+    (variable_cc_member_session_uuid) comme nom de fichier."""
+    headers = _headers(**{
+        "CC-Action": "bridge-agent-start", "CC-Queue": "8004@africallpbx.fusion.cloud228.com",
+        "CC-Agent": "e8a58298-87e7-4960-a222-d05763866b15",
+        "variable_cc_member_session_uuid": "c0fdb4be-a5dd-453c-b456-b84067242923",
+        "variable_execute_on_pre_bridge": (
+            "record_session /var/lib/freeswitch/recordings/africallpbx.fusion.cloud228.com/"
+            "archive/2026/Jul/30/c0fdb4be-a5dd-453c-b456-b84067242923.wav"
+        ),
+    })
+    payload = normalizer.normalize_bridge_recording(headers, "africallpbx.fusion.cloud228.com", "22101001")
+    assert payload["event_type"] == "CALLCENTER_BRIDGE_RECORDING"
+    assert payload["call"]["id"] == "c0fdb4be-a5dd-453c-b456-b84067242923"
+    assert payload["recording_url"] == (
+        "/var/lib/freeswitch/recordings/africallpbx.fusion.cloud228.com/"
+        "archive/2026/Jul/30/c0fdb4be-a5dd-453c-b456-b84067242923.wav"
+    )
+    assert payload["agent"]["login"] == "22101001"
+    assert payload["queue"]["id"] == "8004@africallpbx.fusion.cloud228.com"
+    assert "status" not in payload["call"]  # ne doit jamais écraser un statut déjà connu
+
+
+def test_normalize_bridge_recording_sans_member_session_uuid_retourne_none():
+    headers = _headers(**{
+        "CC-Action": "bridge-agent-start",
+        "variable_execute_on_pre_bridge": "record_session /var/x.wav",
+    })
+    assert normalizer.normalize_bridge_recording(headers, "d", "22101001") is None
+
+
+def test_normalize_bridge_recording_sans_chemin_retourne_none():
+    headers = _headers(**{
+        "CC-Action": "bridge-agent-start",
+        "variable_cc_member_session_uuid": "member-uuid-1",
+    })
+    assert normalizer.normalize_bridge_recording(headers, "d", "22101001") is None
+
+
 def test_normalize_agent_status_change_utilise_domaine_et_login_fournis():
     """Domaine et login ne viennent PAS des en-têtes (confirmé absents sur
     trafic réel) mais des paramètres, résolus en amont par ESLAdapter via
