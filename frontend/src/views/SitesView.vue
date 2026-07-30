@@ -99,7 +99,7 @@
                   <th class="sv-th" style="width: 34%">Site</th>
                   <th class="sv-th" style="width: 20%">Contact</th>
                   <th class="sv-th" style="width: 20%">Ville / Code postal</th>
-                  <th class="sv-th" style="width: 16%">Contacts</th>
+                  <th class="sv-th" style="width: 16%; text-align: center">Statut</th>
                   <th class="sv-th" style="width: 100px; text-align: right">Actions</th>
                 </tr>
               </thead>
@@ -156,12 +156,6 @@
                                 {{ item.client?.nom ?? "Sans client" }}
                                 <template v-if="item.ville"> · {{ item.ville }}</template>
                               </span>
-                              <div class="sv-cell-flex sv-name-status">
-                                <span :class="['sv-statut-chip', item.is_active ? 'sv-statut-chip--actif' : 'sv-statut-chip--inactif']">
-                                  <span class="sv-statut-chip__dot"></span>
-                                  {{ item.is_active ? "Actif" : "Inactif" }}
-                                </span>
-                              </div>
                             </div>
                           </div>
                         </td>
@@ -173,15 +167,11 @@
                           {{ item.ville || "—" }}
                           <div class="sv-date-sub">{{ item.code_postal || "—" }}</div>
                         </td>
-                        <td class="sv-td">
-                          <div class="sv-avatar-stack">
-                            <span
-                              v-if="item.contact_principal"
-                              class="sv-avatar sv-avatar--stack"
-                              :title="item.contact_principal.nom"
-                            >{{ contactInitials(item.contact_principal.nom) }}</span>
-                            <span v-else class="sv-muted">—</span>
-                          </div>
+                        <td class="sv-td" style="text-align: center">
+                          <span :class="['sv-statut-chip', item.is_active ? 'sv-statut-chip--actif' : 'sv-statut-chip--inactif']">
+                            <span class="sv-statut-chip__dot"></span>
+                            {{ item.is_active ? "Actif" : "Inactif" }}
+                          </span>
                         </td>
                         <td class="sv-td" style="text-align: right">
                           <div class="sv-row-actions">
@@ -227,12 +217,6 @@
                             {{ item.client?.nom ?? "Sans client" }}
                             <template v-if="item.ville"> · {{ item.ville }}</template>
                           </span>
-                          <div class="sv-cell-flex sv-name-status">
-                            <span :class="['sv-statut-chip', item.is_active ? 'sv-statut-chip--actif' : 'sv-statut-chip--inactif']">
-                              <span class="sv-statut-chip__dot"></span>
-                              {{ item.is_active ? "Actif" : "Inactif" }}
-                            </span>
-                          </div>
                         </div>
                       </div>
                     </td>
@@ -244,15 +228,11 @@
                       {{ item.ville || "—" }}
                       <div class="sv-date-sub">{{ item.code_postal || "—" }}</div>
                     </td>
-                    <td class="sv-td">
-                      <div class="sv-avatar-stack">
-                        <span
-                          v-if="item.contact_principal"
-                          class="sv-avatar sv-avatar--stack"
-                          :title="item.contact_principal.nom"
-                        >{{ contactInitials(item.contact_principal.nom) }}</span>
-                        <span v-else class="sv-muted">—</span>
-                      </div>
+                    <td class="sv-td" style="text-align: center">
+                      <span :class="['sv-statut-chip', item.is_active ? 'sv-statut-chip--actif' : 'sv-statut-chip--inactif']">
+                        <span class="sv-statut-chip__dot"></span>
+                        {{ item.is_active ? "Actif" : "Inactif" }}
+                      </span>
                     </td>
                     <td class="sv-td" style="text-align: right">
                       <div class="sv-row-actions">
@@ -837,12 +817,6 @@ function removeLogo() {
   if (panelMode.value === "edit") form.logo_url = null;
 }
 
-// Initiales "prénom + nom" pour la pile d'avatars du contact principal d'un
-// site (ex. "Jean Dupont" -> "JD"), même logique que AnomaliesView.initials().
-function contactInitials(name) {
-  if (!name) return "?";
-  return name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
-}
 function avatarColor(name) {
   let hash = 0;
   for (let i = 0; i < (name || "").length; i++)
