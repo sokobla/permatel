@@ -665,9 +665,7 @@ def _parse_period():
     return dt_from, dt_to
 
 
-@telephony_bp.get("/active-calls")
-@tenant_required
-def active_calls():
+def _resolve_active_calls(tenant_id) -> list:
     """
     Appels en cours : un appel physique peut produire plusieurs événements
     ETALÉS DANS LE TEMPS pour le MÊME call_uuid (ex. CHANNEL_CREATE puis,
@@ -678,13 +676,30 @@ def active_calls():
     (appelant, destination, agent, file, statut) est résolu à sa dernière
     valeur NON NULLE parmi tous les événements du call_uuid, pas seulement
     ceux du tout dernier événement reçu.
+
+    Factorisé hors de la route (31/07) : /agents/status en a aussi besoin,
+    pour dériver une présence "en appel" à partir des appels réellement
+    ouverts plutôt que du seul statut manuel agent (Available/On Break/
+    Logged Out, qui ne change jamais pendant un appel — voir
+    _AGENT_PRESENCE_ONLINE/_AWAY et la discussion du 31/07).
     """
     latest_ts = (
         db.session.query(
             TelephonyEvent.call_uuid,
             db.func.max(TelephonyEvent.created_at).label("max_created_at"),
         )
-        .filter(TelephonyEvent.tenant_id == g.tenant_id, TelephonyEvent.call_uuid.isnot(None))
+        # CALLCENTER_AGENT_STATE_CHANGE exclu : un événement de présence pure
+        # ne porte jamais de Unique-ID/call_uuid réel en production (confirmé
+        # sur trafic réel — 'agent-status-change' ne porte AUCUN contexte de
+        # canal, cf. _on_agent_status_event) ; l'exclure ici évite qu'une
+        # convention de test qui poserait quand même un call_uuid dessus (ou
+        # une future source de données) ne le fasse compter à tort comme un
+        # appel ouvert.
+        .filter(
+            TelephonyEvent.tenant_id == tenant_id,
+            TelephonyEvent.call_uuid.isnot(None),
+            TelephonyEvent.event_type != "CALLCENTER_AGENT_STATE_CHANGE",
+        )
         .group_by(TelephonyEvent.call_uuid)
         .subquery()
     )
@@ -697,7 +712,10 @@ def active_calls():
                 TelephonyEvent.created_at == latest_ts.c.max_created_at,
             ),
         )
-        .filter(TelephonyEvent.tenant_id == g.tenant_id)
+        .filter(
+            TelephonyEvent.tenant_id == tenant_id,
+            TelephonyEvent.event_type != "CALLCENTER_AGENT_STATE_CHANGE",
+        )
         .all()
     )
     stale_cutoff = datetime.utcnow() - ACTIVE_CALL_STALE_AFTER
@@ -706,12 +724,12 @@ def active_calls():
         if row.call_status not in TERMINAL_STATUSES and row.created_at >= stale_cutoff
     ]
     if not candidate_uuids:
-        return jsonify({"active_calls": [], "total": 0}), 200
+        return []
 
     all_events = (
         TelephonyEvent.query
         .filter(
-            TelephonyEvent.tenant_id == g.tenant_id,
+            TelephonyEvent.tenant_id == tenant_id,
             TelephonyEvent.call_uuid.in_(candidate_uuids),
         )
         .order_by(TelephonyEvent.created_at.asc())
@@ -773,14 +791,30 @@ def active_calls():
         if linked and linked in merged and m.get("call_direction") == "outbound":
             merged.pop(call_uuid, None)
 
-    alias_lookup = _agent_alias_lookup(g.tenant_id)
-    queue_alias_lookup = _queue_alias_lookup(g.tenant_id)
+    alias_lookup = _agent_alias_lookup(tenant_id)
+    queue_alias_lookup = _queue_alias_lookup(tenant_id)
+    station_agent_lookup = _live_station_agent_lookup(tenant_id)
     active = []
     for m in merged.values():
-        alias = alias_lookup.get(m["agent_uuid"]) if m["agent_uuid"] else None
+        agent_uuid = m["agent_uuid"]
+        agent_inferred = False
+        if not agent_uuid:
+            # Aucun contexte CC-Agent sur cet appel (ex. appel direct hors
+            # file) : on tente de retrouver l'agent via son dernier login
+            # connu sur ce poste — caller OU callee, l'un des deux est
+            # l'extension interne selon le sens de l'appel.
+            agent_uuid = station_agent_lookup.get(m["caller"]) or station_agent_lookup.get(m["callee"])
+            agent_inferred = agent_uuid is not None
+        alias = alias_lookup.get(agent_uuid) if agent_uuid else None
         active.append({
             **m,
-            "agent_name": alias["name"] if alias else (m["agent_login"] or m["agent_uuid"]),
+            "agent_uuid": agent_uuid,
+            # True si l'agent n'est pas confirmé par un contexte CC-Agent sur
+            # CET appel — déduit du dernier login connu sur le poste
+            # composant/appelé, jamais présenté comme aussi certain qu'une
+            # résolution directe.
+            "agent_inferred": agent_inferred,
+            "agent_name": alias["name"] if alias else (m["agent_login"] or agent_uuid),
             # Poste observé en direct sur cet appel prioritaire sur le poste
             # statique déclaré côté gestion des utilisateurs.
             "agent_station": m["agent_station_extension"] or (alias["station"] if alias else None),
@@ -788,7 +822,32 @@ def active_calls():
             "started_at": _iso_utc(m["started_at"]),
             "created_at": _iso_utc(m["created_at"]),
         })
+    return active
+
+
+@telephony_bp.get("/active-calls")
+@tenant_required
+def active_calls():
+    active = _resolve_active_calls(g.tenant_id)
     return jsonify({"active_calls": active, "total": len(active)}), 200
+
+
+def _agents_currently_on_call(tenant_id) -> set:
+    """Ensemble des `agent_uuid` actuellement associés à un appel ouvert
+    (résolu comme /active-calls, y compris via l'inférence par poste pour
+    les appels sans contexte CC-Agent) — sert à dériver une présence "en
+    appel" pour /agents/status, faute de signal live PBX sur les
+    sous-transitions Waiting/Receiving/In a queue call (confirmé absent du
+    trafic réel, cf. `_normalize_agent_presence`). Volontairement grossier :
+    ne distingue pas "en train de sonner" de "en communication" — cette
+    distinction dépendrait de la fusion du statut du leg agent sur la ligne
+    survivante, non confirmée sur trafic réel à ce jour (cf. discussion
+    31/07) — mieux vaut un état "en appel" honnête que deviner un sous-état
+    non vérifié."""
+    return {
+        call["agent_uuid"] for call in _resolve_active_calls(tenant_id)
+        if call.get("agent_uuid")
+    }
 
 
 @telephony_bp.get("/kpis/summary")
@@ -901,6 +960,56 @@ def _agent_alias_lookup(tenant_id) -> dict:
     }
 
 
+def _live_station_agent_lookup(tenant_id) -> dict:
+    """`agent_station_extension` -> `agent_uuid` du plus récent événement
+    `CALLCENTER_AGENT_STATE_CHANGE` connu pour ce poste, tous agents/files
+    confondus — sert à retrouver l'identité d'un agent sur un appel qui ne
+    porte lui-même AUCUN contexte CC-Agent (ex. appel direct/sortant hors
+    file, un poste qui compose un code fonction), à partir de son dernier
+    login connu sur ce poste (`m["caller"]`/`m["callee"]` matché contre les
+    clés retournées).
+
+    Contrairement à `User.station_extension` (déclaratif, statique côté
+    gestion des utilisateurs), cette table suit les changements de poste
+    sans intervention admin : si l'agent A se délogue du poste X puis
+    l'agent B s'y logue, elle reflète B dès que son événement de login est
+    arrivé — jamais A par erreur après coup (c'est précisément la limite du
+    reverse-match par poste STATIQUE écartée en faveur de celui-ci, cf.
+    discussion du 31/07). Reste un best-effort : dans la brève fenêtre entre
+    l'appel de B et l'arrivée de son propre événement de présence, cette
+    table peut encore pointer vers A ou rester vide."""
+    latest_ts = (
+        db.session.query(
+            TelephonyEvent.agent_station_extension,
+            db.func.max(TelephonyEvent.created_at).label("max_created_at"),
+        )
+        .filter(
+            TelephonyEvent.tenant_id == tenant_id,
+            TelephonyEvent.event_type == "CALLCENTER_AGENT_STATE_CHANGE",
+            TelephonyEvent.agent_station_extension.isnot(None),
+        )
+        .group_by(TelephonyEvent.agent_station_extension)
+        .subquery()
+    )
+    latest_events = (
+        TelephonyEvent.query
+        .join(
+            latest_ts,
+            db.and_(
+                TelephonyEvent.agent_station_extension == latest_ts.c.agent_station_extension,
+                TelephonyEvent.created_at == latest_ts.c.max_created_at,
+            ),
+        )
+        .filter(TelephonyEvent.tenant_id == tenant_id)
+        .all()
+    )
+    return {
+        e.agent_station_extension: e.agent_uuid
+        for e in latest_events
+        if e.agent_uuid
+    }
+
+
 @telephony_bp.get("/kpis/queues")
 @tenant_required
 def kpis_queues():
@@ -1007,6 +1116,15 @@ def kpis_agents():
 # présence disponible/pause/hors-ligne. Tout statut absent ou non reconnu
 # retombe sur "offline" — on ne fabrique jamais un état "disponible" par
 # défaut à partir de données incertaines.
+#
+# Ce statut est un TOGGLE MANUEL (Available/On Break/Logged Out) — confirmé
+# sur trafic réel (29/07) qu'il ne change PAS pendant un appel (pas de
+# transition live Waiting/Receiving/In a queue call observée, cf.
+# connector/tests/test_esl_adapter_callcenter.py). D'où la 4e valeur
+# "on_call", calculée à part dans agents_status() à partir des appels
+# réellement ouverts (_agents_currently_on_call) et prioritaire sur ce
+# statut manuel — volontairement grossier (ne distingue pas sonne/en
+# communication, cf. discussion du 31/07).
 _AGENT_PRESENCE_ONLINE = {"available", "available (on demand)"}
 _AGENT_PRESENCE_AWAY = {"on break"}
 
@@ -1039,6 +1157,12 @@ def agents_status():
     événements CDR (volume d'appels) n'utilisaient pas le même vocabulaire
     dans `agent_login` (uuid vs extension) — `calls_handled` ne recoupait
     donc jamais rien. `agent_uuid` est peuplé sur les deux canaux.
+
+    `presence` peut valoir "on_call" en plus de online/away/offline (audit
+    31/07) : le statut manuel mod_callcenter ne change pas pendant un appel
+    (dialing/ringing/in-call), donc "on_call" est dérivé à part, à partir
+    des appels réellement ouverts pour cet `agent_uuid` (voir
+    `_agents_currently_on_call`), et prioritaire sur le statut manuel.
     """
     dt_from, dt_to = _parse_period()
 
@@ -1094,6 +1218,7 @@ def agents_status():
             calls_handled[agent_uuid] = calls_handled.get(agent_uuid, 0) + 1
 
     alias_lookup = _agent_alias_lookup(g.tenant_id)
+    on_call_uuids = _agents_currently_on_call(g.tenant_id)
     agents = sorted(
         (
             {
@@ -1103,7 +1228,7 @@ def agents_status():
                 # Poste observé en direct sur ce dernier événement de
                 # présence, prioritaire sur le poste statique déclaré.
                 "agent_station": e.agent_station_extension or alias_lookup.get(e.agent_uuid, {}).get("station"),
-                "presence": _normalize_agent_presence(e.agent_status),
+                "presence": "on_call" if e.agent_uuid in on_call_uuids else _normalize_agent_presence(e.agent_status),
                 "raw_status": e.agent_status,
                 "last_seen_at": _iso_utc(e.created_at),
                 "calls_handled": calls_handled.get(e.agent_uuid, 0),

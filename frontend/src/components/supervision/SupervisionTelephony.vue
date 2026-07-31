@@ -240,6 +240,7 @@
 
       <div v-if="agents.length" class="stl-agents-legend">
         <span class="stl-legend-item"><span class="stl-dot stl-status-online"></span>Disponible</span>
+        <span class="stl-legend-item"><span class="stl-dot stl-status-on_call"></span>En appel</span>
         <span class="stl-legend-item"><span class="stl-dot stl-status-away"></span>En pause</span>
         <span class="stl-legend-item"><span class="stl-dot stl-status-offline"></span>Déconnecté</span>
         <span class="stl-panel__spacer"></span>
@@ -261,7 +262,7 @@ const CALL_STATUS_LABEL = {
   answered: "En cours",
   on_hold: "En attente",
 };
-const PRESENCE_LABEL = { online: "Disponible", away: "En pause", offline: "Déconnecté" };
+const PRESENCE_LABEL = { online: "Disponible", on_call: "En appel", away: "En pause", offline: "Déconnecté" };
 
 const periodLabel = "aujourd'hui";
 const summary = ref(null);
@@ -293,7 +294,7 @@ const missedHint = computed(() => {
   const missed = summary.value.total_calls - summary.value.answered_calls;
   return missed > 0 ? `${missed} appels manqués/abandonnés` : "Aucun appel manqué";
 });
-const onlineAgentsCount = computed(() => agents.value.length ? agents.value.filter((a) => a.presence === "online").length : 0);
+const onlineAgentsCount = computed(() => agents.value.length ? agents.value.filter((a) => a.presence === "online" || a.presence === "on_call").length : 0);
 const maxCallsHandled = computed(() => Math.max(1, ...agents.value.map((a) => a.calls_handled)));
 
 function workloadPct(agent) {
@@ -651,9 +652,11 @@ onUnmounted(() => {
 
 .stl-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; }
 .stl-status-online { background: #22c55e; }
+.stl-status-on_call { background: #0ea5e9; }
 .stl-status-away { background: #f59e0b; }
 .stl-status-offline { background: #9aa0aa; }
 .stl-presence-online { color: #15803d; }
+.stl-presence-on_call { color: #0369a1; }
 .stl-presence-away { color: #b45309; }
 .stl-presence-offline { color: #6b7280; }
 

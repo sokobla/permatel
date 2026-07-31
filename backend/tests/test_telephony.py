@@ -451,6 +451,118 @@ class TestActiveCalls:
         assert call["agent_name"] == "uuid-sans-user-permatel"
         assert call["agent_station"] is None
 
+    def test_active_calls_sans_contexte_cc_agent_infere_via_dernier_login_sur_le_poste(
+        self, client, db, auth_headers, pbx_domain, default_tenant,
+    ):
+        """Reproduit le cas réel du 31/07 : un appel direct/sortant hors
+        file (ex. poste qui compose un code fonction, ou boucle un DID) ne
+        porte AUCUN contexte CC-Agent — mais si ce poste correspond au
+        dernier login connu d'un agent (CALLCENTER_AGENT_STATE_CHANGE),
+        /active-calls doit quand même l'identifier plutôt que de laisser la
+        colonne Agent vide alors que l'agent est bien loggué et détecté."""
+        from app.models.user import User, UserRole
+
+        agent = User(
+            username="agent-live-station", email="agent-live-station@permatel.ma",
+            nom="Diop", prenom="Awa", role=UserRole.PERMANENCIER, is_active=True,
+            agent_login="e8a58298-87e7-4960-a222-d05763866b15",
+            # Pas de station_extension déclarée statiquement : la résolution
+            # doit venir du dernier login connu, pas de la config statique.
+        )
+        agent.set_password("Password123!")
+        agent.tenants.append(default_tenant)
+        db.session.add(agent)
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, pbx_connector_id=pbx_domain.pbx_connector_id,
+            event_type="CALLCENTER_AGENT_STATE_CHANGE", call_status="on_hold", call_uuid="ev-login-live",
+            agent_uuid="e8a58298-87e7-4960-a222-d05763866b15", agent_station_extension="22101001",
+            agent_status="Available", created_at=datetime.utcnow() - timedelta(minutes=2),
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, pbx_connector_id=pbx_domain.pbx_connector_id,
+            event_type="CHANNEL_ANSWER", call_status="answered", call_uuid="call-direct-sans-cc-agent",
+            caller_number="22101001", callee_number="010186569392", created_at=datetime.utcnow(),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/active-calls", headers=auth_headers)
+        call = next(c for c in resp.get_json()["active_calls"] if c["call_uuid"] == "call-direct-sans-cc-agent")
+        assert call["agent_uuid"] == "e8a58298-87e7-4960-a222-d05763866b15"
+        assert call["agent_name"] == "Awa Diop"
+        assert call["agent_inferred"] is True
+
+    def test_active_calls_sans_contexte_cc_agent_et_poste_inconnu_reste_vide(
+        self, client, db, auth_headers, pbx_domain, default_tenant,
+    ):
+        """Aucun login connu sur ce poste (jamais vu, ou agent jamais
+        loggué) : pas de fabrication d'identité, agent_inferred reste False
+        et agent_uuid/agent_name restent vides."""
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, pbx_connector_id=pbx_domain.pbx_connector_id,
+            event_type="CHANNEL_ANSWER", call_status="answered", call_uuid="call-direct-poste-inconnu",
+            caller_number="22109999", callee_number="010186569392", created_at=datetime.utcnow(),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/active-calls", headers=auth_headers)
+        call = resp.get_json()["active_calls"][0]
+        assert call["agent_uuid"] is None
+        assert call["agent_inferred"] is False
+        assert call["agent_name"] is None
+
+    def test_active_calls_inference_suit_le_dernier_login_pas_le_precedent(
+        self, client, db, auth_headers, pbx_domain, default_tenant,
+    ):
+        """Scénario hot-desking discuté le 31/07 : l'agent A se délogue du
+        poste X, l'agent B s'y logue ensuite — un appel direct depuis ce
+        poste doit être attribué à B (le plus récent événement de présence
+        connu pour cette extension), jamais à A par erreur après coup."""
+        from app.models.user import User, UserRole
+
+        agent_a = User(
+            username="agent-a-hotdesk", email="agent-a-hotdesk@permatel.ma",
+            nom="Fall", prenom="Ibra", role=UserRole.PERMANENCIER, is_active=True,
+            agent_login="uuid-agent-a",
+        )
+        agent_a.set_password("Password123!")
+        agent_b = User(
+            username="agent-b-hotdesk", email="agent-b-hotdesk@permatel.ma",
+            nom="Sarr", prenom="Khady", role=UserRole.PERMANENCIER, is_active=True,
+            agent_login="uuid-agent-b",
+        )
+        agent_b.set_password("Password123!")
+        agent_a.tenants.append(default_tenant)
+        agent_b.tenants.append(default_tenant)
+        db.session.add_all([agent_a, agent_b])
+
+        base = datetime.utcnow() - timedelta(minutes=10)
+        db.session.add(TelephonyEvent(  # A se logue sur le poste 22101005
+            tenant_id=default_tenant.id, event_type="CALLCENTER_AGENT_STATE_CHANGE", call_status="on_hold",
+            call_uuid="ev-a-login", agent_uuid="uuid-agent-a", agent_station_extension="22101005",
+            agent_status="Available", created_at=base,
+        ))
+        db.session.add(TelephonyEvent(  # A se délogue
+            tenant_id=default_tenant.id, event_type="CALLCENTER_AGENT_STATE_CHANGE", call_status="on_hold",
+            call_uuid="ev-a-logout", agent_uuid="uuid-agent-a", agent_station_extension="22101005",
+            agent_status="Logged Out", created_at=base + timedelta(minutes=2),
+        ))
+        db.session.add(TelephonyEvent(  # B se logue ensuite sur le MÊME poste
+            tenant_id=default_tenant.id, event_type="CALLCENTER_AGENT_STATE_CHANGE", call_status="on_hold",
+            call_uuid="ev-b-login", agent_uuid="uuid-agent-b", agent_station_extension="22101005",
+            agent_status="Available", created_at=base + timedelta(minutes=5),
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CHANNEL_ANSWER", call_status="answered",
+            call_uuid="call-apres-hotdesk", caller_number="22101005", callee_number="010186569392",
+            created_at=base + timedelta(minutes=6),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/active-calls", headers=auth_headers)
+        call = next(c for c in resp.get_json()["active_calls"] if c["call_uuid"] == "call-apres-hotdesk")
+        assert call["agent_uuid"] == "uuid-agent-b"
+        assert call["agent_name"] == "Khady Sarr"
+
 
 class TestKpis:
     def test_kpis_summary_calcule_taux_decroche(self, client, db, auth_headers, pbx_domain, default_tenant):
@@ -585,6 +697,53 @@ class TestAgentsStatus:
         assert agents["agent01"]["presence"] == "online"
         assert agents["agent01"]["raw_status"] == "Available"
         assert agents["agent02"]["presence"] == "offline"
+
+    def test_agents_status_en_appel_prioritaire_sur_le_statut_manuel(
+        self, client, db, auth_headers, default_tenant,
+    ):
+        """Reproduit le cas du 31/07 : le statut manuel mod_callcenter
+        (Available/On Break/Logged Out) ne change pas pendant un appel — un
+        agent "Available" avec un appel réellement ouvert doit afficher
+        presence="on_call", pas "online"."""
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CALLCENTER_AGENT_STATE_CHANGE",
+            call_status="on_hold", agent_login="agent01", agent_uuid="agent01",
+            agent_status="Available", created_at=datetime.utcnow() - timedelta(minutes=1),
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CHANNEL_CREATE", call_status="ringing",
+            call_uuid="call-en-cours", agent_login="agent01", agent_uuid="agent01",
+            created_at=datetime.utcnow(),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/agents/status", headers=auth_headers)
+        agents = {a["agent_login"]: a for a in resp.get_json()["agents"]}
+        assert agents["agent01"]["presence"] == "on_call"
+        # Le statut brut mod_callcenter reste visible tel quel (transparence) —
+        # seule la présence normalisée reflète l'appel en cours.
+        assert agents["agent01"]["raw_status"] == "Available"
+
+    def test_agents_status_sans_appel_ouvert_reste_sur_le_statut_manuel(
+        self, client, db, auth_headers, default_tenant,
+    ):
+        """Un appel déjà terminé (statut terminal) ne doit PAS maintenir
+        l'agent en 'on_call' indéfiniment."""
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CALLCENTER_AGENT_STATE_CHANGE",
+            call_status="on_hold", agent_login="agent01", agent_uuid="agent01",
+            agent_status="Available", created_at=datetime.utcnow() - timedelta(minutes=5),
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CHANNEL_HANGUP_COMPLETE", call_status="ended",
+            call_uuid="call-termine", agent_login="agent01", agent_uuid="agent01",
+            created_at=datetime.utcnow() - timedelta(minutes=4),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/agents/status", headers=auth_headers)
+        agents = {a["agent_login"]: a for a in resp.get_json()["agents"]}
+        assert agents["agent01"]["presence"] == "online"
 
     def test_agents_status_compte_les_appels_traites_sur_la_periode(self, client, db, auth_headers, default_tenant):
         base = datetime.utcnow() - timedelta(minutes=5)
