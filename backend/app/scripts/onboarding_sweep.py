@@ -2,8 +2,13 @@
 Expiration des jetons d'onboarding utilisateur PERMATEL.
 
 Contrainte produit explicite : passé 24h sans complétion, le jeton
-d'onboarding est révoqué (status=expired) ET le compte utilisateur est
-désactivé (is_active=False) — jamais l'un sans l'autre.
+d'onboarding est révoqué (status=expired) et, pour une invitation INITIALE
+(`token.deactivate_on_expiry=True` — l'utilisateur n'a encore aucun mot de
+passe utilisable), le compte est désactivé (is_active=False). Décision
+produit du 31/07 : un renvoi vers un utilisateur EXISTANT déjà actif
+(`deactivate_on_expiry=False`, cf. `POST /users/<id>/onboarding/send`) ne
+désactive JAMAIS le compte à l'expiration — seul le jeton expire, sans
+effet de bord sur un compte qui fonctionnait déjà.
 
 Utilisable via la CLI Flask : flask onboarding-sweep
 
@@ -32,7 +37,8 @@ def sweep_onboarding(db):
         token.status = STATUS_EXPIRED
         user = token.user
         user.onboarding_status = STATUS_EXPIRED
-        user.is_active = False
+        if token.deactivate_on_expiry:
+            user.is_active = False
 
     db.session.commit()
     return {"expired": len(expired_tokens)}

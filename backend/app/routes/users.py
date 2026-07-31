@@ -378,6 +378,38 @@ def resend_onboarding(user_id):
     return jsonify({"message": "Email d'onboarding renvoyé.", "user": _serialize_user(user)}), 200
 
 
+@users_bp.post("/<int:user_id>/onboarding/send")
+@jwt_required()
+@role_required(UserRole.ADMIN)
+def send_onboarding_existing(user_id):
+    """Envoie un lien d'onboarding (définir un nouveau mot de passe) à un
+    utilisateur EXISTANT, quel que soit son `onboarding_status` actuel (null,
+    completed, expired, revoked — y compris pending, auquel cas ceci
+    équivaut à un renvoi). Décision produit du 31/07, distincte de
+    `resend_onboarding` (réservé aux invitations initiales pending) : le
+    compte a déjà un mot de passe fonctionnel, donc `deactivate_on_expiry`
+    est explicitement désactivé — ignorer ce lien ne coupe jamais l'accès à
+    un compte qui marchait déjà."""
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"message": "Utilisateur introuvable"}), 404
+
+    tenant = user.tenants[0] if user.tenants else None
+    if not tenant:
+        return jsonify({"message": "Aucun tenant rattaché à cet utilisateur — impossible d'envoyer l'email."}), 400
+
+    try:
+        trigger_onboarding(
+            user, tenant, created_by_user_id=int(get_jwt_identity()), deactivate_on_expiry=False,
+        )
+    except Exception as exc:  # noqa: BLE001
+        db.session.rollback()
+        return jsonify({"message": f"Échec de l'envoi : {exc}"}), 502
+
+    db.session.commit()
+    return jsonify({"message": "Lien d'onboarding envoyé.", "user": _serialize_user(user)}), 200
+
+
 @users_bp.delete("/<int:user_id>/onboarding")
 @jwt_required()
 @role_required(UserRole.ADMIN)

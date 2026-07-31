@@ -99,6 +99,16 @@ export const userService = {
   revokeOnboarding(id) {
     return apiClient.delete(`${USERS}/${id}/onboarding`);
   },
+
+  /**
+   * Envoie un lien d'onboarding à un utilisateur EXISTANT (compte déjà actif),
+   * quel que soit son onboarding_status actuel — contrairement à resendOnboarding,
+   * pas de désactivation du compte si le lien n'est jamais utilisé.
+   * @param {number|string} id
+   */
+  sendOnboarding(id) {
+    return apiClient.post(`${USERS}/${id}/onboarding/send`);
+  },
   /**
    * Récupère les rôles disponibles (pour le select du formulaire).
    * Réponse attendue : { roles: [{ value, label }] }

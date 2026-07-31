@@ -231,6 +231,14 @@
                   <v-icon size="13">mdi-email-remove-outline</v-icon>
                 </button>
                 <button
+                  v-else
+                  class="act-btn act-btn--resend"
+                  title="Envoyer un lien d'onboarding (définir un nouveau mot de passe)"
+                  @click="onSendOnboarding(item)"
+                >
+                  <v-icon size="13">mdi-email-fast-outline</v-icon>
+                </button>
+                <button
                   class="act-btn act-btn--delete"
                   title="Supprimer"
                   @click="onDeleteUser(item)"
@@ -505,23 +513,16 @@
               <span>SÉCURITÉ</span>
             </div>
 
-            <!-- ONBOARDING (visible en création et édition ; en édition, l'envoi
-                 se pilote via les actions Renvoyer/Révoquer de la liste, pas
-                 depuis ce formulaire — le switch reste donc visible mais
-                 désactivé, pour ne pas laisser croire qu'il déclenche quoi
-                 que ce soit ici). -->
+            <!-- ONBOARDING (visible en création et édition, désactivé nulle
+                 part — voir handleOpenCreatePanel/resetForm pour l'état par
+                 défaut selon le mode : true en création, false en édition). -->
             <div v-if="panelMode === 'create' || panelMode === 'edit'" class="form-group">
               <v-switch
                 v-model="form.send_onboarding"
-                :disabled="panelMode === 'edit'"
                 color="#00a8a8"
                 density="compact"
                 hide-details
-                :label="
-                  panelMode === 'edit'
-                    ? 'Onboarding par email (gérer via Renvoyer/Révoquer dans la liste)'
-                    : 'Envoyer un email d\'onboarding (le mot de passe sera défini par l\'utilisateur)'
-                "
+                label="Envoyer un email d'onboarding (le mot de passe sera défini par l'utilisateur)"
               />
             </div>
 
@@ -1110,6 +1111,18 @@ async function onRevokeOnboarding(user) {
       err.response?.data?.error ||
       err.response?.data?.message ||
       "Échec de la révocation de l'onboarding.";
+  }
+}
+
+async function onSendOnboarding(user) {
+  try {
+    await userService.sendOnboarding(user.id);
+    await loadUsers();
+  } catch (err) {
+    listError.value =
+      err.response?.data?.error ||
+      err.response?.data?.message ||
+      "Échec de l'envoi du lien d'onboarding.";
   }
 }
 

@@ -225,6 +225,81 @@ class TestResendRevokeOnboarding:
         assert get_resp.status_code == 404
 
 
+class TestSendOnboardingExisting:
+    """POST /users/<id>/onboarding/send — renvoyer un lien d'onboarding à un
+    utilisateur EXISTANT (compte déjà actif, mot de passe déjà fonctionnel),
+    décision produit du 31/07 : contrairement à l'invitation initiale, le
+    jeton créé ne doit jamais désactiver le compte à l'expiration."""
+
+    def _create_active_user(self, db, default_tenant, email="existant@example.com", onboarding_status=None):
+        from app.models.user import UserRole
+        user = User(username=email, email=email, nom="N", prenom="P", role=UserRole.PERMANENCIER,
+                    is_active=True, onboarding_status=onboarding_status)
+        user.set_password("MotDePasseReel123!")
+        user.tenants.append(default_tenant)
+        db.session.add(user)
+        db.session.commit()
+        return user
+
+    def test_envoie_a_un_utilisateur_jamais_onboarde(
+        self, client, db, auth_headers_admin, default_tenant, smtp_settings, mock_smtp_send,
+    ):
+        user = self._create_active_user(db, default_tenant, "jamais@example.com", onboarding_status=None)
+        resp = client.post(f"/api/users/{user.id}/onboarding/send", headers=auth_headers_admin)
+        assert resp.status_code == 200
+        assert len(mock_smtp_send) == 1
+
+        db.session.refresh(user)
+        assert user.onboarding_status == STATUS_PENDING
+        assert user.is_active is True  # compte inchangé, toujours actif
+
+        token = UserToken.query.filter_by(
+            user_id=user.id, purpose=PURPOSE_ONBOARDING, status=STATUS_PENDING,
+        ).first()
+        assert token is not None
+        assert token.deactivate_on_expiry is False
+
+    def test_fonctionne_aussi_pour_un_onboarding_deja_complete_ou_revoque(
+        self, client, db, auth_headers_admin, default_tenant, smtp_settings, mock_smtp_send,
+    ):
+        for status in (STATUS_COMPLETED, STATUS_REVOKED, STATUS_EXPIRED):
+            user = self._create_active_user(
+                db, default_tenant, f"deja-{status}@example.com", onboarding_status=status,
+            )
+            resp = client.post(f"/api/users/{user.id}/onboarding/send", headers=auth_headers_admin)
+            assert resp.status_code == 200
+            db.session.refresh(user)
+            assert user.onboarding_status == STATUS_PENDING
+
+    def test_sans_tenant_rattache_retourne_400(self, client, db, auth_headers_admin):
+        from app.models.user import UserRole
+        user = User(username="sans-tenant@example.com", email="sans-tenant@example.com",
+                    nom="N", prenom="P", role=UserRole.PERMANENCIER, is_active=True)
+        user.set_password("MotDePasseReel123!")
+        db.session.add(user)
+        db.session.commit()
+
+        resp = client.post(f"/api/users/{user.id}/onboarding/send", headers=auth_headers_admin)
+        assert resp.status_code == 400
+
+    def test_echec_envoi_ne_modifie_rien(self, client, db, auth_headers_admin, default_tenant):
+        """Pas de SmtpSetting configuré -> l'envoi échoue -> rollback complet,
+        le compte et son onboarding_status restent inchangés (pas de jeton
+        orphelin créé sans email envoyé)."""
+        user = self._create_active_user(db, default_tenant, "echec@example.com", onboarding_status=None)
+        resp = client.post(f"/api/users/{user.id}/onboarding/send", headers=auth_headers_admin)
+        assert resp.status_code == 502
+
+        db.session.refresh(user)
+        assert user.onboarding_status is None
+        assert UserToken.query.filter_by(user_id=user.id).first() is None
+
+    def test_refuse_sans_droits_admin(self, client, db, auth_headers, default_tenant):
+        user = self._create_active_user(db, default_tenant, "refuse@example.com")
+        resp = client.post(f"/api/users/{user.id}/onboarding/send", headers=auth_headers)
+        assert resp.status_code == 403
+
+
 class TestOnboardingSweep:
     def test_sweep_expire_et_desactive_le_compte(self, db, default_tenant):
         from app.models.user import UserRole
@@ -272,3 +347,35 @@ class TestOnboardingSweep:
         assert result["expired"] == 0
         db.session.refresh(user)
         assert user.is_active is True
+
+    def test_sweep_n_expire_pas_le_compte_si_deactivate_on_expiry_est_faux(self, db, default_tenant):
+        """Renvoi vers un utilisateur existant (POST .../onboarding/send) :
+        le jeton expire normalement, mais le compte déjà actif ne doit
+        JAMAIS être désactivé — décision produit du 31/07."""
+        from app.models.user import UserRole
+        from app.scripts.onboarding_sweep import sweep_onboarding
+
+        user = User(username="existant-expire@example.com", email="existant-expire@example.com",
+                    nom="N", prenom="P", role=UserRole.PERMANENCIER, is_active=True,
+                    onboarding_status=STATUS_PENDING)
+        user.set_password("MotDePasseReel123!")
+        user.tenants.append(default_tenant)
+        db.session.add(user)
+        db.session.flush()
+        token = UserToken(
+            user_id=user.id, purpose=PURPOSE_ONBOARDING, token_hash=hash_token("sweep-existant"),
+            status=STATUS_PENDING, expires_at=datetime.utcnow() - timedelta(hours=1),
+            deactivate_on_expiry=False,
+        )
+        db.session.add(token)
+        db.session.commit()
+
+        result = sweep_onboarding(db)
+        assert result["expired"] == 1
+
+        db.session.refresh(user)
+        db.session.refresh(token)
+        assert token.status == STATUS_EXPIRED
+        assert user.onboarding_status == STATUS_EXPIRED  # reflète l'état du lien...
+        assert user.is_active is True  # ...mais le compte reste utilisable
+        assert user.check_password("MotDePasseReel123!")  # mot de passe original intact

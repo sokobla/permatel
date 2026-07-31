@@ -10,7 +10,7 @@ compte pour l'onboarding uniquement — gérée par le sweep, pas par ce modèle
 """
 from datetime import datetime, timedelta
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 
 from app import db
@@ -52,6 +52,15 @@ class UserToken(db.Model):
     # Admin déclencheur pour un onboarding ; toujours NULL pour un reset
     # self-service (personne n'agit "au nom de" l'utilisateur dans ce cas).
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    # Onboarding uniquement (toujours True pour un reset, ignoré par le sweep
+    # qui ne traite que purpose=onboarding). True pour l'invitation initiale
+    # (l'utilisateur n'a encore aucun mot de passe utilisable — contrainte
+    # produit explicite : 24h puis désactivation, cf. onboarding_sweep.py).
+    # False quand un admin renvoie un lien d'onboarding à un utilisateur
+    # EXISTANT qui a déjà un compte actif fonctionnel (décision produit du
+    # 31/07) : ignorer le lien ne doit jamais désactiver un compte qui
+    # marchait déjà — seul le jeton expire, sans effet de bord sur le compte.
+    deactivate_on_expiry = Column(Boolean, nullable=False, default=True)
 
     user = relationship("User", foreign_keys=[user_id])
 
