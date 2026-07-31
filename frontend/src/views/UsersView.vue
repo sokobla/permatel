@@ -505,14 +505,23 @@
               <span>SÉCURITÉ</span>
             </div>
 
-            <!-- ONBOARDING (création uniquement) -->
-            <div v-if="panelMode === 'create'" class="form-group">
+            <!-- ONBOARDING (visible en création et édition ; en édition, l'envoi
+                 se pilote via les actions Renvoyer/Révoquer de la liste, pas
+                 depuis ce formulaire — le switch reste donc visible mais
+                 désactivé, pour ne pas laisser croire qu'il déclenche quoi
+                 que ce soit ici). -->
+            <div v-if="panelMode === 'create' || panelMode === 'edit'" class="form-group">
               <v-switch
                 v-model="form.send_onboarding"
+                :disabled="panelMode === 'edit'"
                 color="#00a8a8"
                 density="compact"
                 hide-details
-                label="Envoyer un email d'onboarding (le mot de passe sera défini par l'utilisateur)"
+                :label="
+                  panelMode === 'edit'
+                    ? 'Onboarding par email (gérer via Renvoyer/Révoquer dans la liste)'
+                    : 'Envoyer un email d\'onboarding (le mot de passe sera défini par l\'utilisateur)'
+                "
               />
             </div>
 
