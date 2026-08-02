@@ -2,8 +2,7 @@
   <div class="ai-page">
     <div class="ai-card">
       <div class="ai-head">
-        <span class="ai-mark"></span>
-        <span class="ai-brand">PERMATEL</span>
+        <span class="ai-logo-chip"><img :src="permatelLogo" alt="PERMATEL" class="ai-logo" /></span>
       </div>
 
       <div v-if="loading" class="ai-state">
@@ -72,6 +71,7 @@
 import { ref, reactive, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { passwordResetService } from "@/services/passwordResetService";
+import permatelLogo from "@/assets/logo-permatel.png";
 
 const route = useRoute();
 const token = route.query.token;
@@ -144,17 +144,17 @@ onMounted(async () => {
   gap: 8px;
   margin-bottom: 18px;
 }
-.ai-mark {
-  width: 4px;
-  height: 20px;
-  background: #00a8a8;
-  border-radius: 2px;
+.ai-logo-chip {
+  display: inline-flex;
+  align-items: center;
+  background: #000b23;
+  padding: 8px 14px;
+  border-radius: 8px;
 }
-.ai-brand {
-  font-family: "Fira Code", monospace;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  color: #000b23;
+.ai-logo {
+  display: block;
+  height: 22px;
+  width: auto;
 }
 .ai-title {
   font-size: 18px;

@@ -8,6 +8,10 @@
     theme="dark"
     @click="rail = false"
   >
+    <div v-if="!rail" class="drawer-brand">
+      <img :src="permatelLogo" alt="PERMATEL" class="drawer-brand__logo" />
+    </div>
+
     <v-list>
       <v-list-item
         :title="authUser.fullName"
@@ -93,6 +97,7 @@
 
 <script setup>
 import { ref, computed } from "vue";
+import permatelLogo from "@/assets/logo-permatel.png";
 
 const drawer = ref(true);
 const rail = ref(true);
@@ -298,6 +303,18 @@ aside {
   font-weight: 700;
   color: #ffffff;
   letter-spacing: 0.02em;
+}
+
+/* En-tête du menu : logo PERMATEL (masqué en mode rail, trop étroit) */
+.drawer-brand {
+  display: flex;
+  align-items: center;
+  padding: 16px 20px 8px;
+}
+.drawer-brand__logo {
+  display: block;
+  height: 28px;
+  width: auto;
 }
 
 /* Footer du menu : nom application + version */

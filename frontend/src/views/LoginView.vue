@@ -15,8 +15,7 @@
         <div class="banner-body">
           <!-- Logo / marque en haut -->
           <div class="banner-brand">
-            <span class="banner-brand__mark"></span>
-            <span class="banner-brand__name">PERMATEL</span>
+            <img :src="permatelLogo" alt="PERMATEL" class="banner-brand__logo" />
           </div>
 
           <!-- Texte principal au centre -->
@@ -165,6 +164,7 @@ import { useRouter } from "vue-router";
 import { useAuthStore } from "@/store/auth";
 import ContactSupportView from "@/components/auth/ContactSupportView.vue";
 import ForgotPasswordDialog from "@/components/auth/ForgotPasswordDialog.vue";
+import permatelLogo from "@/assets/logo-permatel.png";
 
 const username = ref("");
 const password = ref("");
@@ -265,22 +265,10 @@ const handleLogin = async () => {
   gap: 10px;
 }
 
-.banner-brand__mark {
-  display: inline-block;
-  width: 4px;
-  height: 22px;
-  background: #00a8a8;
-  border-radius: 2px;
-  flex-shrink: 0;
-}
-
-.banner-brand__name {
-  font-family: "Fira Code", monospace;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  color: #ffffff;
-  text-transform: uppercase;
+.banner-brand__logo {
+  display: block;
+  height: 42px;
+  width: auto;
 }
 
 /* ── Bloc central ───────────────────────────────────────────────── */
