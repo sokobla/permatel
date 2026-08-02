@@ -267,7 +267,7 @@ const handleLogin = async () => {
 
 .banner-brand__logo {
   display: block;
-  height: 42px;
+  height: 63px;
   width: auto;
 }
 

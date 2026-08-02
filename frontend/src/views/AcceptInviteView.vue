@@ -180,12 +180,12 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   background: #000b23;
-  padding: 8px 14px;
+  padding: 10px 18px;
   border-radius: 8px;
 }
 .ai-logo {
   display: block;
-  height: 22px;
+  height: 33px;
   width: auto;
 }
 .ai-title {

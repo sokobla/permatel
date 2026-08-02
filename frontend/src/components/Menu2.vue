@@ -313,7 +313,7 @@ aside {
 }
 .drawer-brand__logo {
   display: block;
-  height: 28px;
+  height: 42px;
   width: auto;
 }
 
