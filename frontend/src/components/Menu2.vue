@@ -8,10 +8,6 @@
     theme="dark"
     @click="rail = false"
   >
-    <div v-if="!rail" class="drawer-brand">
-      <img :src="permatelLogo" alt="PERMATEL" class="drawer-brand__logo" />
-    </div>
-
     <v-list>
       <v-list-item
         :title="authUser.fullName"
@@ -88,7 +84,8 @@
     <!-- Footer : nom application + version -->
     <template v-slot:append>
       <div :class="['tn-menu-foot', { 'tn-menu-foot--rail': rail }]">
-        <span class="tn-menu-foot__name">{{ rail ? "P" : APP_NAME }}</span>
+        <span v-if="rail" class="tn-menu-foot__name">P</span>
+        <img v-else :src="permatelLogo" alt="PERMATEL" class="tn-menu-foot__logo" />
         <span v-if="!rail" class="tn-menu-foot__ver">v{{ APP_VERSION }}</span>
       </div>
     </template>
@@ -107,7 +104,6 @@ import { useAuthStore } from "@/store/auth";
 const authStore = useAuthStore();
 
 // Identité applicative (footer du menu)
-const APP_NAME = import.meta.env.VITE_APP_NAME ?? "PERMATEL";
 const APP_VERSION = import.meta.env.VITE_APP_VERSION ?? "1.0.0";
 
 // Avatar réel du tenant/utilisateur connecté (sinon initiales)
@@ -305,29 +301,23 @@ aside {
   letter-spacing: 0.02em;
 }
 
-/* En-tête du menu : logo PERMATEL (masqué en mode rail, trop étroit) */
-.drawer-brand {
-  display: flex;
-  align-items: center;
-  padding: 16px 20px 8px;
-}
-.drawer-brand__logo {
-  display: block;
-  height: 42px;
-  width: auto;
-}
-
-/* Footer du menu : nom application + version */
+/* Footer du menu : logo PERMATEL (texte "P" en mode rail, trop étroit
+   pour le logo) + version */
 .tn-menu-foot {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
+  align-items: center;
+  gap: 10px;
   padding: 12px 20px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 .tn-menu-foot--rail {
   justify-content: center;
   padding: 12px 0;
+}
+.tn-menu-foot__logo {
+  display: block;
+  height: 42px;
+  width: auto;
 }
 .tn-menu-foot__name {
   font-family: var(--font-sans);
