@@ -85,6 +85,7 @@
               <DemandesListPanel
                 :contact-id="selectedContact?.id ?? null"
                 :contact-nom="selectedContact?.fullName ?? null"
+                :initial-detail-demande="pendingDetailDemande"
                 :key="`dlp-${selectedContact?.id}-${demandeListKey}`"
                 @refresh="demandeListKey++"
               />
@@ -194,6 +195,10 @@ const isSearching          = ref(false)
 const searchError          = ref('')
 const hasSearched          = ref(false)
 const selectedContact      = ref(null)
+// Demande cliquée dans "Demandes en cours" (colonne gauche), en attente
+// d'ouverture dans le tiroir de détail de DemandesListPanel une fois le
+// contact rattaché sélectionné — voir onSelectDemande().
+const pendingDetailDemande = ref(null)
 
 const activeDemandeType    = ref(null)
 const demandeListKey       = ref(0)
@@ -270,9 +275,12 @@ function onDemandeSubmitted(demande) {
   console.log('[Workspace] demande créée →', demande.numero_ticket)
 }
 
-// Sélection d'une demande dans la liste de gauche → charge son contact
+// Sélection d'une demande dans la liste de gauche → charge son contact et
+// ouvre le tiroir de détail de cette demande (DemandesListPanel, via la
+// prop initial-detail-demande) une fois le contact rattaché sélectionné.
 function onSelectDemande(d) {
   activeDemandeType.value = null
+  pendingDetailDemande.value = d
   if (d.contact_id) {
     selectedContact.value = {
       id: d.contact_id,

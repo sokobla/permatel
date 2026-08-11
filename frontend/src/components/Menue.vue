@@ -314,7 +314,7 @@ export default {
 
 .nav-item--sub .v-list-item__prepend > .v-icon {
   margin-inline-end: 14px !important;
-  font-size: 18px;
+  font-size: 20px;
   color: #64768a;
 }
 
@@ -367,7 +367,7 @@ export default {
 }
 .nav-item--sub .v-list-item__prepend > .v-icon {
   margin-inline-end: 16px !important;
-  font-size: 18px;
+  font-size: 20px;
 }
 .nav-item--sub .v-list-item-title {
   font-size: 0.8rem;

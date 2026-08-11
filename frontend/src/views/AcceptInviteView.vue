@@ -189,18 +189,18 @@ onMounted(async () => {
   width: auto;
 }
 .ai-title {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 800;
   color: #000b23;
   margin: 0 0 4px;
 }
 .ai-sub {
-  font-size: 13px;
+  font-size: 15px;
   color: #6b7280;
   margin: 0 0 18px;
 }
 .ai-existing {
-  font-size: 13px;
+  font-size: 15px;
   color: #374151;
   margin: 0 0 14px;
 }
@@ -212,7 +212,7 @@ onMounted(async () => {
   text-align: center;
   padding: 16px 0;
   color: #374151;
-  font-size: 13px;
+  font-size: 15px;
 }
 .ai-link {
   color: #00a8a8;

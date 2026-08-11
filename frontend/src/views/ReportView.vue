@@ -703,14 +703,14 @@
 <style scoped>
 /* ── Onglet Sessions ─────────────────────────────────────────────────── */
 .rp-info { cursor: help; margin-left: auto; }
-.rp-filter-hint { font-size: 11px; color: #00a8a8; font-style: italic; }
+.rp-filter-hint { font-size: 13px; color: #00a8a8; font-style: italic; }
 .rp-date {
   height: 30px;
   padding: 0 8px;
   border: 1px solid rgba(197, 198, 206, 0.5);
   border-radius: 4px;
   font-family: "Fira Code", monospace;
-  font-size: 12px;
+  font-size: 14px;
   color: #1a1a2e;
   background: #fff;
   outline: none;
@@ -722,7 +722,7 @@
   background: rgba(231, 76, 60, 0.08);
   border: 1px solid rgba(231, 76, 60, 0.3);
   color: #a93226;
-  font-size: 13px;
+  font-size: 15px;
 }
 .rp-block {
   background: #fff;
@@ -732,12 +732,12 @@
 }
 .rp-block-hd { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
 .rp-block-title {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: #6b7280;
 }
-.rp-block-empty { font-size: 12px; color: #9aa0aa; margin: 8px 0 0; }
+.rp-block-empty { font-size: 14px; color: #9aa0aa; margin: 8px 0 0; }
 .rp-mono { font-family: "Fira Code", monospace; }
 
 /* Barres verticales (séries) */
@@ -754,7 +754,7 @@
 .rp-axis {
   display: flex;
   justify-content: space-between;
-  font-size: 9px;
+  font-size: 11px;
   color: #9aa0aa;
   font-family: "Fira Code", monospace;
   margin-top: 4px;
@@ -763,10 +763,10 @@
 /* Barres horizontales (répartitions) */
 .rp-hbars { display: flex; flex-direction: column; gap: 9px; }
 .rp-hbar-row { display: flex; align-items: center; gap: 10px; }
-.rp-hbar-lbl { width: 96px; font-size: 12px; color: #1a1a2e; flex-shrink: 0; }
+.rp-hbar-lbl { width: 96px; font-size: 14px; color: #1a1a2e; flex-shrink: 0; }
 .rp-hbar-track { flex: 1; height: 10px; background: #f0f1f3; border-radius: 5px; overflow: hidden; }
 .rp-hbar-fill { height: 100%; background: #00a8a8; border-radius: 5px; }
-.rp-hbar-val { width: 84px; text-align: right; font-size: 12px; font-weight: 600; color: #1a1a2e; flex-shrink: 0; }
+.rp-hbar-val { width: 84px; text-align: right; font-size: 14px; font-weight: 600; color: #1a1a2e; flex-shrink: 0; }
 
 /* Liste IP */
 .rp-iplist { list-style: none; padding: 0; margin: 0; }
@@ -776,7 +776,7 @@
   align-items: center;
   padding: 6px 0;
   border-bottom: 1px solid rgba(197, 198, 206, 0.2);
-  font-size: 13px;
+  font-size: 15px;
 }
 .rp-iplist li:last-child { border-bottom: none; }
 .rp-ipcount {
@@ -1654,7 +1654,7 @@ const permanenciersKpis = computed(() => {
 @keyframes rp-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 .rp-status__lbl {
   font-family: "Fira Code", monospace;
-  font-size: 9px; font-weight: 700; letter-spacing: 0.12em; color: #888; text-transform: uppercase;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.12em; color: #888; text-transform: uppercase;
 }
 
 /* ── Tabs ──────────────────────────────────────────────────────────── */
@@ -1673,7 +1673,7 @@ const permanenciersKpis = computed(() => {
   margin-bottom: -2px;
   background: transparent;
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: #888;
@@ -1713,7 +1713,7 @@ const permanenciersKpis = computed(() => {
 }
 .rp-chart-title { font-family: "Fira Sans", sans-serif; font-size: 1rem; font-weight: 700; color: #000b23; }
 .rp-chart-body  { padding: 4px 8px 8px !important; }
-.rp-chart-empty { padding: 40px; text-align: center; color: #ccc; font-size: 12px; }
+.rp-chart-empty { padding: 40px; text-align: center; color: #ccc; font-size: 14px; }
 
 /* ── Legend ────────────────────────────────────────────────────────── */
 .rp-chart-legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -1729,7 +1729,7 @@ const permanenciersKpis = computed(() => {
 .rp-score-dot--red    { background: #e74c3c; }
 
 /* ── Table ─────────────────────────────────────────────────────────── */
-.rp-table { width: 100%; border-collapse: collapse; font-family: "Fira Sans", sans-serif; font-size: 12px; }
+.rp-table { width: 100%; border-collapse: collapse; font-family: "Fira Sans", sans-serif; font-size: 14px; }
 .rp-th {
   padding: 8px 12px; text-align: left;
   font-family: "Fira Sans", sans-serif; font-size: 0.65rem; font-weight: 800;
@@ -1742,31 +1742,31 @@ const permanenciersKpis = computed(() => {
 .rp-tr:hover { background: rgba(0, 168, 168, 0.03); }
 .rp-tr:last-child { border-bottom: none; }
 .rp-td { padding: 10px 12px; color: #333; vertical-align: middle; }
-.rp-td--mono { font-family: "Fira Code", monospace; font-size: 12px; }
+.rp-td--mono { font-family: "Fira Code", monospace; font-size: 14px; }
 .rp-td--r    { text-align: right; }
 .rp-td--c    { text-align: center; }
-.rp-td--rank { font-family: "Fira Code", monospace; font-size: 11px; color: #bbb; font-weight: 700; }
+.rp-td--rank { font-family: "Fira Code", monospace; font-size: 13px; color: #bbb; font-weight: 700; }
 .rp-td--warn { color: #e74c3c; font-weight: 700; }
-.rp-td-empty { padding: 28px; text-align: center; color: #bbb; font-size: 12px; font-style: italic; }
+.rp-td-empty { padding: 28px; text-align: center; color: #bbb; font-size: 14px; font-style: italic; }
 
 /* ── Person cell ───────────────────────────────────────────────────── */
 .rp-cell-person { display: flex; align-items: center; gap: 8px; }
 .rp-avatar {
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
-  font-family: "Fira Code", monospace; font-size: 10px; font-weight: 700;
+  font-family: "Fira Code", monospace; font-size: 12px; font-weight: 700;
 }
 .rp-avatar--teal   { background: rgba(0,168,168,0.12);  color: #00a8a8; }
 .rp-avatar--green  { background: rgba(39,174,96,0.12);  color: #27ae60; }
 .rp-avatar--orange { background: rgba(243,156,18,0.12); color: #d68910; }
 .rp-avatar--red    { background: rgba(231,76,60,0.12);  color: #e74c3c; }
-.rp-person-name { font-size: 12px; font-weight: 600; color: #222; }
+.rp-person-name { font-size: 14px; font-weight: 600; color: #222; }
 
 /* ── Score badge ───────────────────────────────────────────────────── */
 .rp-score {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 36px; height: 22px; border-radius: 3px; padding: 0 6px;
-  font-family: "Fira Code", monospace; font-size: 11px; font-weight: 700;
+  font-family: "Fira Code", monospace; font-size: 13px; font-weight: 700;
 }
 .rp-score--green  { background: rgba(39,174,96,0.12);  color: #27ae60; }
 .rp-score--orange { background: rgba(243,156,18,0.12); color: #d68910; }
@@ -1776,7 +1776,7 @@ const permanenciersKpis = computed(() => {
 .rp-trend {
   display: inline-flex; align-items: center; justify-content: center;
   width: 22px; height: 22px; border-radius: 3px;
-  font-size: 13px; font-weight: 700;
+  font-size: 15px; font-weight: 700;
 }
 .rp-trend--up     { background: rgba(231,76,60,0.1);  color: #e74c3c; }
 .rp-trend--down   { background: rgba(39,174,96,0.1);  color: #27ae60; }
@@ -1786,7 +1786,7 @@ const permanenciersKpis = computed(() => {
 .rp-role-badge {
   display: inline-flex; align-items: center; height: 20px; padding: 0 8px;
   border-radius: 999px; background: rgba(0,11,35,0.06);
-  font-family: "Fira Code", monospace; font-size: 9px; font-weight: 700;
+  font-family: "Fira Code", monospace; font-size: 11px; font-weight: 700;
   color: #555; text-transform: uppercase; letter-spacing: 0.06em;
 }
 
@@ -1794,5 +1794,5 @@ const permanenciersKpis = computed(() => {
 .rp-completude { display: flex; align-items: center; gap: 8px; }
 .rp-bar-track  { flex: 1; height: 6px; background: rgba(0,0,0,0.06); border-radius: 3px; overflow: hidden; }
 .rp-bar-fill   { height: 100%; border-radius: 3px; transition: width 0.5s ease; min-width: 2px; }
-.rp-completude-pct { font-family: "Fira Code", monospace; font-size: 11px; min-width: 34px; text-align: right; color: #555; }
+.rp-completude-pct { font-family: "Fira Code", monospace; font-size: 13px; min-width: 34px; text-align: right; color: #555; }
 </style>

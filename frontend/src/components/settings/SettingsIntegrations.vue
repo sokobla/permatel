@@ -87,7 +87,7 @@ onMounted(() => {
 <style scoped>
 .int-card { font-family: "Fira Sans", sans-serif; }
 .int-head { padding: 16px 20px; }
-.int-title { font-size: 15px; font-weight: 700; color: #000b23; margin: 0; }
+.int-title { font-size: 17px; font-weight: 700; color: #000b23; margin: 0; }
 .int-sub { font-size: 12.5px; color: #6b7280; margin: 2px 0 0; }
 
 .int-grid {
@@ -112,14 +112,14 @@ onMounted(() => {
 }
 .int-item__body { flex: 1; min-width: 0; }
 .int-item__name-row { display: flex; align-items: center; gap: 8px; }
-.int-item__name { font-size: 14px; font-weight: 700; color: #000b23; }
-.int-item__desc { font-size: 12px; color: #6b7280; margin: 4px 0 0; line-height: 1.45; }
+.int-item__name { font-size: 16px; font-weight: 700; color: #000b23; }
+.int-item__desc { font-size: 14px; color: #6b7280; margin: 4px 0 0; line-height: 1.45; }
 .int-item__btn { flex-shrink: 0; }
 
 .tel-dlg-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 18px;
 }
-.tel-dlg-head__title { font-size: 15px; font-weight: 700; color: #000b23; }
+.tel-dlg-head__title { font-size: 17px; font-weight: 700; color: #000b23; }
 .tel-dlg-body { padding: 0 !important; background: #f2f2f2; }
 </style>

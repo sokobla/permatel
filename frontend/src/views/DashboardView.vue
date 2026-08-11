@@ -180,7 +180,7 @@ onMounted(() => {
 
 .filter-status__label {
   font-family: "Fira Code", monospace;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.12em;
   color: #888;

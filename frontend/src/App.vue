@@ -173,7 +173,7 @@ const handleLogout = async () => {
 
 .app-bar-title {
   font-family: "Fira Code", monospace;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.18em;
   color: #000b23;
@@ -218,26 +218,26 @@ const handleLogout = async () => {
   max-height: 60vh;
 }
 .tenant-switch__name {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   color: #000b23;
 }
 .tenant-switch__code {
   font-family: "Fira Code", monospace;
-  font-size: 11px;
+  font-size: 13px;
   color: #9aa0aa;
 }
 
 .idle-card__title {
   font-family: "Fira Sans", sans-serif;
-  font-size: 14px !important;
+  font-size: 16px !important;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: #000b23;
 }
 .idle-card__text {
   font-family: "Fira Sans", sans-serif;
-  font-size: 13px;
+  font-size: 15px;
   color: #1a1a2e;
 }
 .idle-card__actions {
@@ -253,7 +253,7 @@ const handleLogout = async () => {
   gap: 8px;
   min-height: 34px;
   padding: 0 16px;
-  font-size: 11px;
+  font-size: 13px;
 }
 .app-footer__brand {
   font-family: "Fira Code", monospace;
@@ -263,7 +263,7 @@ const handleLogout = async () => {
 }
 .app-footer__ver {
   font-family: "Fira Code", monospace;
-  font-size: 10px;
+  font-size: 12px;
   color: #00a8a8;
 }
 .app-footer__copy {

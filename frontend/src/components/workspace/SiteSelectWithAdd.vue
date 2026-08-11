@@ -330,7 +330,7 @@ export default { name: "SiteSelectWithAdd" };
   padding: 4px 9px;
   border-radius: 3px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   align-self: flex-start;
 }
 .ssa-badge--info {
@@ -346,7 +346,7 @@ export default { name: "SiteSelectWithAdd" };
   gap: 6px;
   padding: 6px 0 8px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #3498db;
@@ -385,7 +385,7 @@ export default { name: "SiteSelectWithAdd" };
   border-radius: 3px;
   background: #3498db;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: #fff;

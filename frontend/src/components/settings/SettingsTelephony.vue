@@ -1042,7 +1042,7 @@ onUnmounted(() => {
   padding: 16px 20px;
 }
 .tel-title {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
   color: #000b23;
   margin: 0;
@@ -1055,7 +1055,7 @@ onUnmounted(() => {
   line-height: 1.5;
 }
 .tel-muted {
-  font-size: 12px;
+  font-size: 14px;
   color: #9aa0aa;
 }
 .tel-mono {
@@ -1063,7 +1063,7 @@ onUnmounted(() => {
   font-size: 12.5px;
 }
 .tel-dlg-title {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
   color: #000b23;
 }
@@ -1106,7 +1106,7 @@ onUnmounted(() => {
   font-size: 12.5px;
 }
 .tel-adapter-status__label {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.06em;
   color: #9aa0aa;
@@ -1119,7 +1119,7 @@ onUnmounted(() => {
 }
 
 .tel-domains-head__title {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.06em;
   color: #9aa0aa;
@@ -1144,7 +1144,7 @@ onUnmounted(() => {
 }
 .tel-domains-table th {
   text-align: left;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.06em;
   color: #9aa0aa;
@@ -1161,7 +1161,7 @@ onUnmounted(() => {
 
 /* ── Webhook CDR ── */
 .tel-cdr-hint {
-  font-size: 12px;
+  font-size: 14px;
   color: #6b7280;
   margin: 4px 0 10px;
   line-height: 1.5;
@@ -1200,7 +1200,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.03em;
   color: #1a1a2e;
@@ -1261,7 +1261,7 @@ onUnmounted(() => {
 }
 .live-filter-chip__count {
   font-family: "Fira Code", ui-monospace, monospace;
-  font-size: 10px;
+  font-size: 12px;
   opacity: 0.75;
   margin-left: 4px;
 }
@@ -1282,7 +1282,7 @@ onUnmounted(() => {
   position: sticky;
   top: 0;
   text-align: left;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.05em;
   color: #9aa0aa;
@@ -1305,7 +1305,7 @@ onUnmounted(() => {
 }
 .live-uuid {
   color: #9aa0aa;
-  font-size: 10px;
+  font-size: 12px;
 }
 .live-empty {
   text-align: center;

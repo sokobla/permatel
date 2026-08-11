@@ -196,6 +196,18 @@
             />
           </div>
 
+          <div class="form-group">
+            <label class="form-label" for="bc-heures">NOMBRE D'HEURES</label>
+            <input
+              id="bc-heures"
+              v-model.number="form.nombre_heures"
+              type="number"
+              class="form-input"
+              placeholder="0"
+              min="1"
+            />
+          </div>
+
           <div class="form-group bc-full">
             <label class="form-label">BESOINS SPÉCIFIQUES AGENT</label>
             <div class="bc-checks">
@@ -369,6 +381,7 @@ const form = ref({
   // Champs spécifiques commande
   type_commande: "",
   nombre_agents: null,
+  nombre_heures: null,
   besoins_agents: [],
   missions_detaillees: "",
   // Horaires
@@ -428,6 +441,7 @@ function buildPayload() {
     adresse_intervention: site?.adresse_intervention ?? null,
     type_commande: f.type_commande || "autre",
     quantite: f.nombre_agents,
+    nombre_heures: f.nombre_heures,
     fournisseur_suggere: client?.nom ?? null,
     date_livraison_souhaitee: dateDebut,
     moyens_acces: f.moyens_acces,
@@ -450,6 +464,10 @@ async function submit() {
   }
   if (!form.value.type_commande) {
     submitError.value = "Le type de mission est requis.";
+    return;
+  }
+  if (!form.value.nombre_agents && !form.value.nombre_heures) {
+    submitError.value = "Indiquez le nombre d'agents et/ou le nombre d'heures nécessaires.";
     return;
   }
   submitting.value = true;
@@ -487,7 +505,7 @@ export default { name: "DemandeCommandeForm" };
   align-items: center;
   gap: 5px;
   font-family: "Fira Code", monospace;
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   color: #ccc;
   text-transform: uppercase;
@@ -527,7 +545,7 @@ export default { name: "DemandeCommandeForm" };
 
 .bc-title {
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.14em;
   color: #000b23;
@@ -553,7 +571,7 @@ export default { name: "DemandeCommandeForm" };
 
 .bc-meta-lbl {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #bbb;
@@ -566,7 +584,7 @@ export default { name: "DemandeCommandeForm" };
   border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 3px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.07em;
   color: #333;
@@ -589,7 +607,7 @@ export default { name: "DemandeCommandeForm" };
 
 .bc-titre-lbl {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #bbb;
@@ -606,7 +624,7 @@ export default { name: "DemandeCommandeForm" };
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 0;
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   color: #000b23;
   background: transparent;
@@ -620,7 +638,7 @@ export default { name: "DemandeCommandeForm" };
 
 .bc-titre-input::placeholder {
   color: #d0d0d0;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 400;
 }
 
@@ -719,7 +737,7 @@ export default { name: "DemandeCommandeForm" };
   border-radius: 3px;
   background: #fff;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
   color: #555;

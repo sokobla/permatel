@@ -186,11 +186,11 @@ onMounted(load);
 <style scoped>
 .smtp-card { font-family: "Fira Sans", sans-serif; }
 .smtp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; }
-.smtp-title { font-size: 15px; font-weight: 700; color: #000b23; margin: 0; }
+.smtp-title { font-size: 17px; font-weight: 700; color: #000b23; margin: 0; }
 .smtp-sub { font-size: 12.5px; color: #6b7280; margin: 2px 0 0; }
 .smtp-body { padding: 18px 20px; }
-.smtp-loading { display: flex; align-items: center; gap: 10px; color: #6b7280; font-size: 13px; padding: 18px 0; }
-.smtp-label { display: block; font-size: 12px; font-weight: 600; color: #15223a; margin-bottom: 4px; }
+.smtp-loading { display: flex; align-items: center; gap: 10px; color: #6b7280; font-size: 15px; padding: 18px 0; }
+.smtp-label { display: block; font-size: 14px; font-weight: 600; color: #15223a; margin-bottom: 4px; }
 .smtp-req { color: #e74c3c; }
 .smtp-actions { padding: 12px 16px; }
 </style>

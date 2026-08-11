@@ -279,18 +279,18 @@ onMounted(() => {
   margin-bottom: 18px;
 }
 .tm-title {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 800;
   color: #000b23;
   margin: 0;
 }
 .tm-sub {
-  font-size: 13px;
+  font-size: 15px;
   color: #6b7280;
   margin: 2px 0 0;
 }
 .tm-card-title {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
   color: #000b23;
 }
@@ -308,7 +308,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   font-family: "Fira Code", monospace;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.9);
 }

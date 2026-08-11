@@ -139,6 +139,10 @@
               <span class="ddd-lbl">Quantité</span>
               <span class="ddd-kv-val">{{ demande.quantite }}</span>
             </div>
+            <div v-if="demande.nombre_heures" class="ddd-field">
+              <span class="ddd-lbl">Nombre d'heures</span>
+              <span class="ddd-kv-val">{{ demande.nombre_heures }}</span>
+            </div>
             <div v-if="demande.budget_estime" class="ddd-field">
               <span class="ddd-lbl">Budget estimé</span>
               <span class="ddd-kv-val">{{ demande.budget_estime }}</span>
@@ -394,7 +398,7 @@ export default { name: "DemandeDetailDrawer" };
   align-items: center;
   gap: 5px;
   font-family: "Fira Code", monospace;
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   color: #ccc;
   text-transform: uppercase;
@@ -429,7 +433,7 @@ export default { name: "DemandeDetailDrawer" };
 
 .ddd-title {
   font-family: "Fira Sans", sans-serif;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 800;
   color: #000b23;
   margin: 0;
@@ -464,7 +468,7 @@ export default { name: "DemandeDetailDrawer" };
 
 .ddd-statut {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
   padding: 2px 8px;
@@ -479,7 +483,7 @@ export default { name: "DemandeDetailDrawer" };
 
 .ddd-prio {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   color: #777;
@@ -491,7 +495,7 @@ export default { name: "DemandeDetailDrawer" };
 
 .ddd-date {
   font-family: "Fira Code", monospace;
-  font-size: 9px;
+  font-size: 11px;
   color: #bbb;
   margin-left: auto;
 }
@@ -531,7 +535,7 @@ export default { name: "DemandeDetailDrawer" };
 
 .ddd-sec-lbl {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.14em;
   color: #aaa;
@@ -557,7 +561,7 @@ export default { name: "DemandeDetailDrawer" };
 
 .ddd-lbl {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #bbb;
@@ -570,7 +574,7 @@ export default { name: "DemandeDetailDrawer" };
   align-items: center;
   gap: 4px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: #222;
   overflow: hidden;
@@ -580,7 +584,7 @@ export default { name: "DemandeDetailDrawer" };
 
 .ddd-kv-val {
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: #222;
 }
@@ -595,7 +599,7 @@ export default { name: "DemandeDetailDrawer" };
 /* ── Description ─────────────────────────────────────────────────────────── */
 .ddd-desc {
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   color: #444;
   line-height: 1.6;
   padding: 10px 12px;
@@ -677,7 +681,7 @@ export default { name: "DemandeDetailDrawer" };
 
 .ddd-agent-name {
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: #000b23;
 }
@@ -698,7 +702,7 @@ export default { name: "DemandeDetailDrawer" };
   align-items: center;
   gap: 5px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.14em;
   color: #00a8a8;
@@ -707,7 +711,7 @@ export default { name: "DemandeDetailDrawer" };
 
 .ddd-pec-text {
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   color: #444;
   line-height: 1.5;
   margin: 0;
@@ -730,7 +734,7 @@ export default { name: "DemandeDetailDrawer" };
   border-radius: 3px;
   background: #fff;
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: #555;
@@ -749,7 +753,7 @@ export default { name: "DemandeDetailDrawer" };
   border-radius: 3px;
   background: #000b23;
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: #fff;

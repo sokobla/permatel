@@ -78,14 +78,14 @@ const showTelephonyTab = computed(
   flex-wrap: wrap;
 }
 .sv-title {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: #000b23;
   margin: 0;
 }
 .sv-sub {
-  font-size: 12px;
+  font-size: 14px;
   color: #6b7280;
   margin: 2px 0 0;
 }
@@ -97,7 +97,7 @@ const showTelephonyTab = computed(
   gap: 3px;
 }
 .sv-tenant__label {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.1em;
   color: #6b7280;
@@ -106,7 +106,7 @@ const showTelephonyTab = computed(
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   color: #000b23;
 }
@@ -128,6 +128,6 @@ const showTelephonyTab = computed(
   background: rgba(243, 156, 18, 0.1);
   border: 1px solid rgba(243, 156, 18, 0.3);
   color: #b7770d;
-  font-size: 13px;
+  font-size: 15px;
 }
 </style>

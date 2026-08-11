@@ -166,23 +166,23 @@ function confirmDelete() {
 <style scoped>
 .rvl { font-family: "Fira Sans", sans-serif; }
 .rvl-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.rvl-title { font-size: 14px; font-weight: 700; color: #000b23; margin: 0; }
-.rvl-count { font-size: 11px; color: #6b7280; }
+.rvl-title { font-size: 16px; font-weight: 700; color: #000b23; margin: 0; }
+.rvl-count { font-size: 13px; color: #6b7280; }
 
 .rvl-state {
   display: flex; flex-direction: column; align-items: center; gap: 8px;
-  padding: 32px 16px; color: #9aa0aa; font-size: 13px;
+  padding: 32px 16px; color: #9aa0aa; font-size: 15px;
 }
 .rvl-state--empty { color: #9aa0aa; }
 
 .rvl-table { border: 1px solid #e5e7eb; border-radius: 8px; }
-.rvl-td-label { font-size: 13px; }
+.rvl-td-label { font-size: 15px; }
 .rvl-inactive { color: #9aa0aa; text-decoration: line-through; }
 .rvl-td-status { width: 90px; }
 .rvl-td-actions { width: 180px; text-align: right; white-space: nowrap; }
 
-.rvl-dlg-title { font-size: 15px; font-weight: 700; color: #000b23; }
-.rvl-dlg-text { font-size: 13px; color: #374151; }
-.rvl-label { display: block; font-size: 12px; font-weight: 600; color: #15223a; margin-bottom: 4px; }
+.rvl-dlg-title { font-size: 17px; font-weight: 700; color: #000b23; }
+.rvl-dlg-text { font-size: 15px; color: #374151; }
+.rvl-label { display: block; font-size: 14px; font-weight: 600; color: #15223a; margin-bottom: 4px; }
 .rvl-req { color: #e74c3c; }
 </style>

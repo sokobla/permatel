@@ -289,7 +289,7 @@ export default { name: "DemandeInteractions" };
 
 .di-lbl {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.14em;
   color: #aaa;
@@ -307,7 +307,7 @@ export default { name: "DemandeInteractions" };
   border-radius: 9px;
   background: rgba(52, 152, 219, 0.12);
   font-family: "Fira Code", monospace;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   color: #3498db;
 }
@@ -325,7 +325,7 @@ export default { name: "DemandeInteractions" };
   gap: 7px;
   padding: 10px 0;
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   color: #bbb;
 }
 .di-state--err {
@@ -402,7 +402,7 @@ export default { name: "DemandeInteractions" };
 
 .di-type {
   font-family: "Fira Code", monospace;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   padding: 2px 6px;
@@ -436,7 +436,7 @@ export default { name: "DemandeInteractions" };
   align-items: center;
   gap: 3px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: #00a8a8;
   background: rgba(0, 168, 168, 0.07);
@@ -446,14 +446,14 @@ export default { name: "DemandeInteractions" };
 
 .di-author {
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: #888;
 }
 
 .di-date {
   font-family: "Fira Code", monospace;
-  font-size: 9px;
+  font-size: 11px;
   color: #bbb;
   margin-left: auto;
   white-space: nowrap;
@@ -478,7 +478,7 @@ export default { name: "DemandeInteractions" };
 
 .di-statut-chip {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   padding: 2px 7px;
@@ -542,7 +542,7 @@ export default { name: "DemandeInteractions" };
   background: rgba(0, 168, 168, 0.08);
   border: 1px solid rgba(0, 168, 168, 0.2);
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   color: #00a8a8;
   white-space: nowrap;
@@ -556,7 +556,7 @@ export default { name: "DemandeInteractions" };
   border-radius: 3px;
   background: #fff;
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   color: #444;
   cursor: pointer;
   outline: none;
@@ -599,7 +599,7 @@ export default { name: "DemandeInteractions" };
   align-items: center;
   gap: 5px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   color: #e74c3c;
 }
 
@@ -618,7 +618,7 @@ export default { name: "DemandeInteractions" };
   border-radius: 3px;
   background: #000b23;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: #fff;

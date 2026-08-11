@@ -74,8 +74,8 @@ function goConfigure() {
   display: flex; align-items: center; justify-content: center;
   background: #f2f4f6; margin-bottom: 4px;
 }
-.cg-title { font-size: 16px; font-weight: 700; color: #000b23; margin: 0; }
-.cg-text { font-size: 13px; color: #6b7280; line-height: 1.55; margin: 0 0 8px; }
+.cg-title { font-size: 18px; font-weight: 700; color: #000b23; margin: 0; }
+.cg-text { font-size: 15px; color: #6b7280; line-height: 1.55; margin: 0 0 8px; }
 .cg-cta { min-width: 200px; }
-.cg-note { font-size: 12px; color: #9aa0aa; font-style: italic; margin: 0; }
+.cg-note { font-size: 14px; color: #9aa0aa; font-style: italic; margin: 0; }
 </style>

@@ -611,7 +611,7 @@ function involvedAvatars(row) {
 }
 
 .ov-subtitle {
-  font-size: 11px;
+  font-size: 13px;
   color: #999;
   margin: 0;
   padding-left: 12px;
@@ -632,7 +632,7 @@ function involvedAvatars(row) {
   padding: 0 13px;
   border-radius: 3px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.05em;
   cursor: pointer;
@@ -688,7 +688,7 @@ function involvedAvatars(row) {
 
 .ov-kpi-card__badge {
   font-family: "Fira Code", monospace;
-  font-size: 7px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.1em;
   color: #3498db;
@@ -707,7 +707,7 @@ function involvedAvatars(row) {
 }
 
 .ov-kpi-card__name {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   color: #000b23;
   flex: 1;
@@ -720,7 +720,7 @@ function involvedAvatars(row) {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: #00a8a8;
   background: none;
@@ -751,7 +751,7 @@ function involvedAvatars(row) {
 
 .ov-kpi-card__metric-lbl {
   font-family: "Fira Code", monospace;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.1em;
   color: #ccc;
@@ -760,12 +760,12 @@ function involvedAvatars(row) {
 
 .ov-kpi-card__metric-val {
   font-family: "Fira Code", monospace;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
   color: #000b23;
 }
-.ov-kpi-card__metric-val--teal { color: #00a8a8; font-size: 12px; }
-.ov-kpi-card__metric-total { font-size: 11px; color: #bbb; font-weight: 500; }
+.ov-kpi-card__metric-val--teal { color: #00a8a8; font-size: 14px; }
+.ov-kpi-card__metric-total { font-size: 13px; color: #bbb; font-weight: 500; }
 
 /* ══ TOOLBAR ════════════════════════════════════════════════════════ */
 .ov-toolbar {
@@ -790,7 +790,7 @@ function involvedAvatars(row) {
   border: none;
   outline: none;
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   color: #000b23;
   background: transparent;
 }
@@ -827,7 +827,7 @@ function involvedAvatars(row) {
   border-radius: 3px;
   background: transparent;
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   color: #666;
   cursor: pointer;
@@ -846,7 +846,7 @@ function involvedAvatars(row) {
   border-radius: 50%;
   background: #e74c3c;
   color: #fff;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
 }
 
@@ -871,7 +871,7 @@ function involvedAvatars(row) {
 
 .ov-filter-lbl {
   font-family: "Fira Code", monospace;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.1em;
   color: #ccc;
@@ -890,7 +890,7 @@ function involvedAvatars(row) {
   border-radius: 11px;
   background: transparent;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 500;
   color: #555;
   cursor: pointer;
@@ -917,7 +917,7 @@ function involvedAvatars(row) {
   border-radius: 3px;
   background: rgba(231,76,60,0.08);
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: #e74c3c;
   cursor: pointer;
@@ -940,7 +940,7 @@ function involvedAvatars(row) {
   padding: 9px 12px;
   text-align: left;
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #bbb;
@@ -983,7 +983,7 @@ function involvedAvatars(row) {
 }
 
 .ov-group-row__name {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: #000b23;
 }
@@ -998,14 +998,14 @@ function involvedAvatars(row) {
   border-radius: 9px;
   background: rgba(0,0,0,0.07);
   font-family: "Fira Code", monospace;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: #555;
 }
 
 .ov-group-row__total {
   font-family: "Fira Code", monospace;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   color: #00a8a8;
 }
@@ -1016,7 +1016,7 @@ function involvedAvatars(row) {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: #00a8a8;
   background: none;
@@ -1044,12 +1044,12 @@ function involvedAvatars(row) {
 .ov-td--commande { max-width: 0; }
 .ov-td--date {
   font-family: "Fira Code", monospace;
-  font-size: 11px;
+  font-size: 13px;
   color: #333;
   white-space: nowrap;
 }
 .ov-date-sub { font-family: "Fira Sans", sans-serif; font-size: 10.5px; color: #9aa0aa; margin-top: 2px; }
-.ov-muted { color: #9aa0aa; font-size: 11px; }
+.ov-muted { color: #9aa0aa; font-size: 13px; }
 
 .ov-cell-flex {
   display: flex;
@@ -1069,7 +1069,7 @@ function involvedAvatars(row) {
 }
 .ov-name-text-block { min-width: 0; }
 .ov-name-sub {
-  display: flex; align-items: center; gap: 4px; font-size: 11px; color: #9aa0aa;
+  display: flex; align-items: center; gap: 4px; font-size: 13px; color: #9aa0aa;
   margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ov-name-status { margin-top: 5px; }
@@ -1085,7 +1085,7 @@ function involvedAvatars(row) {
   padding: 0 7px;
   border-radius: 2px;
   font-family: "Fira Code", monospace;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.03em;
   white-space: nowrap;
@@ -1113,7 +1113,7 @@ function involvedAvatars(row) {
 /* Montant */
 .ov-montant {
   font-family: "Fira Code", monospace;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   color: #000b23;
   margin-top: 4px;
@@ -1127,7 +1127,7 @@ function involvedAvatars(row) {
   height: 20px;
   padding: 0 8px;
   border-radius: 10px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -1150,7 +1150,7 @@ function involvedAvatars(row) {
   border-radius: 50%;
   background: rgba(0,168,168,0.12);
   font-family: "Fira Code", monospace;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
   color: #00a8a8;
   flex-shrink: 0;
@@ -1177,7 +1177,7 @@ function involvedAvatars(row) {
   background: rgba(0,168,168,0.1);
   border: 1px solid rgba(0,168,168,0.3);
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   color: #00a8a8;
 }
@@ -1221,6 +1221,6 @@ function involvedAvatars(row) {
   gap: 10px;
   padding: 48px 0;
   color: #ccc;
-  font-size: 12px;
+  font-size: 14px;
 }
 </style>

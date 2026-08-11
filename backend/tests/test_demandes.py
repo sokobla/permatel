@@ -114,6 +114,53 @@ class TestCreateDemande:
         assert data["type_demande"] == "commande"
         assert data["type_commande"] == "rondes"
         assert data["quantite"] == 10
+        assert data["nombre_heures"] is None
+
+    def test_create_demande_commande_avec_nombre_heures_seul_succeeds(self, client, auth_headers_tenant, test_data):
+        """`nombre_heures` seul (sans `quantite`) doit suffire à la validation —
+        les deux champs sont des alternatives, pas une exclusivité mutuelle."""
+        payload = {
+            "type_demande": "commande",
+            "client_id": test_data["client"].id,
+            "titre": "Renfort ponctuel de nuit",
+            "type_commande": "rondes",
+            "nombre_heures": 8,
+        }
+        resp = client.post("/api/demandes", json=payload, headers=auth_headers_tenant)
+        assert resp.status_code == 201
+        data = resp.get_json()
+        assert data["quantite"] is None
+        assert data["nombre_heures"] == 8
+
+    def test_create_demande_commande_avec_les_deux_champs_succeeds(self, client, auth_headers_tenant, test_data):
+        """Les deux champs peuvent être renseignés simultanément (décision produit
+        du 02/08) — les deux valeurs doivent être persistées, pas l'une au
+        détriment de l'autre."""
+        payload = {
+            "type_demande": "commande",
+            "client_id": test_data["client"].id,
+            "titre": "Renfort agents + heures supplémentaires",
+            "type_commande": "rondes",
+            "quantite": 3,
+            "nombre_heures": 12,
+        }
+        resp = client.post("/api/demandes", json=payload, headers=auth_headers_tenant)
+        assert resp.status_code == 201
+        data = resp.get_json()
+        assert data["quantite"] == 3
+        assert data["nombre_heures"] == 12
+
+    def test_create_demande_commande_sans_agents_ni_heures_retourne_400(self, client, auth_headers_tenant, test_data):
+        """Ni `quantite` ni `nombre_heures` renseigné -> 400, pas de création
+        silencieuse d'une commande sans volumétrie exploitable."""
+        payload = {
+            "type_demande": "commande",
+            "client_id": test_data["client"].id,
+            "titre": "Commande sans volumétrie",
+            "type_commande": "rondes",
+        }
+        resp = client.post("/api/demandes", json=payload, headers=auth_headers_tenant)
+        assert resp.status_code == 400
 
     def test_create_demande_planning_success(self, client, auth_headers_tenant, test_data, agent_securite):
         """Teste la création réussie d'une demande de planning."""

@@ -203,10 +203,10 @@ onMounted(() => { load(); loadClients(); });
 <style scoped>
 .sla-card { font-family: "Fira Sans", sans-serif; }
 .sla-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; gap: 16px; }
-.sla-title { font-size: 15px; font-weight: 700; color: #000b23; margin: 0; }
+.sla-title { font-size: 17px; font-weight: 700; color: #000b23; margin: 0; }
 .sla-sub { font-size: 12.5px; color: #6b7280; margin: 2px 0 0; max-width: 640px; }
-.sla-table { font-size: 13px; }
-.sla-dlg-title { font-size: 15px; font-weight: 700; color: #000b23; }
+.sla-table { font-size: 15px; }
+.sla-dlg-title { font-size: 17px; font-weight: 700; color: #000b23; }
 .sla-row { display: flex; gap: 12px; }
 .sla-row > * { flex: 1; }
 </style>

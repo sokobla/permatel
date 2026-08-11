@@ -286,7 +286,7 @@ async function save() {
   align-items: center;
   gap: 5px;
   font-family: "Fira Code", monospace;
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   color: #ccc;
   text-transform: uppercase;
@@ -312,7 +312,7 @@ async function save() {
 
 .ead-title {
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.18em;
   color: #000b23;
@@ -346,7 +346,7 @@ async function save() {
 
 .ead-titre-lbl {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #ccc;
@@ -362,7 +362,7 @@ async function save() {
   border: none;
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: #000b23;
   background: transparent;
@@ -379,7 +379,7 @@ async function save() {
   padding: 6px 16px;
   background: rgba(231, 76, 60, 0.07);
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   color: #e74c3c;
   flex-shrink: 0;
 }
@@ -409,7 +409,7 @@ async function save() {
 .ead-context__item { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .ead-context__lbl {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #9aa0aa;
@@ -420,7 +420,7 @@ async function save() {
   align-items: center;
   gap: 5px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: #15223a;
   overflow: hidden;
@@ -450,7 +450,7 @@ async function save() {
 
 .ead-sec-lbl {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.14em;
   color: #aaa;
@@ -462,7 +462,7 @@ async function save() {
 
 .ead-optional {
   font-family: "Fira Code", monospace;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 500;
   color: #ccc;
   text-transform: lowercase;
@@ -481,7 +481,7 @@ async function save() {
 
 .form-label {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.1em;
   color: #bbb;
@@ -530,7 +530,7 @@ async function save() {
 .ead-checkbox { width: 14px; height: 14px; accent-color: #00a8a8; cursor: pointer; }
 .ead-checkbox-lbl {
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   color: #555;
   cursor: pointer;
@@ -550,7 +550,7 @@ async function save() {
 
 .ead-agent-name {
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: #000b23;
   flex: 1;
@@ -561,7 +561,7 @@ async function save() {
   align-items: center;
   gap: 3px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: #e74c3c;
   background: none;
@@ -587,7 +587,7 @@ async function save() {
   border-radius: 3px;
   background: #fff;
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.06em;
   color: #555;
@@ -605,7 +605,7 @@ async function save() {
   border-radius: 3px;
   background: #000b23;
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: #fff;

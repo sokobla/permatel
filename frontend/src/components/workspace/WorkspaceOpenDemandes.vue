@@ -191,7 +191,7 @@ onMounted(load);
 .wod { display: flex; flex-direction: column; min-height: 0; }
 .card-hdr { display: flex; align-items: center; justify-content: space-between; }
 .wod-count {
-  font-family: "Fira Code", monospace; font-size: 11px; font-weight: 700; color: #00a8a8;
+  font-family: "Fira Code", monospace; font-size: 13px; font-weight: 700; color: #00a8a8;
   background: rgba(0,168,168,0.1); border-radius: 10px; padding: 1px 7px;
 }
 

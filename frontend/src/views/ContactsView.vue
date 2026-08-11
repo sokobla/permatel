@@ -1078,7 +1078,7 @@ onMounted(() => {
   padding: 9px 12px;
   text-align: left;
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #bbb;
@@ -1104,7 +1104,7 @@ onMounted(() => {
 }
 .cv-td--contact { max-width: 0; }
 
-.cv-cat-sub { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; margin-top: 4px; color: #9aa0aa; }
+.cv-cat-sub { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; margin-top: 4px; color: #9aa0aa; }
 
 /* Cellule "Contact" (icône + nom/prénom + coordonnées) */
 .cv-name-cell { display: flex; align-items: flex-start; gap: 10px; }
@@ -1114,7 +1114,7 @@ onMounted(() => {
 }
 .cv-name-text-block { min-width: 0; }
 .cv-name-sub {
-  display: flex; align-items: center; gap: 4px; font-size: 11px; color: #9aa0aa;
+  display: flex; align-items: center; gap: 4px; font-size: 13px; color: #9aa0aa;
   margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
@@ -1129,7 +1129,7 @@ onMounted(() => {
   border-radius: 2px;
   background: rgba(0, 11, 35, 0.06);
   font-family: "Fira Code", monospace;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   color: #555;
   letter-spacing: 0.03em;

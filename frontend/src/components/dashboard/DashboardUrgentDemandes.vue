@@ -141,7 +141,7 @@ export default { name: "DashboardUrgentDemandes" };
 
 .dud-count {
   font-family: "Fira Code", monospace;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: #fff;
   background: #e74c3c;

@@ -133,7 +133,7 @@ export default { name: "DashboardDemandesKpiCard" };
 
 .ddkc-subtitle {
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   color: #6b7280;
   margin-top: 4px;
 }

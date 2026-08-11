@@ -227,13 +227,13 @@ onMounted(fetch);
 }
 .sm-toolbar__title { display: flex; align-items: baseline; gap: 8px; }
 .sm-title {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: var(--authority);
   margin: 0;
 }
-.sm-count { font-size: 13px; color: var(--muted); }
+.sm-count { font-size: 15px; color: var(--muted); }
 .sm-toolbar__actions { display: flex; align-items: center; gap: 8px; }
 
 .sm-seg { display: inline-flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
@@ -241,7 +241,7 @@ onMounted(fetch);
   border: none;
   background: #fff;
   padding: 6px 12px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.06em;
   color: var(--muted);
@@ -254,7 +254,7 @@ onMounted(fetch);
   border: 1px solid transparent;
   border-radius: 4px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -266,13 +266,13 @@ onMounted(fetch);
 .sm-btn--ghost:not(:disabled):hover { background: #f7f7f8; }
 .sm-btn--danger { background: var(--danger); color: #fff; }
 .sm-btn--danger:not(:disabled):hover { filter: brightness(0.93); }
-.sm-btn--xs { padding: 4px 9px; font-size: 10px; margin-left: 4px; }
+.sm-btn--xs { padding: 4px 9px; font-size: 12px; margin-left: 4px; }
 
 .sm-spin { display: inline-block; animation: sm-rot 0.8s linear infinite; }
 @keyframes sm-rot { to { transform: rotate(360deg); } }
 
 /* Bandeau */
-.sm-banner { padding: 10px 14px; border-radius: 4px; font-size: 13px; margin-bottom: 12px; }
+.sm-banner { padding: 10px 14px; border-radius: 4px; font-size: 15px; margin-bottom: 12px; }
 .sm-banner--error { background: rgba(231,76,60,0.08); border: 1px solid rgba(231,76,60,0.3); color: #a93226; }
 
 /* Tableau */
@@ -281,7 +281,7 @@ onMounted(fetch);
 .sm-th {
   text-align: left;
   padding: 11px 14px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -292,15 +292,15 @@ onMounted(fetch);
 .sm-th--right { text-align: right; }
 .sm-row:hover { background: #f7f8fa; }
 .sm-row--me { background: rgba(0,168,168,0.04); }
-.sm-td { padding: 10px 14px; font-size: 13px; color: #1a1a2e; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.sm-td { padding: 10px 14px; font-size: 15px; color: #1a1a2e; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .sm-table tbody tr:last-child .sm-td { border-bottom: none; }
 .sm-td--right { text-align: right; white-space: nowrap; }
 
 .sm-user { display: flex; flex-direction: column; }
 .sm-user__name { font-weight: 600; }
-.sm-user__sub { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.sm-user__sub { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
 .sm-tag-me {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   color: var(--teal);
@@ -308,7 +308,7 @@ onMounted(fetch);
   padding: 1px 5px;
   border-radius: 3px;
 }
-.sm-role { font-size: 11px; font-weight: 600; color: var(--muted); }
+.sm-role { font-size: 13px; font-weight: 600; color: var(--muted); }
 
 .sm-badge {
   display: inline-flex;
@@ -316,7 +316,7 @@ onMounted(fetch);
   gap: 6px;
   padding: 3px 9px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
 }
 .sm-badge__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
@@ -329,7 +329,7 @@ onMounted(fetch);
 .sm-badge--revoked { background: rgba(231,76,60,0.1); color: #a93226; }
 .sm-badge--revoked .sm-badge__dot { background: var(--danger); }
 
-.sm-confirm { font-size: 11px; font-weight: 600; color: #a93226; }
+.sm-confirm { font-size: 13px; font-weight: 600; color: #a93226; }
 .sm-na { color: var(--muted); }
 
 .sm-skel {
@@ -343,6 +343,6 @@ onMounted(fetch);
 @keyframes sm-shim { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
 
 .sm-empty { text-align: center; padding: 40px 16px; }
-.sm-empty__title { font-size: 14px; font-weight: 600; color: var(--authority); margin: 0 0 4px; }
-.sm-empty__sub { font-size: 12px; color: var(--muted); margin: 0; }
+.sm-empty__title { font-size: 16px; font-weight: 600; color: var(--authority); margin: 0 0 4px; }
+.sm-empty__sub { font-size: 14px; color: var(--muted); margin: 0; }
 </style>

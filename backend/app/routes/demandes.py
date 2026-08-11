@@ -183,6 +183,7 @@ def _serialize_demande(demande: Demande) -> dict:
     elif isinstance(demande, DemandeCommande):
         data["type_commande"] = demande.type_commande.value if demande.type_commande else None
         data["quantite"] = demande.quantite
+        data["nombre_heures"] = demande.nombre_heures
         data["budget_estime"] = demande.budget_estime
         data["fournisseur_suggere"] = demande.fournisseur_suggere
         data["date_livraison_souhaitee"] = demande.date_livraison_souhaitee.isoformat() if demande.date_livraison_souhaitee else None
@@ -301,7 +302,16 @@ def create_demande():
             "message": "type_demande invalide",
             "valid_values": [t.value for t in TypeDemande]
         }), 400
-    
+
+    # Commande : au moins un des deux champs (agents ou heures) doit être
+    # renseigné — les deux peuvent l'être simultanément, décision produit
+    # du 02/08 (contrairement à une exclusivité mutuelle).
+    if type_demande == TypeDemande.COMMANDE:
+        if not payload.get("quantite") and not payload.get("nombre_heures"):
+            return jsonify({
+                "message": "Indiquez le nombre d'agents et/ou le nombre d'heures nécessaires."
+            }), 400
+
     # Valider statut si fourni
     statut = StatutDemande.NOUVELLE
     if "statut" in payload:
@@ -394,6 +404,7 @@ def create_demande():
                 except ValueError:
                     pass
             demande.quantite = payload.get("quantite")
+            demande.nombre_heures = payload.get("nombre_heures")
             demande.budget_estime = payload.get("budget_estime")
             demande.fournisseur_suggere = payload.get("fournisseur_suggere")
             demande.date_livraison_souhaitee = _parse_datetime(payload.get("date_livraison_souhaitee"))
@@ -535,6 +546,8 @@ def update_demande(demande_id):
                     pass
             if "quantite" in payload:
                 demande.quantite = payload["quantite"]
+            if "nombre_heures" in payload:
+                demande.nombre_heures = payload["nombre_heures"]
             if "budget_estime" in payload:
                 demande.budget_estime = payload["budget_estime"]
             if "fournisseur_suggere" in payload:

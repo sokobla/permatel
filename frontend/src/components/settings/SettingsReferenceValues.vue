@@ -136,7 +136,7 @@ onMounted(() => loadFamily(activeFamily.value));
 <style scoped>
 .srv-card { font-family: "Fira Sans", sans-serif; }
 .srv-head { padding: 16px 20px; }
-.srv-title { font-size: 15px; font-weight: 700; color: #000b23; margin: 0; }
+.srv-title { font-size: 17px; font-weight: 700; color: #000b23; margin: 0; }
 .srv-sub { font-size: 12.5px; color: #6b7280; margin: 2px 0 0; }
 .srv-body { padding: 8px 20px 20px; }
 .srv-tabs { margin-bottom: 16px; border-bottom: 1px solid #e5e7eb; }

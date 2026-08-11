@@ -259,20 +259,20 @@ onMounted(load);
 .se-wrap { display: flex; flex-direction: column; gap: 20px; font-family: "Fira Sans", sans-serif; }
 .se-card { font-family: "Fira Sans", sans-serif; }
 .se-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; }
-.se-title { font-size: 15px; font-weight: 700; color: #000b23; margin: 0; }
+.se-title { font-size: 17px; font-weight: 700; color: #000b23; margin: 0; }
 .se-sub { font-size: 12.5px; color: #6b7280; margin: 2px 0 0; }
 .se-body { padding: 18px 20px; }
-.se-loading { display: flex; align-items: center; gap: 10px; color: #6b7280; font-size: 13px; padding: 18px 0; }
-.se-label { display: block; font-size: 12px; font-weight: 600; color: #15223a; margin-bottom: 4px; }
+.se-loading { display: flex; align-items: center; gap: 10px; color: #6b7280; font-size: 15px; padding: 18px 0; }
+.se-label { display: block; font-size: 14px; font-weight: 600; color: #15223a; margin-bottom: 4px; }
 .se-req { color: #e74c3c; }
 .se-actions { padding: 12px 16px; }
 .se-vars { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .se-vars__label { font-size: 11.5px; font-weight: 600; color: #6b7280; margin-right: 4px; }
-.se-var-chip { cursor: pointer; font-family: "Fira Code", monospace; font-size: 11px; }
+.se-var-chip { cursor: pointer; font-family: "Fira Code", monospace; font-size: 13px; }
 
 .se-preview-card { font-family: "Fira Sans", sans-serif; }
 .se-preview-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; }
-.se-preview-title { font-size: 14px; font-weight: 700; color: #000b23; padding: 0; }
+.se-preview-title { font-size: 16px; font-weight: 700; color: #000b23; padding: 0; }
 .se-preview-body { padding: 0; }
 .se-preview-frame { width: 100%; height: 420px; border: none; background: #fff; }
 </style>

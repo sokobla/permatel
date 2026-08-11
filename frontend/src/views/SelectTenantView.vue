@@ -167,7 +167,7 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 .st-title {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 800;
   color: #000b23;
   margin: 0;
@@ -215,7 +215,7 @@ onMounted(async () => {
   overflow: hidden;
   flex-shrink: 0;
   font-family: "Fira Code", monospace;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   color: #000b23;
 }
@@ -231,7 +231,7 @@ onMounted(async () => {
   flex-direction: column;
 }
 .st-item__name {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   color: #000b23;
   white-space: nowrap;
@@ -240,7 +240,7 @@ onMounted(async () => {
 }
 .st-item__code {
   font-family: "Fira Code", monospace;
-  font-size: 11px;
+  font-size: 13px;
   color: #9aa0aa;
 }
 .st-loading,
@@ -250,7 +250,7 @@ onMounted(async () => {
   gap: 10px;
   justify-content: center;
   color: #6b7280;
-  font-size: 13px;
+  font-size: 15px;
   padding: 24px 0;
 }
 .st-foot {

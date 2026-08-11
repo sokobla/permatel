@@ -53,7 +53,7 @@
 
 .section-title {
   font-family: var(--ff-sans);
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 800;
   letter-spacing: 0.1em;
   color: #000b23;
@@ -63,7 +63,7 @@
 
 .section-subtitle {
   font-family: "Fira Code", monospace;
-  font-size: 10px;
+  font-size: 12px;
   color: #888;
   letter-spacing: 0.12em;
 }
@@ -117,7 +117,7 @@
   border: none;
   outline: none;
   font-family: var(--ff-sans);
-  font-size: 11px;
+  font-size: 13px;
   letter-spacing: 0.06em;
   color: #333;
   background: transparent;
@@ -125,7 +125,7 @@
 .cb-search__input::placeholder {
   color: #bbb;
   letter-spacing: 0.1em;
-  font-size: 10px;
+  font-size: 12px;
 }
 .cb-search__clear {
   background: transparent;
@@ -139,7 +139,7 @@
 
 .cb-filter__label {
   font-family: var(--ff-sans);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.1em;
   color: #666;
@@ -198,14 +198,14 @@
 
 .cb-meta__count {
   font-family: var(--ff-mono);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
   color: #000b23;
 }
 
 .cb-meta__label {
   font-family: var(--ff-sans);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.12em;
   color: #999;
@@ -220,7 +220,7 @@
   border-radius: 3px;
   padding: 8px 12px;
   font-family: var(--ff-sans);
-  font-size: 11px;
+  font-size: 13px;
   color: #c0392b;
   margin-bottom: 10px;
   flex-shrink: 0;
@@ -231,7 +231,7 @@
   border: 1px solid #c0392b;
   border-radius: 2px;
   color: #c0392b;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
   padding: 2px 8px;
@@ -355,7 +355,7 @@
 }
 .pag-info {
   font-family: var(--ff-sans);
-  font-size: 10px;
+  font-size: 12px;
   color: #888;
   letter-spacing: 0.06em;
 }
@@ -373,7 +373,7 @@
   border: 1px solid rgba(0, 0, 0, 0.1);
   color: #444;
   font-family: var(--ff-sans);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   display: flex;
@@ -457,7 +457,7 @@
 }
 .panel-subtitle {
   font-family: var(--ff-mono);
-  font-size: 9px;
+  font-size: 11px;
   color: rgba(255, 255, 255, 0.35);
   letter-spacing: 0.1em;
   margin-top: 3px;
@@ -560,7 +560,7 @@
 
 .avatar-upload__label {
   font-family: var(--ff-sans);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.12em;
   color: #aaa;
@@ -568,7 +568,7 @@
 
 .avatar-upload__hint {
   font-family: var(--ff-sans);
-  font-size: 9px;
+  font-size: 11px;
   color: #ccc;
   letter-spacing: 0.06em;
 }
@@ -700,7 +700,7 @@
   background: transparent;
   color: #aaa;
   font-family: var(--ff-sans);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.1em;
   border: 1px solid rgba(0, 0, 0, 0.1);
@@ -734,7 +734,7 @@
 
 .form-sep span {
   font-family: var(--ff-sans);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.14em;
   color: #bbb;
@@ -832,7 +832,7 @@
 
 .mono-text {
   font-family: "Fira Code", monospace;
-  font-size: 11px;
+  font-size: 13px;
 }
 .cell-id {
   color: #888;
@@ -912,7 +912,7 @@
   align-items: center;
   justify-content: center;
   font-family: var(--ff-mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.9);
 }
@@ -925,7 +925,7 @@
 
 .user-cell__handle {
   font-family: var(--ff-mono);
-  font-size: 11px;
+  font-size: 13px;
   color: #000b23;
   white-space: nowrap;
   overflow: hidden;
@@ -933,7 +933,7 @@
 }
 
 .cell-email {
-  font-size: 11px;
+  font-size: 13px;
   color: #666;
 }
 
@@ -951,7 +951,7 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 10px;
+  font-size: 12px;
   color: #9aa0aa;
   white-space: nowrap;
   overflow: hidden;
@@ -982,7 +982,7 @@
   color: #00838f;
 }
 .user-cell__seen {
-  font-size: 9px;
+  font-size: 11px;
   color: #aaa;
   font-family: var(--ff-sans);
   letter-spacing: 0.04em;
@@ -996,7 +996,7 @@
 }
 .table-empty__text {
   font-family: var(--ff-sans);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.12em;
   color: #aaa;
@@ -1004,7 +1004,7 @@
 }
 .table-empty__sub {
   font-family: var(--ff-sans);
-  font-size: 10px;
+  font-size: 12px;
   color: #ccc;
   margin: 0;
 }
@@ -1035,14 +1035,14 @@
 }
 .confirm-dialog__title {
   font-family: var(--ff-sans);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #000b23;
 }
 .confirm-dialog__msg {
   font-family: var(--ff-sans);
-  font-size: 12px;
+  font-size: 14px;
   color: #444;
   line-height: 1.6;
 }
@@ -1154,13 +1154,13 @@
   align-items: center;
   justify-content: center;
   font-family: var(--ff-mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.9);
 }
 .group-row__name {
   font-family: var(--ff-sans);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: #000b23;
 }
@@ -1174,7 +1174,7 @@
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.07);
   font-family: var(--ff-mono);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: #555;
 }

@@ -171,21 +171,21 @@ onMounted(load);
 <style scoped>
 .sg-card { font-family: "Fira Sans", sans-serif; }
 .sg-head { padding: 16px 20px; }
-.sg-title { font-size: 15px; font-weight: 700; color: #000b23; margin: 0; }
+.sg-title { font-size: 17px; font-weight: 700; color: #000b23; margin: 0; }
 .sg-sub { font-size: 12.5px; color: #6b7280; margin: 2px 0 0; }
 .sg-body { padding: 18px 20px; max-width: 560px; }
-.sg-loading { display: flex; align-items: center; gap: 10px; color: #6b7280; font-size: 13px; }
-.sg-label { display: block; font-size: 12px; font-weight: 600; color: #15223a; margin: 14px 0 4px; }
+.sg-loading { display: flex; align-items: center; gap: 10px; color: #6b7280; font-size: 15px; }
+.sg-label { display: block; font-size: 14px; font-weight: 600; color: #15223a; margin: 14px 0 4px; }
 .sg-req { color: #e74c3c; }
-.sg-hint { font-size: 11px; color: #6b7280; margin: 4px 0 0; }
-.sg-field-error { font-size: 12px; color: #e74c3c; margin: 4px 0 0; }
+.sg-hint { font-size: 13px; color: #6b7280; margin: 4px 0 0; }
+.sg-field-error { font-size: 14px; color: #e74c3c; margin: 4px 0 0; }
 .sg-logo-row { display: flex; align-items: center; gap: 14px; }
 .sg-logo-preview {
   width: 64px; height: 64px; border-radius: 8px; border: 1px solid #e5e7eb;
   background: #f7f7f8; overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 .sg-logo-preview img { width: 100%; height: 100%; object-fit: cover; }
-.sg-logo-ph { font-family: "Fira Code", monospace; font-size: 16px; font-weight: 700; color: #6b7280; }
+.sg-logo-ph { font-family: "Fira Code", monospace; font-size: 18px; font-weight: 700; color: #6b7280; }
 .sg-logo-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .sg-hidden { display: none; }
 .sg-actions { padding: 12px 16px; }

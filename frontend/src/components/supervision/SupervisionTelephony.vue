@@ -481,12 +481,12 @@ onUnmounted(() => {
   justify-content: center; background: rgba(0, 168, 168, 0.1); flex-shrink: 0;
 }
 .stl-kpi-card__label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; color: #9aa0aa; }
-.stl-kpi-card__value { font-size: 24px; font-weight: 700; color: #000b23; font-variant-numeric: tabular-nums; }
+.stl-kpi-card__value { font-size: 26px; font-weight: 700; color: #000b23; font-variant-numeric: tabular-nums; }
 .stl-kpi-card__hint { font-size: 10.5px; color: #6b7280; }
 
 .stl-panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
 .stl-panel__head { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid #e5e7eb; }
-.stl-panel__title { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; color: #1a1a2e; }
+.stl-panel__title { font-size: 14px; font-weight: 700; letter-spacing: 0.04em; color: #1a1a2e; }
 .stl-panel__spacer { flex: 1; }
 
 .stl-pulse-dot {
@@ -500,7 +500,7 @@ onUnmounted(() => {
   100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
 }
 .stl-live-badge {
-  display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700;
+  display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700;
   letter-spacing: 0.04em; color: #15803d; background: rgba(34,197,94,0.12);
   padding: 3px 8px; border-radius: 12px;
 }
@@ -528,7 +528,7 @@ onUnmounted(() => {
 .stl-call-title { font-weight: 600; color: #1a1a2e; }
 .stl-call-sub { font-size: 10.5px; color: #9aa0aa; margin-top: 2px; }
 .stl-status-badge {
-  display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700;
+  display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700;
   padding: 3px 9px; border-radius: 999px; transition: background-color 0.35s ease, color 0.35s ease;
 }
 .stl-status-badge .stl-dot {
@@ -542,7 +542,7 @@ onUnmounted(() => {
 .stl-status-answered .stl-dot { background: #22c55e; }
 .stl-status-on_hold { background: #eef0f3; color: #6b7280; }
 .stl-status-on_hold .stl-dot { background: #9aa0aa; }
-.stl-empty-row { text-align: center; padding: 28px 16px; color: #9aa0aa; font-size: 12px; }
+.stl-empty-row { text-align: center; padding: 28px 16px; color: #9aa0aa; font-size: 14px; }
 
 .stl-queue-count { font-size: 10.5px; color: #9aa0aa; font-family: "Fira Code", monospace; }
 .stl-queue-filter-row { padding: 10px 16px 0; }
@@ -555,9 +555,9 @@ onUnmounted(() => {
 .stl-queue-card__id-block { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .stl-queue-card__swatch {
   width: 32px; height: 32px; border-radius: 8px; background: rgba(0,168,168,0.1); color: #00a8a8;
-  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0;
 }
-.stl-queue-card__alias { font-size: 13px; font-weight: 700; color: #1a1a2e; }
+.stl-queue-card__alias { font-size: 15px; font-weight: 700; color: #1a1a2e; }
 .stl-queue-card__raw-id { font-family: "Fira Code", monospace; font-size: 10.5px; color: #9aa0aa; margin-top: 1px; }
 
 .stl-queue-badge {
@@ -577,12 +577,12 @@ onUnmounted(() => {
 }
 .stl-queue-stat { display: flex; flex-direction: column; gap: 2px; }
 .stl-queue-stat__label { font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; color: #9aa0aa; text-transform: uppercase; }
-.stl-queue-stat__value { font-family: "Fira Code", monospace; font-size: 13px; font-weight: 600; color: #1a1a2e; }
+.stl-queue-stat__value { font-family: "Fira Code", monospace; font-size: 15px; font-weight: 600; color: #1a1a2e; }
 .stl-abandon-warn { color: #e74c3c !important; }
 
 .stl-queue-details summary {
   list-style: none; cursor: pointer; display: flex; align-items: center; gap: 2px;
-  font-size: 11px; font-weight: 600; color: #00a8a8; margin-top: 8px; user-select: none; width: fit-content;
+  font-size: 13px; font-weight: 600; color: #00a8a8; margin-top: 8px; user-select: none; width: fit-content;
 }
 .stl-queue-details summary::-webkit-details-marker { display: none; }
 .stl-queue-details__chevron { transition: transform 0.15s ease; }
@@ -607,7 +607,7 @@ onUnmounted(() => {
   display: flex; flex-direction: column; gap: 3px;
 }
 .stl-queue-breakdown__label { font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; color: #9aa0aa; text-transform: uppercase; }
-.stl-queue-breakdown__value { font-family: "Fira Code", monospace; font-size: 14px; font-weight: 700; }
+.stl-queue-breakdown__value { font-family: "Fira Code", monospace; font-size: 16px; font-weight: 700; }
 .stl-queue-breakdown__value--good { color: #22c55e; }
 .stl-queue-breakdown__value--bad { color: #e74c3c; }
 
@@ -636,16 +636,16 @@ onUnmounted(() => {
 .stl-agent-card__avatar-wrap { position: relative; margin-bottom: 6px; }
 .stl-agent-card__avatar {
   width: 46px; height: 46px; border-radius: 50%; background: #00a8a8; color: #fff;
-  display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700;
 }
 .stl-agent-card__status-dot {
   position: absolute; bottom: 1px; right: 1px; width: 11px; height: 11px; border-radius: 50%;
   border: 2px solid #fafafa;
 }
-.stl-agent-card__name { font-size: 13px; font-weight: 700; color: #1a1a2e; }
+.stl-agent-card__name { font-size: 15px; font-weight: 700; color: #1a1a2e; }
 .stl-agent-card__presence { font-size: 10.5px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
-.stl-agent-card__queue { font-size: 10px; color: #9aa0aa; margin-bottom: 4px; }
-.stl-agent-card__bar-wrap { width: 100%; display: flex; align-items: center; gap: 6px; font-size: 10px; color: #9aa0aa; }
+.stl-agent-card__queue { font-size: 12px; color: #9aa0aa; margin-bottom: 4px; }
+.stl-agent-card__bar-wrap { width: 100%; display: flex; align-items: center; gap: 6px; font-size: 12px; color: #9aa0aa; }
 .stl-agent-card__bar-track { flex: 1; height: 5px; border-radius: 3px; background: #e5e7eb; overflow: hidden; }
 .stl-agent-card__bar-fill { height: 100%; border-radius: 3px; background: #00a8a8; }
 .stl-agent-card__bar-value { font-family: "Fira Code", monospace; font-weight: 600; }
@@ -662,7 +662,7 @@ onUnmounted(() => {
 
 .stl-agents-legend {
   display: flex; align-items: center; gap: 16px; padding: 10px 16px;
-  border-top: 1px solid #e5e7eb; font-size: 11px; color: #6b7280;
+  border-top: 1px solid #e5e7eb; font-size: 13px; color: #6b7280;
 }
 .stl-legend-item { display: flex; align-items: center; gap: 5px; }
 

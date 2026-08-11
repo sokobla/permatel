@@ -295,7 +295,7 @@ aside {
 /* Initiales dans l'avatar du menu (fallback sans photo) */
 .menu-avatar-initials {
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
   color: #ffffff;
   letter-spacing: 0.02em;
@@ -321,7 +321,7 @@ aside {
 }
 .tn-menu-foot__name {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.14em;
   color: rgba(255, 255, 255, 0.85);
@@ -329,7 +329,7 @@ aside {
 }
 .tn-menu-foot__ver {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 12px;
   color: var(--color-teal, #00a8a8);
 }
 </style>

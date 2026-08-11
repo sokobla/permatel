@@ -272,7 +272,7 @@ onMounted(loadData);
 .psv-hdr-title-row { display: flex; align-items: center; gap: 9px; margin-bottom: 4px; }
 .psv-hdr-marker { width: 3px; height: 18px; background: #00a8a8; border-radius: 1px; }
 .psv-title { font-size: 1.05rem; font-weight: 800; letter-spacing: 0.1em; color: #000b23; text-transform: uppercase; margin: 0; }
-.psv-subtitle { font-size: 11px; color: #999; margin: 0; padding-left: 12px; }
+.psv-subtitle { font-size: 13px; color: #999; margin: 0; padding-left: 12px; }
 
 /* Filter bar */
 .psv-filter-bar {
@@ -280,7 +280,7 @@ onMounted(loadData);
   background: #fff; border: 1px solid rgba(0,0,0,0.08); border-radius: 3px; padding: 10px 12px;
 }
 .psv-filter-group { display: flex; align-items: center; gap: 6px; }
-.psv-filter-lbl { font-family: "Fira Code", monospace; font-size: 8px; font-weight: 700; letter-spacing: 0.1em; color: #ccc; text-transform: uppercase; white-space: nowrap; }
+.psv-filter-lbl { font-family: "Fira Code", monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: #ccc; text-transform: uppercase; white-space: nowrap; }
 .psv-date, .psv-select {
   height: 28px; border: 1px solid #e5e7eb; border-radius: 4px; background: #fff;
   font-size: 11.5px; color: #1a1a2e; padding: 0 6px; outline: none; max-width: 170px;
@@ -288,20 +288,20 @@ onMounted(loadData);
 .psv-date:focus, .psv-select:focus { border-color: #00a8a8; }
 .psv-chip {
   height: 22px; padding: 0 9px; border: 1px solid rgba(0,0,0,0.1); border-radius: 11px;
-  background: transparent; font-size: 10px; font-weight: 500; color: #555; cursor: pointer; transition: all .12s;
+  background: transparent; font-size: 12px; font-weight: 500; color: #555; cursor: pointer; transition: all .12s;
 }
 .psv-chip:hover { border-color: #00a8a8; color: #00a8a8; }
 .psv-chip--active { background: #000b23; border-color: #000b23; color: #fff; }
 .psv-filter-reset {
   display: inline-flex; align-items: center; gap: 4px; margin-left: auto; height: 22px; padding: 0 8px;
-  border: none; border-radius: 3px; background: rgba(231,76,60,0.08); font-size: 10px; font-weight: 600; color: #e74c3c; cursor: pointer;
+  border: none; border-radius: 3px; background: rgba(231,76,60,0.08); font-size: 12px; font-weight: 600; color: #e74c3c; cursor: pointer;
 }
 
 /* Table */
 .psv-table-wrap { background: #fff; border: 1px solid rgba(0,0,0,0.08); border-radius: 3px; overflow: hidden; }
 .psv-table { width: 100%; border-collapse: collapse; }
 .psv-th {
-  padding: 9px 12px; text-align: left; font-size: 9px; font-weight: 800; letter-spacing: 0.12em;
+  padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 800; letter-spacing: 0.12em;
   color: #bbb; text-transform: uppercase; background: #fafafa; border-bottom: 1px solid rgba(0,0,0,0.07); white-space: nowrap;
 }
 .psv-data-row { border-bottom: 1px solid rgba(0,0,0,0.05); transition: background .1s; }
@@ -312,25 +312,25 @@ onMounted(loadData);
 .psv-cell-flex { display: flex; align-items: center; gap: 6px; }
 .psv-avatar {
   display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 8px;
-  background: rgba(0,168,168,0.12); font-family: "Fira Code", monospace; font-size: 8px; font-weight: 700; color: #00a8a8; flex-shrink: 0;
+  background: rgba(0,168,168,0.12); font-family: "Fira Code", monospace; font-size: 10px; font-weight: 700; color: #00a8a8; flex-shrink: 0;
 }
 .psv-agent-name { font-weight: 600; color: #000b23; }
-.psv-agent-meta { font-size: 10px; color: #9aa0aa; margin-top: 1px; }
+.psv-agent-meta { font-size: 12px; color: #9aa0aa; margin-top: 1px; }
 .psv-site { display: inline-flex; align-items: center; gap: 4px; color: #777; }
 
-.psv-statut-chip { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+.psv-statut-chip { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
 .psv-statut-chip__dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .psv-statut-chip--en_cours { background: rgba(243,156,18,0.12); color: #f39c12; }
 .psv-statut-chip--terminee { background: rgba(39,174,96,0.1); color: #27ae60; }
 
 .psv-end-btn {
   display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 10px; border-radius: 999px;
-  border: 1px solid rgba(0,11,35,0.15); background: #fff; font-size: 10px; font-weight: 600; color: #000b23; cursor: pointer; transition: all .12s;
+  border: 1px solid rgba(0,11,35,0.15); background: #fff; font-size: 12px; font-weight: 600; color: #000b23; cursor: pointer; transition: all .12s;
 }
 .psv-end-btn:hover:not(:disabled) { background: #000b23; color: #fff; border-color: #000b23; }
 .psv-end-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.psv-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 0; color: #ccc; font-size: 12px; }
+.psv-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 0; color: #ccc; font-size: 14px; }
 .psv-spin { animation: psv-rotate 0.8s linear infinite; }
 @keyframes psv-rotate { to { transform: rotate(360deg); } }
 </style>

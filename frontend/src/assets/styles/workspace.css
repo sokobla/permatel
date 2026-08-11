@@ -65,7 +65,7 @@
 
 .card-title {
   font-family: var(--ff-sans);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #000b23;
@@ -183,7 +183,7 @@
 }
 
 .contact-results-table tbody tr td {
-  font-size: 11px;
+  font-size: 13px;
   padding: 5px 8px;
   color: #222;
   height: 36px;
@@ -207,7 +207,7 @@
   text-align: center;
   padding: 20px 8px;
   color: #aaa;
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.1em;
   font-weight: 700;
   cursor: default;
@@ -281,7 +281,7 @@
   border-radius: 2px;
   background: #e74c3c;
   color: #fff;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.04em;
   padding: 0 4px;
@@ -316,7 +316,7 @@
 
 .ws-empty__title {
   font-family: var(--ff-sans);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 800;
   letter-spacing: 0.1em;
   color: #bbb;
@@ -326,7 +326,7 @@
 
 .ws-empty__sub {
   font-family: var(--ff-sans);
-  font-size: 11px;
+  font-size: 13px;
   color: #ccc;
   line-height: 1.6;
   max-width: 320px;
@@ -399,7 +399,7 @@
   align-items: center;
   gap: 8px;
   font-family: var(--ff-mono);
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   color: #bbb;
   text-transform: uppercase;
@@ -449,7 +449,7 @@
 
 .msg-bubble__role-label {
   font-family: var(--ff-sans);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
   color: #aaa;
@@ -462,7 +462,7 @@
 
 .msg-bubble__text {
   font-family: var(--ff-sans);
-  font-size: 11px;
+  font-size: 13px;
   color: #333;
   line-height: 1.5;
   margin: 0;
@@ -477,13 +477,13 @@
 
 .msg-bubble__time {
   font-family: var(--ff-mono);
-  font-size: 9px;
+  font-size: 11px;
   color: #bbb;
 }
 
 .msg-bubble__type-tag {
   font-family: var(--ff-mono);
-  font-size: 9px;
+  font-size: 11px;
   color: #bbb;
   background: rgba(0, 0, 0, 0.04);
   border: 1px solid rgba(0, 0, 0, 0.07);
@@ -505,7 +505,7 @@
 
 .history-empty__text {
   font-family: var(--ff-sans);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.1em;
   color: #ccc;
@@ -543,7 +543,7 @@
 }
 
 .df-hdr-title {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #000b23;
@@ -552,7 +552,7 @@
 }
 
 .df-type-badge {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -590,7 +590,7 @@
   padding: 7px 16px;
   background: rgba(231, 76, 60, 0.05);
   border-bottom: 1px solid rgba(231, 76, 60, 0.12);
-  font-size: 11px;
+  font-size: 13px;
   color: #e74c3c;
   flex-shrink: 0;
 }
@@ -653,7 +653,7 @@
 
 .df-checkbox-label {
   font-family: var(--ff-sans);
-  font-size: 11px;
+  font-size: 13px;
   color: #333;
   cursor: pointer;
   user-select: none;
@@ -676,7 +676,7 @@
   border: 1px solid rgba(0, 0, 0, 0.14);
   border-radius: 3px;
   font-family: var(--ff-sans);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.1em;
   color: #555;

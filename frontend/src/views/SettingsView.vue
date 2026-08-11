@@ -107,7 +107,7 @@ onMounted(() => {
   box-sizing: border-box;
 }
 .set-head { margin-bottom: 16px; }
-.set-title { font-size: 18px; font-weight: 700; letter-spacing: 0.08em; color: #000b23; margin: 0; }
+.set-title { font-size: 20px; font-weight: 700; letter-spacing: 0.08em; color: #000b23; margin: 0; }
 .set-sub { font-size: 12.5px; color: #6b7280; margin: 2px 0 0; }
 .set-tabs { margin-bottom: 18px; border-bottom: 1px solid #e5e7eb; }
 .set-window { max-width: 980px; }

@@ -404,7 +404,7 @@ export default { name: "DemandeAnomalieForm" };
   align-items: center;
   gap: 5px;
   font-family: "Fira Code", monospace;
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   color: #ccc;
   text-transform: uppercase;
@@ -443,7 +443,7 @@ export default { name: "DemandeAnomalieForm" };
 
 .ja-title {
   font-family: "Fira Sans", sans-serif;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 800;
   letter-spacing: 0.18em;
   color: #000b23;
@@ -466,7 +466,7 @@ export default { name: "DemandeAnomalieForm" };
 
 .ja-meta-lbl {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #bbb;
@@ -479,7 +479,7 @@ export default { name: "DemandeAnomalieForm" };
   border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 3px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.07em;
   color: #333;
@@ -502,7 +502,7 @@ export default { name: "DemandeAnomalieForm" };
 
 .ja-titre-lbl {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #bbb;
@@ -519,7 +519,7 @@ export default { name: "DemandeAnomalieForm" };
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 0;
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   color: #000b23;
   background: transparent;
@@ -533,7 +533,7 @@ export default { name: "DemandeAnomalieForm" };
 
 .ja-titre-input::placeholder {
   color: #d0d0d0;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 400;
 }
 
@@ -647,7 +647,7 @@ export default { name: "DemandeAnomalieForm" };
   background: rgba(0, 168, 168, 0.07);
   border-bottom: 1px solid rgba(0, 168, 168, 0.12);
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.14em;
   color: #00a8a8;
@@ -682,7 +682,7 @@ export default { name: "DemandeAnomalieForm" };
 
 .ja-perm-name {
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: #000b23;
   letter-spacing: 0.02em;
@@ -703,7 +703,7 @@ export default { name: "DemandeAnomalieForm" };
 
 .ja-optional {
   font-family: "Fira Code", monospace;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.06em;
   color: #bbb;

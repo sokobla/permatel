@@ -93,20 +93,20 @@ function iconColor(f) {
 .ea-add {
   display: inline-flex; align-items: center; gap: 6px;
   height: 30px; padding: 0 12px; border: 1px dashed #c4c9d0; border-radius: 6px;
-  background: #fff; font-size: 12px; font-weight: 600; color: #15223a; cursor: pointer;
+  background: #fff; font-size: 14px; font-weight: 600; color: #15223a; cursor: pointer;
   transition: border-color 0.15s, color 0.15s;
 }
 .ea-add:hover { border-color: #00a8a8; color: #00a8a8; }
-.ea-count { font-size: 11px; color: #6b7280; }
+.ea-count { font-size: 13px; color: #6b7280; }
 .ea-hidden { display: none; }
-.ea-error { font-size: 12px; color: #e74c3c; margin: 6px 0 0; }
+.ea-error { font-size: 14px; color: #e74c3c; margin: 6px 0 0; }
 .ea-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .ea-item {
   display: flex; align-items: center; gap: 8px;
   padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fafbfc;
 }
 .ea-item__name { flex: 1; min-width: 0; font-size: 12.5px; color: #15223a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ea-item__meta { font-size: 11px; color: #9aa0aa; font-family: "Fira Code", monospace; }
+.ea-item__meta { font-size: 13px; color: #9aa0aa; font-family: "Fira Code", monospace; }
 .ea-remove { border: none; background: none; cursor: pointer; color: #9aa0aa; display: flex; }
 .ea-remove:hover { color: #e74c3c; }
 </style>

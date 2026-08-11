@@ -122,7 +122,7 @@ async function submit() {
 .fp-head__row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .fp-title {
   font-family: "Fira Code", monospace;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: #000b23;
   letter-spacing: 0.02em;
@@ -138,7 +138,7 @@ async function submit() {
 
 .fp-label {
   display: block;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: #15223a;
   margin-bottom: 4px;
@@ -156,6 +156,6 @@ async function submit() {
   gap: 10px;
   padding: 32px 24px 28px;
 }
-.fp-success__title { font-size: 16px; font-weight: 700; color: #000b23; margin: 4px 0 0; }
-.fp-success__text { font-size: 13px; color: #6b7280; max-width: 340px; margin: 0 0 8px; }
+.fp-success__title { font-size: 18px; font-weight: 700; color: #000b23; margin: 4px 0 0; }
+.fp-success__text { font-size: 15px; color: #6b7280; max-width: 340px; margin: 0 0 8px; }
 </style>

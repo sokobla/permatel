@@ -327,7 +327,7 @@ export default { name: 'MailBox' }
   border-radius: 3px;
   background: #00a8a8;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.1em;
   color: #fff;
@@ -372,7 +372,7 @@ export default { name: 'MailBox' }
   border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 3px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   color: #333;
   background: #fff;
   outline: none;
@@ -393,7 +393,7 @@ export default { name: 'MailBox' }
 /* Dossiers */
 .mbx-folders-label {
   padding: 0 12px 6px;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.14em;
   color: #ccc;
@@ -433,7 +433,7 @@ export default { name: 'MailBox' }
 }
 
 .mbx-folder-badge {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   padding: 1px 6px;
   border-radius: 2px;
@@ -481,7 +481,7 @@ export default { name: 'MailBox' }
 .mbx-hdr-dot { /* spacer */ }
 
 .mbx-hdr-cell {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.14em;
   color: #bbb;
@@ -549,7 +549,7 @@ export default { name: 'MailBox' }
 
 /* Colonne sujet */
 .mbx-row-subject {
-  font-size: 11px;
+  font-size: 13px;
   color: #666;
   white-space: nowrap;
   overflow: hidden;
@@ -564,7 +564,7 @@ export default { name: 'MailBox' }
 }
 
 .mbx-prio-badge {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
   padding: 2px 8px;
@@ -579,7 +579,7 @@ export default { name: 'MailBox' }
 /* Vide */
 .mbx-list-empty {
   padding: 18px 14px;
-  font-size: 11px;
+  font-size: 13px;
   color: #ccc;
   text-align: center;
 }
@@ -606,7 +606,7 @@ export default { name: 'MailBox' }
 
 .mbx-reader-subject {
   font-family: "Fira Sans", sans-serif;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 800;
   color: #000b23;
   letter-spacing: 0.02em;
@@ -616,7 +616,7 @@ export default { name: 'MailBox' }
 
 .mbx-reader-date {
   font-family: "Fira Code", monospace;
-  font-size: 10px;
+  font-size: 12px;
   color: #bbb;
   white-space: nowrap;
   flex-shrink: 0;
@@ -642,7 +642,7 @@ export default { name: 'MailBox' }
   align-items: center;
   justify-content: center;
   font-family: "Fira Code", monospace;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.92);
   letter-spacing: 0.04em;
@@ -662,7 +662,7 @@ export default { name: 'MailBox' }
 
 .mbx-from-addr {
   font-weight: 400;
-  font-size: 11px;
+  font-size: 13px;
   color: #999;
 }
 
@@ -674,7 +674,7 @@ export default { name: 'MailBox' }
 .mbx-from-code {
   font-family: "Fira Code", monospace;
   color: #00a8a8;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 /* Corps */
@@ -710,7 +710,7 @@ export default { name: 'MailBox' }
 }
 
 .mbx-tech-log__label {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.16em;
   color: #c0392b;
@@ -745,7 +745,7 @@ export default { name: 'MailBox' }
   padding: 0 14px;
   border-radius: 3px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.1em;
   cursor: pointer;

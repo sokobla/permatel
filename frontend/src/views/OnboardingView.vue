@@ -153,22 +153,22 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   background: #000b23;
-  padding: 10px 18px;
+  padding: 15px 27px;
   border-radius: 8px;
 }
 .ai-logo {
   display: block;
-  height: 33px;
+  height: 50px;
   width: auto;
 }
 .ai-title {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 800;
   color: #000b23;
   margin: 0 0 4px;
 }
 .ai-sub {
-  font-size: 13px;
+  font-size: 15px;
   color: #6b7280;
   margin: 0 0 18px;
 }
@@ -180,7 +180,7 @@ onMounted(async () => {
   text-align: center;
   padding: 16px 0;
   color: #374151;
-  font-size: 13px;
+  font-size: 15px;
 }
 .ai-link {
   color: #00a8a8;

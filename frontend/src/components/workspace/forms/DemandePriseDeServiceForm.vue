@@ -195,7 +195,7 @@ async function onEnd() {
 .pds-root { display: flex; flex-direction: column; background: #fff; }
 .pds-hdr { padding: 14px 18px 10px; border-bottom: 1px solid rgba(0,0,0,0.06); }
 .pds-ctx {
-  font-family: "Fira Code", monospace; font-size: 9px; font-weight: 600; letter-spacing: 0.1em;
+  font-family: "Fira Code", monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.1em;
   color: #bbb; margin: 0 0 8px; display: flex; align-items: center; gap: 6px;
 }
 .pds-ctx__sep { color: #ddd; }
@@ -212,10 +212,10 @@ async function onEnd() {
   background: rgba(231,76,60,0.08); border-radius: 4px; font-size: 11.5px; color: #e74c3c;
 }
 
-.pds-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+.pds-body { flex: 1; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
 .form-group { display: flex; flex-direction: column; gap: 5px; }
 .form-label {
-  font-family: "Fira Code", monospace; font-size: 9px; font-weight: 700; letter-spacing: 0.1em;
+  font-family: "Fira Code", monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
   color: #999; text-transform: uppercase;
 }
 .pds-required { color: #e74c3c; }
@@ -225,21 +225,21 @@ async function onEnd() {
   display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px;
   background: rgba(0,168,168,0.06); border: 1px solid rgba(0,168,168,0.2); border-radius: 4px;
 }
-.pds-agent-name { font-size: 13px; font-weight: 600; color: #000b23; }
+.pds-agent-name { font-size: 15px; font-weight: 600; color: #000b23; }
 .pds-agent-badge {
-  font-family: "Fira Code", monospace; font-size: 8px; font-weight: 700; letter-spacing: 0.08em;
+  font-family: "Fira Code", monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
   color: #00a8a8; background: rgba(0,168,168,0.12); padding: 2px 6px; border-radius: 3px; margin-left: auto;
 }
 
-.pds-hint { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #9aa0aa; margin: 0; }
+.pds-hint { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #9aa0aa; margin: 0; }
 
 .pds-footer {
   display: flex; align-items: center; justify-content: flex-end; gap: 8px;
-  padding: 12px 18px; border-top: 1px solid rgba(0,0,0,0.06);
+  padding: 12px 18px; border-top: 1px solid rgba(0,0,0,0.06); flex-shrink: 0;
 }
 .pds-footer button {
   display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 14px; border-radius: 4px;
-  font-family: "Fira Sans", sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; cursor: pointer;
+  font-family: "Fira Sans", sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; cursor: pointer;
   transition: all .15s; border: 1px solid transparent;
 }
 .pds-footer button:disabled { opacity: 0.45; cursor: not-allowed; }

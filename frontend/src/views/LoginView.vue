@@ -282,7 +282,7 @@ const handleLogin = async () => {
 
 .banner-kicker {
   font-family: "Fira Code", monospace;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.22em;
   color: #00a8a8;
@@ -302,7 +302,7 @@ const handleLogin = async () => {
 
 .banner-desc {
   font-family: "Fira Sans", sans-serif;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 400;
   line-height: 1.7;
   color: rgba(255, 255, 255, 0.6);
@@ -323,7 +323,7 @@ const handleLogin = async () => {
   align-items: center;
   gap: 10px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.72);
 }

@@ -311,6 +311,11 @@ const props = defineProps({
   contactId:  { type: Number, default: null },
   contactNom: { type: String, default: null },
   clientId:   { type: Number, default: null },
+  // Demande à ouvrir automatiquement dans le tiroir de détail au montage
+  // (ex. clic depuis "Demandes en cours" côté WorkspaceView) — voir le
+  // watch ci-dessous pour le cas où le contact était déjà sélectionné
+  // (pas de remontage via :key, donc pas de nouvel appel à ref()).
+  initialDetailDemande: { type: Object, default: null },
 });
 
 const emit = defineEmits(["refresh"]);
@@ -349,8 +354,12 @@ const deletingId    = ref(null);
 const confirmDeleteId = ref(null);
 const actionError   = ref(null);
 
-const detailDemande  = ref(null);
+const detailDemande  = ref(props.initialDetailDemande);
 const pecingId       = ref(null);
+
+watch(() => props.initialDetailDemande, (d) => {
+  if (d) detailDemande.value = d;
+});
 
 const suiviOpenId    = ref(null);
 const suiviForm      = reactive({ type_interaction: "note", contenu: "" });
@@ -526,7 +535,7 @@ export default { name: "DemandesListPanel" };
 
 .dlp-title {
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.14em;
   color: #000b23;
@@ -535,7 +544,7 @@ export default { name: "DemandesListPanel" };
 
 .dlp-count {
   font-family: "Fira Code", monospace;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: #fff;
   background: #00a8a8;
@@ -561,7 +570,7 @@ export default { name: "DemandesListPanel" };
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 3px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   color: #444;
   background: #fafafa;
   cursor: pointer;
@@ -595,7 +604,7 @@ export default { name: "DemandesListPanel" };
   background: rgba(231, 76, 60, 0.06);
   border-bottom: 1px solid rgba(231, 76, 60, 0.15);
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   color: #c0392b;
   flex-shrink: 0;
 }
@@ -612,7 +621,7 @@ export default { name: "DemandesListPanel" };
 
 .dlp-empty__text {
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: #bbb;
   margin: 0;
@@ -621,7 +630,7 @@ export default { name: "DemandesListPanel" };
 
 .dlp-empty__sub {
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   color: #ccc;
   margin: 0;
   text-align: center;
@@ -699,14 +708,14 @@ export default { name: "DemandesListPanel" };
 
 .dlp-ticket {
   font-family: "Fira Code", monospace;
-  font-size: 9px;
+  font-size: 11px;
   color: #aaa;
   letter-spacing: 0.06em;
 }
 
 .dlp-titre {
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   color: #000b23;
   white-space: nowrap;
@@ -718,7 +727,7 @@ export default { name: "DemandesListPanel" };
 
 .dlp-prio {
   font-family: "Fira Code", monospace;
-  font-size: 12px;
+  font-size: 14px;
   flex-shrink: 0;
 }
 
@@ -731,7 +740,7 @@ export default { name: "DemandesListPanel" };
 
 .dlp-statut {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
   padding: 2px 7px;
@@ -814,7 +823,7 @@ export default { name: "DemandesListPanel" };
   align-items: center;
   gap: 4px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   color: #333;
   white-space: nowrap;
@@ -830,7 +839,7 @@ export default { name: "DemandesListPanel" };
 
 .dlp-detail-desc {
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   color: #555;
   line-height: 1.5;
   background: rgba(0, 0, 0, 0.02);
@@ -855,7 +864,7 @@ export default { name: "DemandesListPanel" };
 
 .dlp-detail-lbl {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #aaa;
@@ -869,7 +878,7 @@ export default { name: "DemandesListPanel" };
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 3px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: #333;
   background: #fff;
@@ -887,7 +896,7 @@ export default { name: "DemandesListPanel" };
 
 .dlp-confirm-txt {
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: #c0392b;
 }
@@ -973,7 +982,7 @@ export default { name: "DemandesListPanel" };
 
 .dlp-action-error {
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   color: #c0392b;
   margin: 0;
 }
@@ -993,7 +1002,7 @@ export default { name: "DemandesListPanel" };
   align-items: center;
   gap: 5px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.14em;
   color: #00a8a8;
@@ -1019,7 +1028,7 @@ export default { name: "DemandesListPanel" };
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 3px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   color: #333;
   background: #fff;
   resize: vertical;

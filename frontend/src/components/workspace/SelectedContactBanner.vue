@@ -291,7 +291,7 @@ export default { name: "SelectedContactBanner" };
   align-items: center;
   justify-content: center;
   font-family: "Fira Code", monospace;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.92);
   user-select: none;
@@ -318,7 +318,7 @@ export default { name: "SelectedContactBanner" };
 
 .scb-name {
   font-family: "Fira Sans", sans-serif;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 800;
   letter-spacing: 0.1em;
   color: #000b23;
@@ -348,7 +348,7 @@ export default { name: "SelectedContactBanner" };
 
 .scb-meta__item--mono {
   font-family: "Fira Code", monospace;
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.06em;
 }
 
@@ -379,7 +379,7 @@ export default { name: "SelectedContactBanner" };
   padding: 0 12px;
   border-radius: 3px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.1em;
   cursor: pointer;

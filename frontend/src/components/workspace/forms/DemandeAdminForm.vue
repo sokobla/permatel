@@ -242,7 +242,7 @@ export default { name: "DemandeAdminForm" };
   align-items: center;
   gap: 5px;
   font-family: "Fira Code", monospace;
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   color: #ccc;
   text-transform: uppercase;
@@ -280,7 +280,7 @@ export default { name: "DemandeAdminForm" };
 
 .ad-title {
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.14em;
   color: #000b23;
@@ -306,7 +306,7 @@ export default { name: "DemandeAdminForm" };
 
 .ad-meta-lbl {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #bbb;
@@ -319,7 +319,7 @@ export default { name: "DemandeAdminForm" };
   border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 3px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.07em;
   color: #333;
@@ -338,7 +338,7 @@ export default { name: "DemandeAdminForm" };
 
 .ad-titre-lbl {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #bbb;
@@ -355,7 +355,7 @@ export default { name: "DemandeAdminForm" };
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 0;
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   color: #000b23;
   background: transparent;
@@ -363,7 +363,7 @@ export default { name: "DemandeAdminForm" };
   transition: border-bottom-color 0.15s;
 }
 .ad-titre-input:focus { border-bottom-color: #8e44ad; }
-.ad-titre-input::placeholder { color: #d0d0d0; font-size: 11px; font-weight: 400; }
+.ad-titre-input::placeholder { color: #d0d0d0; font-size: 13px; font-weight: 400; }
 
 /* ══ CORPS ════════════════════════════════════════════════════════ */
 

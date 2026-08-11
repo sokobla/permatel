@@ -333,7 +333,7 @@ export default { name: "ClientCombobox" };
   border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 3px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   color: #000b23;
   background: #fff;
   outline: none;
@@ -412,7 +412,7 @@ export default { name: "ClientCombobox" };
 
 .ccb-item__name {
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   color: #000b23;
 }
@@ -442,7 +442,7 @@ export default { name: "ClientCombobox" };
   border-radius: 3px;
   background: rgba(39, 174, 96, 0.05);
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: #27ae60;
   cursor: pointer;
@@ -461,13 +461,13 @@ export default { name: "ClientCombobox" };
   border: 1px solid rgba(39, 174, 96, 0.2);
   border-radius: 3px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: #1a7a3c;
 }
 .ccb-selected-badge__code {
   font-family: "Fira Code", monospace;
-  font-size: 9px;
+  font-size: 11px;
   color: #27ae60;
   opacity: 0.7;
 }
@@ -479,7 +479,7 @@ export default { name: "ClientCombobox" };
   gap: 6px;
   padding: 6px 0 10px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #27ae60;
@@ -522,7 +522,7 @@ export default { name: "ClientCombobox" };
   border-radius: 3px;
   background: #27ae60;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: #fff;

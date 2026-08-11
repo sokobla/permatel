@@ -913,7 +913,7 @@ watch(
   padding: 9px 12px;
   text-align: left;
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #bbb;
@@ -956,7 +956,7 @@ watch(
 }
 
 .sv-group-row__name {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: #000b23;
   letter-spacing: 0.01em;
@@ -972,7 +972,7 @@ watch(
   border-radius: 9px;
   background: rgba(0, 0, 0, 0.07);
   font-family: "Fira Code", monospace;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: #555;
 }
@@ -983,7 +983,7 @@ watch(
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: #00a8a8;
   background: none;
@@ -1011,13 +1011,13 @@ watch(
 .sv-td--site { max-width: 0; }
 .sv-td--date {
   font-family: "Fira Code", monospace;
-  font-size: 11px;
+  font-size: 13px;
   color: #333;
   white-space: nowrap;
 }
 .sv-date-sub { font-family: "Fira Sans", sans-serif; font-size: 10.5px; color: #9aa0aa; margin-top: 2px; }
-.sv-cat-sub { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; margin-top: 4px; color: #9aa0aa; }
-.sv-muted { color: #9aa0aa; font-size: 11px; }
+.sv-cat-sub { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; margin-top: 4px; color: #9aa0aa; }
+.sv-muted { color: #9aa0aa; font-size: 13px; }
 
 /* Cellule "Site" (icône + titre + client/ville + statut) */
 .sv-name-cell { display: flex; align-items: flex-start; gap: 10px; }
@@ -1027,7 +1027,7 @@ watch(
 }
 .sv-name-text-block { min-width: 0; }
 .sv-name-sub {
-  display: flex; align-items: center; gap: 4px; font-size: 11px; color: #9aa0aa;
+  display: flex; align-items: center; gap: 4px; font-size: 13px; color: #9aa0aa;
   margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .sv-name-status { margin-top: 5px; }
@@ -1052,7 +1052,7 @@ watch(
   border-radius: 2px;
   background: rgba(0, 11, 35, 0.06);
   font-family: "Fira Code", monospace;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   color: #555;
   letter-spacing: 0.03em;
@@ -1067,7 +1067,7 @@ watch(
   height: 20px;
   padding: 0 8px;
   border-radius: 10px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -1086,7 +1086,7 @@ watch(
   border-radius: 50%;
   background: rgba(0, 11, 35, 0.08);
   font-family: "Fira Code", monospace;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
   color: #000b23;
   flex-shrink: 0;

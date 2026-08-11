@@ -755,7 +755,7 @@ onMounted(fetchTenants);
 }
 
 .tn-title {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: 0.06em;
   color: var(--color-authority);
@@ -763,7 +763,7 @@ onMounted(fetchTenants);
 }
 
 .tn-count {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--color-muted);
 }
 
@@ -794,7 +794,7 @@ onMounted(fetchTenants);
   border-radius: 4px;
   background: var(--color-surface);
   font-family: "Fira Sans", sans-serif;
-  font-size: 13px;
+  font-size: 15px;
   color: var(--color-text);
   outline: none;
 }
@@ -809,7 +809,7 @@ onMounted(fetchTenants);
   border: 1px solid transparent;
   border-radius: 4px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -851,7 +851,7 @@ onMounted(fetchTenants);
   gap: 12px;
   padding: 10px 14px;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: 15px;
   margin-bottom: 12px;
 }
 .tn-banner--error {
@@ -867,7 +867,7 @@ onMounted(fetchTenants);
   border: none;
   color: #a93226;
   font-weight: 700;
-  font-size: 12px;
+  font-size: 14px;
   letter-spacing: 0.06em;
   cursor: pointer;
 }
@@ -888,7 +888,7 @@ onMounted(fetchTenants);
 .tn-th {
   text-align: left;
   padding: 12px 16px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -905,7 +905,7 @@ onMounted(fetchTenants);
 }
 .tn-th__arrow {
   margin-left: 6px;
-  font-size: 9px;
+  font-size: 11px;
   opacity: 0.7;
 }
 
@@ -918,7 +918,7 @@ onMounted(fetchTenants);
 
 .tn-td {
   padding: 12px 16px;
-  font-size: 13px;
+  font-size: 15px;
   color: var(--color-text);
   border-bottom: 1px solid var(--color-border);
   vertical-align: middle;
@@ -944,7 +944,7 @@ onMounted(fetchTenants);
   gap: 6px;
   padding: 3px 10px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.06em;
 }
@@ -1013,7 +1013,7 @@ onMounted(fetchTenants);
   gap: 9px;
   margin-top: 2px;
   font-family: "Fira Code", monospace;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--color-muted);
 }
 .tn-logo {
@@ -1030,7 +1030,7 @@ onMounted(fetchTenants);
   align-items: center;
   justify-content: center;
   font-family: "Fira Code", monospace;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--color-muted);
 }
@@ -1060,7 +1060,7 @@ onMounted(fetchTenants);
 }
 .tn-logo-preview__ph {
   font-family: "Fira Code", monospace;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--color-muted);
 }
@@ -1072,7 +1072,7 @@ onMounted(fetchTenants);
 .tn-btn--sm {
   height: 30px;
   padding: 0 12px;
-  font-size: 11px;
+  font-size: 13px;
 }
 .tn-file-hidden {
   display: none;
@@ -1098,13 +1098,13 @@ onMounted(fetchTenants);
   padding: 48px 16px;
 }
 .tn-empty__title {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   color: var(--color-authority);
   margin: 0 0 4px;
 }
 .tn-empty__sub {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--color-muted);
   margin: 0;
 }
@@ -1137,7 +1137,7 @@ onMounted(fetchTenants);
   border-bottom: 1px solid var(--color-border);
 }
 .tn-drawer__title {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
   letter-spacing: 0.06em;
   color: var(--color-authority);
@@ -1168,7 +1168,7 @@ onMounted(fetchTenants);
   gap: 6px;
 }
 .tn-label {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1181,7 +1181,7 @@ onMounted(fetchTenants);
   border-radius: 4px;
   background: var(--color-surface);
   font-family: "Fira Sans", sans-serif;
-  font-size: 13px;
+  font-size: 15px;
   color: var(--color-text);
   outline: none;
   transition: border-color 0.15s;
@@ -1193,12 +1193,12 @@ onMounted(fetchTenants);
   border-color: var(--color-danger);
 }
 .tn-hint {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--color-muted);
   margin: 0;
 }
 .tn-field-error {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--color-danger);
   margin: 0;
 }
@@ -1238,7 +1238,7 @@ onMounted(fetchTenants);
   transform: translateX(20px);
 }
 .tn-toggle__text {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.06em;
   color: var(--color-text);
@@ -1275,7 +1275,7 @@ onMounted(fetchTenants);
   border-radius: 8px 8px 0 0;
 }
 .tn-modal__title {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: 0.06em;
   margin: 0;
@@ -1287,7 +1287,7 @@ onMounted(fetchTenants);
   gap: 14px;
 }
 .tn-modal__warn {
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.5;
   color: var(--color-text);
   margin: 0;
@@ -1296,14 +1296,14 @@ onMounted(fetchTenants);
   margin: 0;
   padding-left: 18px;
   columns: 2;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--color-muted);
 }
 .tn-cascade li {
   margin: 2px 0;
 }
 .tn-modal__note {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.5;
   color: #a93226;
   background: rgba(231, 76, 60, 0.08);

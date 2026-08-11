@@ -268,7 +268,7 @@ onUnmounted(() => {
   border-radius: 6px;
   background: #00a8a8;
   color: #fff;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -276,14 +276,14 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 .ccb-name {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: #000b23;
   white-space: nowrap;
 }
 .ccb-num {
   font-family: "Fira Code", monospace;
-  font-size: 11px;
+  font-size: 13px;
   color: #9aa0aa;
   white-space: nowrap;
 }
@@ -354,7 +354,7 @@ onUnmounted(() => {
   background: #00a8a8;
   color: #fff;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 15px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -390,7 +390,7 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: #22c55e;
   background: rgba(34, 197, 94, 0.12);
@@ -419,7 +419,7 @@ onUnmounted(() => {
   border-right: none;
 }
 .ccb-card__stat-label {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   color: #9aa0aa;
@@ -474,7 +474,7 @@ onUnmounted(() => {
   background: transparent;
   color: #000b23;
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }

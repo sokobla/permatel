@@ -180,7 +180,7 @@ async function confirm() {
 .mcv-card { font-family: "Fira Sans", sans-serif; }
 .mcv-title {
   display: flex; align-items: center; justify-content: space-between;
-  font-size: 15px; font-weight: 700; color: #000b23;
+  font-size: 17px; font-weight: 700; color: #000b23;
 }
 .mcv-close { border: none; background: none; cursor: pointer; color: #9aa0aa; display: flex; }
 .mcv-body { padding: 18px 20px; }
@@ -194,7 +194,7 @@ async function confirm() {
 }
 .mcv-mode--on { border-color: #00a8a8; color: #007a7a; background: rgba(0, 168, 168, 0.06); }
 .mcv-section { margin-top: 4px; }
-.mcv-label { display: block; font-size: 12px; font-weight: 600; color: #15223a; margin: 8px 0 4px; }
+.mcv-label { display: block; font-size: 14px; font-weight: 600; color: #15223a; margin: 8px 0 4px; }
 .mcv-req { color: #e74c3c; }
 .mcv-actions { padding: 12px 16px; }
 </style>

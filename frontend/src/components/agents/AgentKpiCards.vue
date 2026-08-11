@@ -75,9 +75,9 @@ const scoreColor = computed(() => {
 .akpi-card--score { background: #f7fdfd; }
 .akpi-card--incident { background: #fdf6f6; }
 .akpi-card__top { display: flex; align-items: center; gap: 4px; }
-.akpi-card__label { font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em; }
-.akpi-card__value { font-size: 24px; font-weight: 800; color: #000b23; line-height: 1.2; }
-.akpi-card__value small { font-size: 12px; font-weight: 600; color: #9aa0aa; }
+.akpi-card__label { font-size: 13px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em; }
+.akpi-card__value { font-size: 26px; font-weight: 800; color: #000b23; line-height: 1.2; }
+.akpi-card__value small { font-size: 14px; font-weight: 600; color: #9aa0aa; }
 .akpi-card__value--red { color: #e74c3c; }
 .akpi-relation { font-size: 11.5px; color: #6b7280; margin: 8px 0 0; }
 .akpi-loading, .akpi-empty { display: flex; align-items: center; gap: 8px; color: #9aa0aa; font-size: 12.5px; padding: 8px 0; }

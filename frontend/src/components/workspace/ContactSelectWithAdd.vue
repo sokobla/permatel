@@ -309,7 +309,7 @@ export default { name: "ContactSelectWithAdd" };
   align-items: center;
   gap: 4px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   color: #888;
 }
 
@@ -320,7 +320,7 @@ export default { name: "ContactSelectWithAdd" };
   gap: 6px;
   padding: 6px 0 8px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #00a8a8;
@@ -359,7 +359,7 @@ export default { name: "ContactSelectWithAdd" };
   border-radius: 3px;
   background: #00a8a8;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: #fff;

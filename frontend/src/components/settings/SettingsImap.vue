@@ -188,12 +188,12 @@ onMounted(load);
 <style scoped>
 .imap-card { font-family: "Fira Sans", sans-serif; }
 .imap-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; }
-.imap-title { font-size: 15px; font-weight: 700; color: #000b23; margin: 0; }
+.imap-title { font-size: 17px; font-weight: 700; color: #000b23; margin: 0; }
 .imap-sub { font-size: 12.5px; color: #6b7280; margin: 2px 0 0; }
 .imap-body { padding: 18px 20px; }
-.imap-loading { display: flex; align-items: center; gap: 10px; color: #6b7280; font-size: 13px; padding: 18px 0; }
+.imap-loading { display: flex; align-items: center; gap: 10px; color: #6b7280; font-size: 15px; padding: 18px 0; }
 .imap-switch { margin-bottom: 10px; }
-.imap-label { display: block; font-size: 12px; font-weight: 600; color: #15223a; margin-bottom: 4px; }
+.imap-label { display: block; font-size: 14px; font-weight: 600; color: #15223a; margin-bottom: 4px; }
 .imap-req { color: #e74c3c; }
 .imap-note { font-size: 11.5px; color: #6b7280; margin: 14px 0 0; line-height: 1.5; }
 .imap-note code { font-family: "Fira Code", monospace; background: #f2f4f6; padding: 1px 5px; border-radius: 4px; }

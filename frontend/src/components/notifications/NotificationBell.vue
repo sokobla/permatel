@@ -121,7 +121,7 @@ onUnmounted(() => { if (timer) clearInterval(timer); });
 <style scoped>
 .nb-card { font-family: "Fira Sans", sans-serif; }
 .nb-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; }
-.nb-title { font-size: 13px; font-weight: 700; color: #000b23; }
+.nb-title { font-size: 15px; font-weight: 700; color: #000b23; }
 .nb-readall { background: none; border: none; color: #00a8a8; font-size: 11.5px; cursor: pointer; }
 .nb-state { padding: 24px; text-align: center; color: #9aa0aa; font-size: 12.5px; }
 .nb-list { list-style: none; margin: 0; padding: 0; max-height: 60vh; overflow-y: auto; }
@@ -130,7 +130,7 @@ onUnmounted(() => { if (timer) clearInterval(timer); });
 .nb-item--unread { background: #f0fafa; }
 .nb-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
 .nb-body { min-width: 0; }
-.nb-item-title { font-size: 13px; font-weight: 600; color: #000b23; }
-.nb-item-text { font-size: 12px; color: #4b5563; margin-top: 1px; }
+.nb-item-title { font-size: 15px; font-weight: 600; color: #000b23; }
+.nb-item-text { font-size: 14px; color: #4b5563; margin-top: 1px; }
 .nb-time { font-size: 10.5px; color: #9aa0aa; margin-top: 2px; }
 </style>

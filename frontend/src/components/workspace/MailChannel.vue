@@ -793,7 +793,7 @@ onMounted(() => {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background: #fff;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   color: #000b23;
   cursor: pointer;
@@ -879,7 +879,7 @@ onMounted(() => {
   border: none;
   border-radius: 6px;
   background: transparent;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: #6b7280;
   cursor: pointer;
@@ -898,7 +898,7 @@ onMounted(() => {
 }
 .mc-tab__count {
   font-family: "Fira Code", monospace;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: #00a8a8;
   background: rgba(0, 168, 168, 0.1);
@@ -954,14 +954,14 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   font-family: "Fira Sans", sans-serif;
 }
 .mc-avatar--lg {
   width: 42px;
   height: 42px;
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .mc-item__body {
@@ -978,7 +978,7 @@ onMounted(() => {
   gap: 8px;
 }
 .mc-item__name {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   color: #000b23;
   overflow: hidden;
@@ -1014,7 +1014,7 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   padding: 2px 7px;
   border-radius: 10px;
@@ -1086,7 +1086,7 @@ onMounted(() => {
   flex-direction: column;
 }
 .mc-read__name {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
   color: #000b23;
 }
@@ -1101,7 +1101,7 @@ onMounted(() => {
   gap: 4px;
 }
 .mc-read__date {
-  font-size: 11px;
+  font-size: 13px;
   color: #9aa0aa;
   font-family: "Fira Code", monospace;
 }
@@ -1112,7 +1112,7 @@ onMounted(() => {
   padding: 22px 24px;
 }
 .mc-read__subject {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: #000b23;
   margin: 0 0 14px;
@@ -1126,7 +1126,7 @@ onMounted(() => {
   margin: 0 0 12px;
 }
 .mc-read__body {
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.65;
   color: #374151;
   white-space: pre-wrap;
@@ -1164,7 +1164,7 @@ onMounted(() => {
   border-top: 1px solid #eef0f3;
 }
 .mc-attach__lbl {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: #6b7280;
 }
@@ -1213,7 +1213,7 @@ onMounted(() => {
   border: none;
   background: none;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: #00a8a8;
   padding: 0 4px;
@@ -1239,7 +1239,7 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: #15803d;
 }
@@ -1256,7 +1256,7 @@ onMounted(() => {
   justify-content: space-between;
   padding: 16px 24px;
   border-bottom: 1px solid #e5e7eb;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.04em;
   color: #000b23;
@@ -1281,7 +1281,7 @@ onMounted(() => {
 }
 .mc-field__lbl {
   width: 48px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: #6b7280;
   flex-shrink: 0;
@@ -1290,7 +1290,7 @@ onMounted(() => {
   flex: 1;
   border: none;
   outline: none;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   color: #000b23;
   font-family: "Fira Sans", sans-serif;
@@ -1303,7 +1303,7 @@ onMounted(() => {
   border: none;
   outline: none;
   resize: none;
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.6;
   color: #374151;
   font-family: "Fira Sans", sans-serif;
@@ -1325,7 +1325,7 @@ onMounted(() => {
 }
 .mc-nodata {
   padding: 8px 12px;
-  font-size: 12px;
+  font-size: 14px;
   color: #9aa0aa;
 }
 
@@ -1341,7 +1341,7 @@ onMounted(() => {
   text-align: center;
 }
 .mc-empty__title {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
   color: #000b23;
   margin: 6px 0 0;

@@ -222,7 +222,7 @@ onBeforeUnmount(() => {
 }
 
 .sidebar-profile__handle {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   color: #212529;
   white-space: nowrap;
@@ -231,7 +231,7 @@ onBeforeUnmount(() => {
 }
 
 .sidebar-profile__name {
-  font-size: 12px;
+  font-size: 14px;
   color: #6c757d;
   white-space: nowrap;
   overflow: hidden;
@@ -239,7 +239,7 @@ onBeforeUnmount(() => {
 }
 
 .sidebar-profile__role {
-  font-size: 10px;
+  font-size: 12px;
   color: #adb5bd;
   text-transform: uppercase;
   font-weight: 500;
@@ -303,7 +303,7 @@ onBeforeUnmount(() => {
   transition: all 0.2s ease;
   cursor: pointer;
   user-select: none;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
   letter-spacing: 0.3px;
 }
@@ -360,7 +360,7 @@ onBeforeUnmount(() => {
   padding: 12px;
   margin: 8px;
   border-top: 1px solid #e9ecef;
-  font-size: 11px;
+  font-size: 13px;
   color: #adb5bd;
   flex-shrink: 0;
   text-transform: uppercase;
@@ -415,7 +415,7 @@ onBeforeUnmount(() => {
   }
 
   .snav-item span {
-    font-size: 12px;
+    font-size: 14px;
   }
 }
 

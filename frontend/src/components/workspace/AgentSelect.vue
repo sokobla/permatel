@@ -157,7 +157,7 @@ export default { name: "AgentSelect" };
 
 .ags-input::placeholder {
   color: #bbb;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .ags-input--has-value::placeholder {
@@ -206,7 +206,7 @@ export default { name: "AgentSelect" };
   gap: 6px;
   padding: 10px 12px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   color: #aaa;
 }
 
@@ -236,7 +236,7 @@ export default { name: "AgentSelect" };
 
 .ags-item__mat {
   font-family: "Fira Code", monospace;
-  font-size: 10px;
+  font-size: 12px;
   color: #aaa;
   flex-shrink: 0;
 }

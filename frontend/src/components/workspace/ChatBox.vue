@@ -578,7 +578,7 @@ export default { name: 'ChatBox' }
   border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 3px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   color: #333;
   background: #fff;
   outline: none;
@@ -612,7 +612,7 @@ export default { name: 'ChatBox' }
 }
 
 .cbx-section-lbl {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.14em;
   color: #bbb;
@@ -659,14 +659,14 @@ export default { name: 'ChatBox' }
 }
 
 .cbx-ch-hash {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: #bbb;
   flex-shrink: 0;
   line-height: 1;
 }
 .cbx-ch-name {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
   color: #444;
   flex: 1;
@@ -675,7 +675,7 @@ export default { name: 'ChatBox' }
   text-overflow: ellipsis;
 }
 .cbx-ch-badge {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   background: #e74c3c;
   color: #fff;
@@ -714,7 +714,7 @@ export default { name: 'ChatBox' }
   align-items: center;
   justify-content: center;
   font-family: "Fira Code", monospace;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.9);
 }
@@ -732,7 +732,7 @@ export default { name: 'ChatBox' }
 .cbx-dm-dot--off { background: #ccc; }
 
 .cbx-dm-name {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
   color: #333;
   white-space: nowrap;
@@ -768,14 +768,14 @@ export default { name: 'ChatBox' }
 }
 
 .cbx-conv-hdr__hash {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 300;
   color: #bbb;
   line-height: 1;
 }
 
 .cbx-conv-hdr__name {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 800;
   letter-spacing: 0.06em;
   color: #000b23;
@@ -834,7 +834,7 @@ export default { name: 'ChatBox' }
   align-items: center;
   justify-content: center;
   font-family: "Fira Code", monospace;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.9);
 }
@@ -859,7 +859,7 @@ export default { name: 'ChatBox' }
 }
 
 .cbx-msg-author {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   color: #000b23;
 }
@@ -904,13 +904,13 @@ export default { name: 'ChatBox' }
   gap: 2px;
 }
 .cbx-msg-file__name {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   color: #222;
 }
 .cbx-msg-file__type {
   font-family: "Fira Code", monospace;
-  font-size: 9px;
+  font-size: 11px;
   color: #aaa;
   text-transform: uppercase;
 }
@@ -935,7 +935,7 @@ export default { name: 'ChatBox' }
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 10px;
   background: #fff;
-  font-size: 10px;
+  font-size: 12px;
   color: #555;
   cursor: pointer;
   transition: border-color 0.12s, background 0.12s;
@@ -980,7 +980,7 @@ export default { name: 'ChatBox' }
   border-radius: 3px;
   cursor: pointer;
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   color: #888;
   transition: background 0.1s, color 0.1s;
 }
@@ -1027,7 +1027,7 @@ export default { name: 'ChatBox' }
   border-radius: 3px;
   background: #00a8a8;
   font-family: "Fira Sans", sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.1em;
   color: #fff;
@@ -1063,7 +1063,7 @@ export default { name: 'ChatBox' }
 }
 
 .cbx-profile-title {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.14em;
   color: #000b23;
@@ -1111,13 +1111,13 @@ export default { name: 'ChatBox' }
   align-items: center;
   justify-content: center;
   font-family: "Fira Code", monospace;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.9);
 }
 
 .cbx-profile-name {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 800;
   letter-spacing: 0.05em;
   color: #000b23;
@@ -1192,7 +1192,7 @@ export default { name: 'ChatBox' }
 }
 
 .cbx-profile-section-lbl {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.1em;
   color: #000b23;
@@ -1213,7 +1213,7 @@ export default { name: 'ChatBox' }
 }
 
 .cbx-info-lbl {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: #bbb;

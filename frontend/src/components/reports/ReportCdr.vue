@@ -549,7 +549,7 @@ async function exportAllFilteredRecordings() {
 }
 .cdr-subtab {
   padding: 8px 16px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: #6b7280;
@@ -564,13 +564,13 @@ async function exportAllFilteredRecordings() {
 .cdr-filters { padding: 14px 16px; }
 .cdr-filters__row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .cdr-field { display: flex; flex-direction: column; gap: 3px; }
-.cdr-field label { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; color: #9aa0aa; }
+.cdr-field label { font-size: 12px; font-weight: 700; letter-spacing: 0.05em; color: #9aa0aa; }
 .cdr-date {
-  font-family: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid #c7c9d1;
+  font-family: inherit; font-size: 15px; padding: 6px 8px; border: 1px solid #c7c9d1;
   border-radius: 4px; color: #1a1a2e; height: 40px;
 }
 
-.cdr-dir { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #6b7280; }
+.cdr-dir { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; color: #6b7280; }
 .cdr-empty { text-align: center; padding: 28px 16px; color: #9aa0aa; font-size: 12.5px; }
 
 .cdr-bulkbar {

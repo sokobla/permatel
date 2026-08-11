@@ -235,6 +235,11 @@ class DemandeCommande(Demande):
     
     type_commande = Column(type_commande_enum, nullable=True)
     quantite = Column(Integer, nullable=True)
+    # Nombre d'heures demandées — alternative ou complément à `quantite`
+    # (nombre d'agents) : décision produit du 02/08, les deux champs sont
+    # facultatifs indépendamment l'un de l'autre au niveau de la colonne,
+    # la règle "au moins un des deux" est appliquée côté route (création).
+    nombre_heures = Column(Integer, nullable=True)
     budget_estime = Column(String(50), nullable=True)
     fournisseur_suggere = Column(String(200), nullable=True)
     date_livraison_souhaitee = Column(DateTime, nullable=True)

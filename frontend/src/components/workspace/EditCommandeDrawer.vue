@@ -120,6 +120,10 @@
               <input v-model.number="form.quantite" type="number" min="1" class="form-input" />
             </div>
             <div class="form-group">
+              <label class="form-label">NOMBRE D'HEURES</label>
+              <input v-model.number="form.nombre_heures" type="number" min="1" class="form-input" />
+            </div>
+            <div class="form-group">
               <label class="form-label">BUDGET ESTIMÉ (€)</label>
               <input v-model.number="form.budget_estime" type="number" min="0" step="10" class="form-input" />
             </div>
@@ -176,6 +180,7 @@ const form = reactive({
   type_commande:            props.demande.type_commande             ?? "",
   description:              props.demande.description               ?? "",
   quantite:                 props.demande.quantite                  ?? null,
+  nombre_heures:            props.demande.nombre_heures             ?? null,
   budget_estime:            props.demande.budget_estime             ?? null,
   fournisseur_suggere:      props.demande.fournisseur_suggere       ?? "",
   date_livraison_souhaitee: props.demande.date_livraison_souhaitee
@@ -238,7 +243,7 @@ async function save() {
   align-items: center;
   gap: 5px;
   font-family: "Fira Code", monospace;
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   color: #ccc;
   text-transform: uppercase;
@@ -264,7 +269,7 @@ async function save() {
 
 .ecd-title {
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.18em;
   color: #000b23;
@@ -297,7 +302,7 @@ async function save() {
 
 .ecd-titre-lbl {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #ccc;
@@ -313,7 +318,7 @@ async function save() {
   border: none;
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: #000b23;
   background: transparent;
@@ -329,7 +334,7 @@ async function save() {
   padding: 6px 16px;
   background: rgba(231, 76, 60, 0.07);
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   color: #e74c3c;
   flex-shrink: 0;
 }
@@ -358,7 +363,7 @@ async function save() {
 .ecd-context__item { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .ecd-context__lbl {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: #9aa0aa;
@@ -369,7 +374,7 @@ async function save() {
   align-items: center;
   gap: 5px;
   font-family: "Fira Sans", sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: #15223a;
   overflow: hidden;
@@ -397,7 +402,7 @@ async function save() {
 
 .ecd-sec-lbl {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.14em;
   color: #aaa;
@@ -419,7 +424,7 @@ async function save() {
 
 .form-label {
   font-family: "Fira Sans", sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.1em;
   color: #bbb;
@@ -466,7 +471,7 @@ async function save() {
   border-radius: 3px;
   background: #fff;
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.06em;
   color: #555;
@@ -484,7 +489,7 @@ async function save() {
   border-radius: 3px;
   background: #000b23;
   font-family: "Fira Sans", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: #fff;
