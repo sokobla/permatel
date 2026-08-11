@@ -5,6 +5,18 @@
   <!-- ╚══════════════════════════════════════════════════════════════════════╝ -->
   <div class="workspace-root">
 
+    <!-- Panneau de détail d'une demande cliquée depuis "Demandes en cours" —
+         volontairement indépendant de selectedContact/DemandesListPanel :
+         doit s'ouvrir immédiatement au clic, sans exiger qu'un contact soit
+         par ailleurs sélectionné via la recherche. -->
+    <DemandeDetailDrawer
+      v-if="openDemande"
+      :demande="openDemande"
+      :prefilled-contact-id="openDemande.contact_id ?? null"
+      :prefilled-contact-nom="openDemande.contact_nom ?? null"
+      @close="openDemande = null"
+    />
+
     <!-- ══════════════════════════════════════════════════════════════════════
          COLONNE GAUCHE — Recherche contact + Historique
          ══════════════════════════════════════════════════════════════════════ -->
@@ -85,10 +97,8 @@
               <DemandesListPanel
                 :contact-id="selectedContact?.id ?? null"
                 :contact-nom="selectedContact?.fullName ?? null"
-                :initial-detail-demande="pendingDetailDemande"
                 :key="`dlp-${selectedContact?.id}-${demandeListKey}`"
                 @refresh="demandeListKey++"
-                @detail-opened="pendingDetailDemande = null"
               />
             </div>
           </div>
@@ -117,6 +127,7 @@ import DemandeAdminForm           from '@/components/workspace/forms/DemandeAdmi
 import DemandePlanningForm        from '@/components/workspace/forms/DemandePlanningForm.vue'
 import DemandePriseDeServiceForm  from '@/components/workspace/forms/DemandePriseDeServiceForm.vue'
 import DemandesListPanel          from '@/components/workspace/DemandesListPanel.vue'
+import DemandeDetailDrawer        from '@/components/workspace/DemandeDetailDrawer.vue'
 import ChatBox                    from '@/components/workspace/ChatBox.vue'
 import MailChannel               from '@/components/workspace/MailChannel.vue'
 import '@/assets/styles/crud-view.css'
@@ -196,10 +207,10 @@ const isSearching          = ref(false)
 const searchError          = ref('')
 const hasSearched          = ref(false)
 const selectedContact      = ref(null)
-// Demande cliquée dans "Demandes en cours" (colonne gauche), en attente
-// d'ouverture dans le tiroir de détail de DemandesListPanel une fois le
-// contact rattaché sélectionné — voir onSelectDemande().
-const pendingDetailDemande = ref(null)
+// Demande actuellement ouverte dans le tiroir de détail (rendu au niveau
+// racine ci-dessus) — volontairement indépendante de selectedContact, voir
+// onSelectDemande().
+const openDemande          = ref(null)
 
 const activeDemandeType    = ref(null)
 const demandeListKey       = ref(0)
@@ -276,12 +287,13 @@ function onDemandeSubmitted(demande) {
   console.log('[Workspace] demande créée →', demande.numero_ticket)
 }
 
-// Sélection d'une demande dans la liste de gauche → charge son contact et
-// ouvre le tiroir de détail de cette demande (DemandesListPanel, via la
-// prop initial-detail-demande) une fois le contact rattaché sélectionné.
+// Sélection d'une demande dans la liste de gauche → ouvre immédiatement son
+// tiroir de détail (indépendant de la sélection de contact) et, en plus,
+// charge le contact rattaché s'il y en a un (effet secondaire cosmétique,
+// pas une condition pour l'ouverture du tiroir).
 function onSelectDemande(d) {
   activeDemandeType.value = null
-  pendingDetailDemande.value = d
+  openDemande.value = d
   if (d.contact_id) {
     selectedContact.value = {
       id: d.contact_id,
