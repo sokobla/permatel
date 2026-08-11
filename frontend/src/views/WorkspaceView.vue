@@ -88,6 +88,7 @@
                 :initial-detail-demande="pendingDetailDemande"
                 :key="`dlp-${selectedContact?.id}-${demandeListKey}`"
                 @refresh="demandeListKey++"
+                @detail-opened="pendingDetailDemande = null"
               />
             </div>
           </div>

@@ -318,7 +318,7 @@ const props = defineProps({
   initialDetailDemande: { type: Object, default: null },
 });
 
-const emit = defineEmits(["refresh"]);
+const emit = defineEmits(["refresh", "detail-opened"]);
 
 const TYPE_LABELS = {
   anomalie: "ANO",
@@ -357,8 +357,20 @@ const actionError   = ref(null);
 const detailDemande  = ref(props.initialDetailDemande);
 const pecingId       = ref(null);
 
+// `initialDetailDemande` est un signal à usage unique : on accuse
+// systématiquement réception une fois consommé (montage ou watch), pour
+// que le parent le remette à null et qu'aucune valeur périmée ne puisse
+// fuiter vers un remontage ultérieur (ex. changement de contact via la
+// recherche) — voir WorkspaceView.vue::onContactSelected.
+onMounted(() => {
+  if (props.initialDetailDemande) emit("detail-opened");
+});
+
 watch(() => props.initialDetailDemande, (d) => {
-  if (d) detailDemande.value = d;
+  if (d) {
+    detailDemande.value = d;
+    emit("detail-opened");
+  }
 });
 
 const suiviOpenId    = ref(null);
