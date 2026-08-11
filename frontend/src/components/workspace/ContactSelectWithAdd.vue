@@ -150,6 +150,7 @@
 <script setup>
 import { ref, watch } from "vue";
 import { getContactsForClient, createContact } from "@/services/contactService";
+import { getClient } from "@/services/clientService";
 
 const props = defineProps({
   modelValue: { type: Number, default: null },
@@ -210,7 +211,7 @@ function onSelectChange() {
   if (found) emit("contact-selected", found);
 }
 
-function openAddMode() {
+async function openAddMode() {
   newContact.value = {
     prenom: "",
     nom: "",
@@ -222,6 +223,25 @@ function openAddMode() {
   };
   addError.value = "";
   addMode.value = true;
+
+  // Pré-remplit adresse/ville depuis le client — un contact partage
+  // généralement les locaux de son client, et ce sont de toute façon des
+  // champs obligatoires du formulaire (voir REQUIRED_FIELDS) : autant
+  // éviter à l'agent de les ressaisir à l'identique dans le cas courant.
+  // Reste éditable, ce n'est qu'une valeur par défaut.
+  if (props.clientId) {
+    try {
+      const client = await getClient(props.clientId);
+      // Ne pas écraser une saisie déjà commencée pendant l'attente de la
+      // réponse (réseau lent) — le préremplissage ne s'applique que si le
+      // champ est resté vide entre-temps.
+      if (!newContact.value.adresse) newContact.value.adresse = client.adresse ?? "";
+      if (!newContact.value.ville) newContact.value.ville = client.ville ?? "";
+    } catch {
+      // Best-effort : un échec de préremplissage ne doit jamais bloquer
+      // la création manuelle du contact.
+    }
+  }
 }
 
 function closeAddMode() {

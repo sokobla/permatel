@@ -237,6 +237,7 @@
         <DemandeInteractions
           ref="interactionsRef"
           :demande-id="demande.id"
+          :client-id="demande.client_id ?? null"
           :prefilled-contact-id="props.prefilledContactId"
           :prefilled-contact-nom="props.prefilledContactNom"
         />
