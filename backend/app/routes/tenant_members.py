@@ -11,6 +11,7 @@ Garde-fous (Modèle 1 — rôle global) :
   - il ne modifie jamais le rôle global d'un utilisateur existant partagé.
 """
 from datetime import datetime
+from app.utils.time import utcnow
 
 from flask import Blueprint, g, jsonify, request
 from flask_cors import CORS
@@ -163,7 +164,7 @@ def create_invitation():
         token_hash=token_hash,
         status=INVITE_PENDING,
         invited_by_user_id=g.user.id,
-        expires_at=datetime.utcnow() + INVITATION_TTL,
+        expires_at=utcnow() + INVITATION_TTL,
     )
     db.session.add(invitation)
     db.session.flush()
@@ -189,7 +190,7 @@ def resend_invitation(invite_id):
 
     token, token_hash = generate_token()
     invitation.token_hash = token_hash
-    invitation.expires_at = datetime.utcnow() + INVITATION_TTL
+    invitation.expires_at = utcnow() + INVITATION_TTL
 
     try:
         send_invitation_email(g.tenant, invitation, token)

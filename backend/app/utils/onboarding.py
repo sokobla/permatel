@@ -3,6 +3,7 @@ un admin, sans mot de passe fourni directement). Partagé par la création
 (users.py::create_user) et le renvoi (users.py::resend_onboarding) pour ne
 pas dupliquer la mécanique jeton+email."""
 from datetime import datetime
+from app.utils.time import utcnow
 
 from flask import current_app
 
@@ -34,7 +35,7 @@ def trigger_onboarding(user, tenant, created_by_user_id, deactivate_on_expiry: b
     raw, token_hash = generate_token()
     token = UserToken(
         user_id=user.id, purpose=PURPOSE_ONBOARDING, token_hash=token_hash,
-        status=STATUS_PENDING, expires_at=datetime.utcnow() + ONBOARDING_TTL,
+        status=STATUS_PENDING, expires_at=utcnow() + ONBOARDING_TTL,
         created_by_user_id=created_by_user_id, deactivate_on_expiry=deactivate_on_expiry,
     )
     db.session.add(token)

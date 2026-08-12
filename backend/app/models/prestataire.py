@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.time import utcnow
 import uuid
 from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, UniqueConstraint, Text
 from sqlalchemy.dialects.postgresql import UUID
@@ -25,7 +26,7 @@ class Prestataire(Base):
     email = Column(String(100), nullable=True)
     logo_url = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
     
     agents_securite = relationship("AgentSecurite", back_populates="prestataire", overlaps="agents_securite,tenant")
     contacts = relationship("Contact", back_populates="partner")

@@ -9,6 +9,7 @@ expiration), mais agit sur un compte déjà existant (créé par un admin) plut�
 que d'en créer un nouveau.
 """
 from datetime import datetime
+from app.utils.time import utcnow
 
 from flask import Blueprint, jsonify, request
 from flask_cors import CORS
@@ -33,7 +34,7 @@ def _resolve(token: str):
     ).first()
     if not user_token or user_token.status != STATUS_PENDING:
         return None, (jsonify({"error": "Lien d'onboarding invalide ou déjà utilisé."}), 404)
-    if user_token.expires_at <= datetime.utcnow():
+    if user_token.expires_at <= utcnow():
         user_token.status = STATUS_EXPIRED
         user_token.user.onboarding_status = STATUS_EXPIRED
         db.session.commit()
@@ -70,7 +71,7 @@ def complete_onboarding(token):
     user = user_token.user
     user.set_password(password)
     user_token.status = STATUS_COMPLETED
-    user_token.completed_at = datetime.utcnow()
+    user_token.completed_at = utcnow()
     user.onboarding_status = STATUS_COMPLETED
 
     db.session.commit()

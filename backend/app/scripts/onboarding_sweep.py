@@ -18,6 +18,7 @@ l'intervalle du cron, acceptée comme la contrainte réelle plutôt qu'une
 exécution "pile à l'heure" jamais garantie.
 """
 from datetime import datetime
+from app.utils.time import utcnow
 
 from app.models.user_token import UserToken, PURPOSE_ONBOARDING, STATUS_PENDING, STATUS_EXPIRED
 
@@ -30,7 +31,7 @@ def sweep_onboarding(db):
         UserToken.query
         .filter(UserToken.purpose == PURPOSE_ONBOARDING)
         .filter(UserToken.status == STATUS_PENDING)
-        .filter(UserToken.expires_at < datetime.utcnow())
+        .filter(UserToken.expires_at < utcnow())
         .all()
     )
     for token in expired_tokens:

@@ -2,6 +2,7 @@
 API notifications — scopée tenant actif + utilisateur courant (g.user).
 """
 from datetime import datetime
+from app.utils.time import utcnow
 
 from flask import Blueprint, g, jsonify, request
 from flask_cors import CORS
@@ -46,7 +47,7 @@ def mark_read(notif_id):
         return jsonify({"error": "Notification introuvable."}), 404
     if not n.is_read:
         n.is_read = True
-        n.read_at = datetime.utcnow()
+        n.read_at = utcnow()
         db.session.commit()
     return jsonify({"message": "Marquée comme lue.", "id": notif_id}), 200
 
@@ -54,7 +55,7 @@ def mark_read(notif_id):
 @notifications_bp.post("/read-all")
 @tenant_required
 def mark_all_read():
-    now = datetime.utcnow()
+    now = utcnow()
     updated = Notification.query.filter_by(
         tenant_id=g.tenant_id, user_id=g.user.id, is_read=False
     ).update({"is_read": True, "read_at": now})

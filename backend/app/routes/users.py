@@ -2,6 +2,7 @@ import logging
 import secrets
 import uuid
 from datetime import datetime
+from app.utils.time import utcnow
 import json
 import os
 from werkzeug.utils import secure_filename
@@ -288,8 +289,8 @@ def create_user():
         agent_login=data.get("agent_login"),
         station_extension=data.get("station_extension"),
         is_active=data.get("is_active", True),
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=utcnow(),
+        updated_at=utcnow(),
     )
     if send_onboarding:
         # Mot de passe aléatoire jamais communiqué — le compte reste is_active
@@ -539,7 +540,7 @@ def update_user(user_id):
                     membership_role=MEMBERSHIP_MEMBER, is_active=True,
                 ))
 
-    user.updated_at = datetime.utcnow()
+    user.updated_at = utcnow()
 
     db.session.commit()
 
@@ -566,7 +567,7 @@ def update_user_status(user_id):
         return jsonify({"message": "Le champ is_active est requis"}), 400
 
     user.is_active = bool(payload["is_active"])
-    user.updated_at = datetime.utcnow()
+    user.updated_at = utcnow()
     db.session.commit()
 
     return jsonify({
@@ -602,7 +603,7 @@ def update_password(user_id):
             return jsonify({"message": "Ancien mot de passe incorrect"}), 401
 
     user.set_password(new_password)
-    user.updated_at = datetime.utcnow()
+    user.updated_at = utcnow()
     db.session.commit()
 
     return jsonify({"message": "Mot de passe mis à jour avec succès"}), 200

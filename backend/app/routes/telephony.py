@@ -34,6 +34,7 @@ import re
 import secrets
 import zipfile
 from datetime import datetime, timedelta
+from app.utils.time import utcnow, utcfromtimestamp
 from urllib.parse import unquote, unquote_plus, urlparse
 
 import requests
@@ -61,7 +62,7 @@ logger = logging.getLogger(__name__)
 
 def _iso_utc(dt) -> str | None:
     """Toutes les colonnes datetime de ce module sont naïves-UTC
-    (`datetime.utcnow()`) — `.isoformat()` seul ne porte donc AUCUN
+    (`utcnow()`) — `.isoformat()` seul ne porte donc AUCUN
     désignateur de fuseau. Confirmé en prod (30/07) : un navigateur (ou tout
     parseur JS/ISO strict) interprète alors une chaîne date-heure SANS
     désignateur comme heure LOCALE, pas UTC — un décalage de +1h (fuseau
@@ -209,7 +210,7 @@ def connectors_status_heartbeat():
 
     data = request.get_json(silent=True) or {}
     statuses = data.get("connectors") or {}
-    now = datetime.utcnow()
+    now = utcnow()
 
     updated = 0
     for connector_id_str, status in statuses.items():
@@ -217,7 +218,7 @@ def connectors_status_heartbeat():
             connector_id = int(connector_id_str)
         except (TypeError, ValueError):
             continue
-        connector = PbxConnector.query.get(connector_id)
+        connector = db.session.get(PbxConnector, connector_id)
         if not connector:
             continue
         connector.is_connected = bool(status.get("connected"))
@@ -292,7 +293,7 @@ def ingest_event():
         duration=data.get("duration_seconds"),
         recording_url=data.get("recording_url"),
         raw_payload=data,
-        created_at=created_at or datetime.utcnow(),
+        created_at=created_at or utcnow(),
     )
     db.session.add(event)
     db.session.commit()
@@ -347,7 +348,7 @@ def _cdr_epoch_to_dt(raw):
         value = int(raw)
     except (TypeError, ValueError):
         return None
-    return datetime.utcfromtimestamp(value) if value else None
+    return utcfromtimestamp(value) if value else None
 
 
 # Fragments de nom de clé (insensible à la casse) considérés porteurs de
@@ -601,7 +602,7 @@ def cdr_ingest(token):
 
     start_at = _cdr_epoch_to_dt(variables.get("start_epoch"))
     answer_at = _cdr_epoch_to_dt(variables.get("answer_epoch"))
-    end_at = _cdr_epoch_to_dt(variables.get("end_epoch")) or datetime.utcnow()
+    end_at = _cdr_epoch_to_dt(variables.get("end_epoch")) or utcnow()
     try:
         billsec = int(variables["billsec"]) if variables.get("billsec") is not None else None
     except (TypeError, ValueError):
@@ -709,7 +710,7 @@ def _parse_period():
         except ValueError:
             return default
 
-    now = datetime.utcnow()
+    now = utcnow()
     dt_from = _parse(request.args.get("from"), now - timedelta(days=1))
     dt_to = _parse(request.args.get("to"), now)
     return dt_from, dt_to
@@ -768,7 +769,7 @@ def _resolve_active_calls(tenant_id) -> list:
         )
         .all()
     )
-    stale_cutoff = datetime.utcnow() - ACTIVE_CALL_STALE_AFTER
+    stale_cutoff = utcnow() - ACTIVE_CALL_STALE_AFTER
     candidate_uuids = [
         row.call_uuid for row in latest_events
         if row.call_status not in TERMINAL_STATUSES and row.created_at >= stale_cutoff
@@ -1308,7 +1309,7 @@ def _parse_history_filters():
     par défaut sur les 30 derniers jours, bornés à MAX_HISTORY_RANGE_DAYS
     pour éviter de charger un historique complet en mémoire (même approche
     Python-side-grouping que /kpis/*, pas de fenêtre glissante DB)."""
-    now = datetime.utcnow()
+    now = utcnow()
 
     def _parse_dt(raw, default):
         if not raw:
@@ -1748,7 +1749,7 @@ def sync_connector(connector_id):
     prochain sondage périodique du connecteur — cf. GET /connectors/config).
     """
     connector = _connector_or_404(connector_id)
-    connector.sync_requested_at = datetime.utcnow()
+    connector.sync_requested_at = utcnow()
     db.session.commit()
     _publish_sync_signal(connector.id)
     return jsonify(connector.to_dict()), 200

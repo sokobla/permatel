@@ -9,6 +9,7 @@ la durée de vie et l'effet de bord à l'expiration diffèrent (désactivation d
 compte pour l'onboarding uniquement — gérée par le sweep, pas par ce modèle).
 """
 from datetime import datetime, timedelta
+from app.utils.time import utcnow
 
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
@@ -47,7 +48,7 @@ class UserToken(db.Model):
     status = Column(String(20), nullable=False, default=STATUS_PENDING, index=True)
 
     expires_at = Column(DateTime, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
     completed_at = Column(DateTime, nullable=True)
     # Admin déclencheur pour un onboarding ; toujours NULL pour un reset
     # self-service (personne n'agit "au nom de" l'utilisateur dans ce cas).
@@ -65,7 +66,7 @@ class UserToken(db.Model):
     user = relationship("User", foreign_keys=[user_id])
 
     def is_valid(self) -> bool:
-        return self.status == STATUS_PENDING and self.expires_at > datetime.utcnow()
+        return self.status == STATUS_PENDING and self.expires_at > utcnow()
 
     def to_dict(self) -> dict:
         return {

@@ -7,6 +7,7 @@ ou `is_active=False` retombe sur le défaut système
 (`app/utils/email_templates.py::SYSTEM_DEFAULTS`) — jamais bloquant.
 """
 from datetime import datetime
+from app.utils.time import utcnow
 
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
@@ -32,8 +33,8 @@ class EmailTemplate(db.Model):
     is_active = Column(Boolean, default=True, nullable=False)
 
     updated_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     def to_dict(self) -> dict:
         return {

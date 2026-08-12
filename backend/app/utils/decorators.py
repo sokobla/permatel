@@ -4,6 +4,7 @@ from functools import wraps
 from flask import g, jsonify
 from flask_jwt_extended import get_jwt, get_jwt_identity, verify_jwt_in_request
 
+from app import db
 from app.models import Tenant, TenantUser
 from app.models.tenant_user import MEMBERSHIP_ADMIN
 from app.models.user import User, UserRole
@@ -46,7 +47,7 @@ def _load_tenant_context():
         if not tenant:
             auth_logger.warning(f"TENANT_REQUIRED_FAIL | user_id={user_id} | tenant_id={tenant_id} | reason=tenant_not_found (admin)")
             return jsonify({"error": "Tenant introuvable ou inactif."}), 404
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
         if not user or not user.is_active:
             return jsonify({"error": "Utilisateur introuvable ou désactivé."}), 401
         g.user = user

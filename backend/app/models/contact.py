@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.time import utcnow
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Table, CheckConstraint, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -45,8 +46,8 @@ class Contact(Base):
     telephone = Column(String(20), nullable=False)
     email = Column(String(100), nullable=False)
     notes = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     tenant_id = Column(UUID(as_uuid=True), ForeignKey('tenants.id', ondelete='CASCADE'), nullable=True, index=True)
     partner_id = Column(UUID(as_uuid=True), ForeignKey('prestataires.id', ondelete='CASCADE'), nullable=True, index=True)

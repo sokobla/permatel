@@ -5,6 +5,7 @@ GET  /api/invitations/<token>          → détails minimaux (tenant, email, typ
 POST /api/invitations/<token>/accept   → crée le compte (nouveau) ou ajoute l'appartenance (existant)
 """
 from datetime import datetime
+from app.utils.time import utcnow
 
 from flask import Blueprint, jsonify, request
 from flask_cors import CORS
@@ -30,7 +31,7 @@ def _resolve(token: str):
     invitation = TenantInvitation.query.filter_by(token_hash=hash_token(token)).first()
     if not invitation or invitation.status not in (INVITE_PENDING,):
         return None, (jsonify({"error": "Invitation invalide ou déjà utilisée."}), 404)
-    if invitation.expires_at <= datetime.utcnow():
+    if invitation.expires_at <= utcnow():
         invitation.status = INVITE_EXPIRED
         db.session.commit()
         return None, (jsonify({"error": "Invitation expirée."}), 410)
@@ -42,7 +43,7 @@ def get_invitation(token):
     invitation, err = _resolve(token)
     if err:
         return err
-    tenant = Tenant.query.get(invitation.tenant_id)
+    tenant = db.session.get(Tenant, invitation.tenant_id)
     existing_user = User.query.filter(User.email.ilike(invitation.email)).first()
     return jsonify({
         "email": invitation.email,
@@ -112,7 +113,7 @@ def accept_invitation(token):
         ))
 
     invitation.status = INVITE_ACCEPTED
-    invitation.accepted_at = datetime.utcnow()
+    invitation.accepted_at = utcnow()
     db.session.commit()
 
     return jsonify({

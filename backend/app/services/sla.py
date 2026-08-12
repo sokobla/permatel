@@ -6,7 +6,9 @@ Cible résolue par spécificité (priorité × type × client). Pause optionnell
 statut « en_attente ». Pas de surcharge manuelle des échéances.
 """
 from datetime import datetime, timedelta
+from app.utils.time import utcnow
 
+from app import db
 from app.models.sla import SlaPolicy
 from app.models.demande import StatutDemande
 
@@ -79,7 +81,7 @@ def _sla_recipients(d):
     from app.services.notifications import tenant_members
     recips = tenant_members(d.tenant_id, roles={UserRole.MANAGER.value}, membership_admin=True)
     if d.permanencier_id:
-        u = User.query.get(d.permanencier_id)
+        u = db.session.get(User, d.permanencier_id)
         if u and all(u.id != r.id for r in recips):
             recips.append(u)
     return recips
@@ -144,7 +146,7 @@ def resolve_policy(tenant_id, priorite, type_demande, client_id):
 
 def apply_sla(demande):
     """(Re)calcule les deux échéances à partir de created_at et de la politique."""
-    base = demande.created_at or datetime.utcnow()
+    base = demande.created_at or utcnow()
     p = resolve_policy(demande.tenant_id, demande.priorite, demande.type_demande, demande.client_id)
     demande.sla_response_deadline = base + timedelta(minutes=p.response_minutes)
     demande.sla_deadline = base + timedelta(minutes=p.resolution_minutes)
@@ -152,7 +154,7 @@ def apply_sla(demande):
 
 def on_status_change(demande, new_statut):
     """Pose les horodatages de cycle de vie (prise en charge / résolution / clôture)."""
-    now = datetime.utcnow()
+    now = utcnow()
     if new_statut != StatutDemande.NOUVELLE and not demande.prise_en_charge_at:
         demande.prise_en_charge_at = now
     if new_statut == StatutDemande.RESOLUE and not demande.date_resolution:
@@ -187,7 +189,7 @@ def sla_state(demande) -> dict:
     """État des deux SLA pour l'affichage (sans persistance)."""
     if demande.statut == StatutDemande.ANNULEE:
         return {"response": {"status": "n/a"}, "resolution": {"status": "n/a"}}
-    now = datetime.utcnow()
+    now = utcnow()
     base = demande.created_at
     p = resolve_policy(demande.tenant_id, demande.priorite, demande.type_demande, demande.client_id)
     waiting = bool(p.pause_on_waiting and demande.statut == StatutDemande.EN_ATTENTE)

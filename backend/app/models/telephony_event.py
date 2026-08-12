@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.time import utcnow
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, ForeignKeyConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSON as PG_JSON, JSONB
 from sqlalchemy.orm import relationship
@@ -69,7 +70,7 @@ class TelephonyEvent(Base):
     recording_url = Column(String(500), nullable=True)
     raw_payload = Column(JSONB_VARIANT, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
 
     # Multi-tenant column
     tenant_id = Column(UUID(as_uuid=True), ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False, index=True)
@@ -99,7 +100,7 @@ class TelephonyEvent(Base):
             "linked_call_uuid": self.linked_call_uuid,
             "recording_url": self.recording_url,
             "demande_id": self.demande_id,
-            # Naïf-UTC (datetime.utcnow()) — 'Z' explicite obligatoire, sinon
+            # Naïf-UTC (utcnow()) — 'Z' explicite obligatoire, sinon
             # un parseur JS/ISO strict lit une chaîne date-heure sans
             # désignateur de fuseau comme heure LOCALE, pas UTC (confirmé en
             # prod 30/07 : décalage systématique de +1h sur les durées

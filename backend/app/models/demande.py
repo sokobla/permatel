@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.time import utcnow
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum as SQLEnum, Boolean, UniqueConstraint, ForeignKeyConstraint, Index, JSON
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
@@ -170,8 +171,8 @@ class Demande(db.Model):
     deleted_at = Column(DateTime, nullable=True)
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
     
     # Multi-tenant (NOT NULL)
     tenant_id = Column(UUID(as_uuid=True), ForeignKey('tenants.id'), nullable=False, index=True)

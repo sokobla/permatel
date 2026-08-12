@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.time import utcnow
 import logging
 import uuid
 from flask_cors import CORS
@@ -336,7 +337,7 @@ def create_demande():
     
     # Vérifier références (user, client, site, contact)
     permanencier_id = payload.get("permanencier_id", user_id)
-    permanencier = User.query.get(permanencier_id)
+    permanencier = db.session.get(User, permanencier_id)
     if not permanencier:
         return jsonify({"message": "Permanencier introuvable"}), 404
     
@@ -354,7 +355,7 @@ def create_demande():
     
     contact = None
     if payload.get("contact_id"):
-        contact = Contact.query.get(payload["contact_id"])
+        contact = db.session.get(Contact, payload["contact_id"])
         if not contact:
             return jsonify({"message": "Contact introuvable"}), 404
 
@@ -460,7 +461,7 @@ def create_demande():
                    title=f"Nouvelle demande — {demande.numero_ticket}",
                    body=f"{demande.titre} (priorité {demande.priorite.value}).",
                    entity_type="demande", entity_id=demande.id)
-            assignee = User.query.get(demande.permanencier_id) if demande.permanencier_id else None
+            assignee = db.session.get(User, demande.permanencier_id) if demande.permanencier_id else None
             if assignee:
                 notify(g.tenant_id, [assignee], "demande.assigned",
                        title=f"Demande qui vous est assignée — {demande.numero_ticket}",
@@ -598,7 +599,7 @@ def update_demande(demande_id):
             if "validation_requise" in payload:
                 demande.validation_requise = payload["validation_requise"]
         
-        demande.updated_at = datetime.utcnow()
+        demande.updated_at = utcnow()
         demande.updated_by_id = user_id
         db.session.commit()
         
@@ -636,7 +637,7 @@ def patch_demande_status(demande_id):
             "valid_values": [s.value for s in StatutDemande]
         }), 400
     
-    demande.updated_at = datetime.utcnow()
+    demande.updated_at = utcnow()
     db.session.commit()
     
     return jsonify(_serialize_demande(demande)), 200
@@ -662,7 +663,7 @@ def pec_demande(demande_id):
             demande.permanencier_id = int(user_id)
         except (ValueError, TypeError):
             pass
-    demande.updated_at = datetime.utcnow()
+    demande.updated_at = utcnow()
     db.session.commit()
 
     return jsonify(_serialize_demande(demande)), 200
@@ -736,7 +737,7 @@ def delete_demande(demande_id):
 
     try:
         demande.is_deleted = True
-        demande.deleted_at = datetime.utcnow()
+        demande.deleted_at = utcnow()
         db.session.commit()
         
         return jsonify({"message": "Demande supprimée"}), 200

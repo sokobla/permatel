@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.time import utcnow
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum as SQLEnum, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -25,7 +26,7 @@ class AuditLog(Base):
     old_values = Column(JSON, nullable=True)
     new_values = Column(JSON, nullable=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
     
     # Multi-tenant column
     tenant_id = Column(UUID(as_uuid=True), ForeignKey('tenants.id', ondelete='SET NULL'), nullable=True, index=True)

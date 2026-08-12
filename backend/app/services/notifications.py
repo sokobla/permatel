@@ -5,6 +5,7 @@ Service notifications — émission (in-app + file email) et dispatch.
 ne doit jamais faire échouer la transaction appelante. L'appelant committe.
 """
 from datetime import datetime
+from app.utils.time import utcnow
 from email.message import EmailMessage
 
 from flask import current_app
@@ -94,7 +95,7 @@ def dispatch_emails(db, limit=100) -> dict:
             msg["Subject"] = r.subject
             msg.set_content(r.body_text or r.subject)
             send_via_smtp(cfg, msg)
-            r.status, r.sent_at = "sent", datetime.utcnow()
+            r.status, r.sent_at = "sent", utcnow()
             sent += 1
         except Exception as exc:  # noqa: BLE001
             r.attempts += 1

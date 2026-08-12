@@ -6,6 +6,7 @@ Notifications PERMATEL — in-app + file d'envoi email.
 - EmailOutbox           : file d'envoi email découplée (dispatch par cron via SMTP tenant).
 """
 from datetime import datetime
+from app.utils.time import utcnow
 
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
@@ -27,7 +28,7 @@ class Notification(db.Model):
     entity_id = Column(Integer, nullable=True)
     is_read = Column(Boolean, nullable=False, default=False, index=True)
     read_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
 
     def to_dict(self):
         return {
@@ -66,5 +67,5 @@ class EmailOutbox(db.Model):
     status = Column(String(20), nullable=False, default="pending", index=True)  # pending | sent | failed
     attempts = Column(Integer, nullable=False, default=0)
     error = Column(Text, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
     sent_at = Column(DateTime, nullable=True)

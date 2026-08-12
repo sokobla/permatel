@@ -22,7 +22,8 @@ agents_securite_bp = Blueprint('agents_securite', __name__, url_prefix='/api/age
 def _parse_kpi_period():
     """Période [from, to] depuis la query (défaut : 30 derniers jours)."""
     from datetime import datetime, timedelta
-    now = datetime.utcnow()
+    from app.utils.time import utcnow
+    now = utcnow()
 
     def _p(s, default):
         if not s:

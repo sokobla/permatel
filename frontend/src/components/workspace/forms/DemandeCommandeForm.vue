@@ -306,7 +306,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import { createDemande } from "@/services/demandeService";
+import { useDemandeCreate } from "@/composables/useDemandeCreate";
 import { settingsService } from "@/services/settingsService";
 import ClientCombobox from "@/components/workspace/ClientCombobox.vue";
 import ContactSelectWithAdd from "@/components/workspace/ContactSelectWithAdd.vue";
@@ -362,8 +362,7 @@ const props = defineProps({ contactId: { type: Number, default: null } });
 const emit = defineEmits(["submitted", "cancel"]);
 
 // ─── État ────────────────────────────────────────────────────────────────────
-const submitting = ref(false);
-const submitError = ref("");
+const { submitting, submitError, submit: submitDemande } = useDemandeCreate(emit);
 
 // Entités résolues par les composants enfants
 const resolvedClient = ref(null);   // objet client complet
@@ -432,6 +431,9 @@ function buildPayload() {
 
   return {
     titre: f.titre.trim(),
+    // Renommage volontaire : `missions_detaillees` (libellé UI) correspond
+    // à la colonne API/DB générique `description` (commune à tous les
+    // types de demande). Documenté ici (audit du 12/08).
     description: f.missions_detaillees || null,
     client_id: client?.id ?? null,
     priorite: f.priorite,
@@ -440,6 +442,10 @@ function buildPayload() {
     site_id: site?.site_id ?? null,
     adresse_intervention: site?.adresse_intervention ?? null,
     type_commande: f.type_commande || "autre",
+    // Renommage volontaire : `nombre_agents` (libellé UI "NOMBRE D'AGENTS")
+    // correspond à la colonne API/DB `quantite` — cf.
+    // backend/app/models/demande.py, DemandeCommande. Documenté ici (audit
+    // du 12/08) car ce mapping n'est visible nulle part ailleurs.
     quantite: f.nombre_agents,
     nombre_heures: f.nombre_heures,
     fournisseur_suggere: client?.nom ?? null,
@@ -470,19 +476,10 @@ async function submit() {
     submitError.value = "Indiquez le nombre d'agents et/ou le nombre d'heures nécessaires.";
     return;
   }
-  submitting.value = true;
-  try {
-    const demande = await createDemande({
-      type_demande: "commande",
-      ...buildPayload(),
-    });
-    emit("submitted", demande);
-  } catch (err) {
-    submitError.value =
-      err?.response?.data?.error ?? "Erreur lors de la création.";
-  } finally {
-    submitting.value = false;
-  }
+  await submitDemande({
+    type_demande: "commande",
+    ...buildPayload(),
+  });
 }
 </script>
 

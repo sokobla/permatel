@@ -72,6 +72,7 @@ import { ref, reactive, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { passwordResetService } from "@/services/passwordResetService";
 import permatelLogo from "@/assets/logo-permatel.png";
+import "@/assets/styles/public-page.css";
 
 const route = useRoute();
 const token = route.query.token;
@@ -121,29 +122,9 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.ai-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f2f2f2;
-  padding: 24px;
-  font-family: "Fira Sans", sans-serif;
-}
-.ai-card {
-  width: 100%;
-  max-width: 420px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 28px;
-}
-.ai-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 18px;
-}
+/* Mise en page partagée (.ai-page/.ai-card/.ai-head/.ai-title/.ai-sub/
+   .ai-state/.ai-link) : frontend/src/assets/styles/public-page.css. Le
+   logo reste défini ici, sa taille diffère volontairement d'AcceptInviteView. */
 .ai-logo-chip {
   display: inline-flex;
   align-items: center;
@@ -155,31 +136,5 @@ onMounted(async () => {
   display: block;
   height: 50px;
   width: auto;
-}
-.ai-title {
-  font-size: 20px;
-  font-weight: 800;
-  color: #000b23;
-  margin: 0 0 4px;
-}
-.ai-sub {
-  font-size: 15px;
-  color: #6b7280;
-  margin: 0 0 18px;
-}
-.ai-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  text-align: center;
-  padding: 16px 0;
-  color: #374151;
-  font-size: 15px;
-}
-.ai-link {
-  color: #00a8a8;
-  font-weight: 600;
-  text-decoration: none;
 }
 </style>

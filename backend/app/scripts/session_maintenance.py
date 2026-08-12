@@ -14,6 +14,7 @@ Utilisable :
 """
 
 from datetime import datetime, timedelta
+from app.utils.time import utcnow
 
 from flask import current_app
 
@@ -26,8 +27,8 @@ def expire_inactive_sessions(db, timeout_minutes=None):
     if timeout_minutes is None:
         timeout_minutes = int(current_app.config.get("SESSION_INACTIVITY_TIMEOUT", 30))
 
-    cutoff = datetime.utcnow() - timedelta(minutes=timeout_minutes)
-    now = datetime.utcnow()
+    cutoff = utcnow() - timedelta(minutes=timeout_minutes)
+    now = utcnow()
 
     stale = (
         UserSession.query
@@ -47,7 +48,7 @@ def purge_expired_blocklist(db):
     """Supprime les JTI révoqués dont l'expiration JWT est dépassée."""
     deleted = (
         TokenBlocklist.query
-        .filter(TokenBlocklist.expires_at < datetime.utcnow())
+        .filter(TokenBlocklist.expires_at < utcnow())
         .delete(synchronize_session=False)
     )
     return deleted or 0

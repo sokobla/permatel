@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.time import utcnow
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -22,18 +23,18 @@ class UserSession(Base):
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
     jti = db.Column(db.String(36), unique=True, nullable=True, index=True,
                      default=lambda: str(uuid.uuid4()))
-    last_activity_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=True)
+    last_activity_at = db.Column(db.DateTime, default=utcnow, nullable=True)
     ip_address = db.Column(db.String(45), nullable=True)
     user_agent = db.Column(db.String(500), nullable=True)
     
     agent_login = Column(String(50), nullable=True)
     station_extension = Column(String(20), nullable=True)
     
-    session_start = Column(DateTime, default=datetime.utcnow, nullable=False)
+    session_start = Column(DateTime, default=utcnow, nullable=False)
     session_end = Column(DateTime, nullable=True)
     status = Column(SQLEnum(SessionStatus), default=SessionStatus.ACTIVE, nullable=False)
     
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
     
     # Multi-tenant column (tenant actif pour la session)
     active_tenant_id = Column(UUID(as_uuid=True), ForeignKey('tenants.id'), nullable=True, index=True)

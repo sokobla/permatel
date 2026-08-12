@@ -14,6 +14,7 @@ import re
 import smtplib  # noqa: F401 (utilisé indirectement via mailer)
 import uuid
 from datetime import datetime, timedelta
+from app.utils.time import utcnow
 from email.message import EmailMessage
 from email.utils import make_msgid
 
@@ -181,7 +182,7 @@ def send_email():
     try:
         send_via_smtp(cfg, msg)
         record.status = "sent"
-        record.sent_at = datetime.utcnow()
+        record.sent_at = utcnow()
     except Exception as exc:  # noqa: BLE001
         record.status = "failed"
         record.error = str(exc)
@@ -364,7 +365,7 @@ def email_stats():
     if err:
         return err
 
-    now = datetime.utcnow()
+    now = utcnow()
 
     def _parse(s, default):
         if not s:

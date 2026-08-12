@@ -13,6 +13,7 @@ from email.message import EmailMessage
 from flask import Blueprint, jsonify, request, current_app
 from flask_cors import CORS
 
+from app import db
 from app.models.user import User
 from app.models.contact import Contact
 from app.models.tenant import Tenant
@@ -36,7 +37,7 @@ def _resolve_tenant(email):
             return next((t for t in user.tenants if t.support_email), user.tenants[0])
         contact = Contact.query.filter(Contact.email.ilike(email)).first()
         if contact and contact.tenant_id:
-            t = Tenant.query.get(contact.tenant_id)
+            t = db.session.get(Tenant, contact.tenant_id)
             if t:
                 return t
     return Tenant.query.filter(Tenant.support_email.isnot(None)).first()

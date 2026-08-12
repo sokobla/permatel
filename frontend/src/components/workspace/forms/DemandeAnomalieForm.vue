@@ -248,7 +248,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import { createDemande } from "@/services/demandeService";
+import { useDemandeCreate } from "@/composables/useDemandeCreate";
 import { settingsService } from "@/services/settingsService";
 import ClientCombobox from "@/components/workspace/ClientCombobox.vue";
 import ContactSelectWithAdd from "@/components/workspace/ContactSelectWithAdd.vue";
@@ -303,8 +303,7 @@ const permanencierLabel = computed(() => {
 });
 
 // ─── État ────────────────────────────────────────────────────────────────────
-const submitting = ref(false);
-const submitError = ref("");
+const { submitting, submitError, submit: submitDemande } = useDemandeCreate(emit);
 
 function onClientSelected(client) {
   form.value.client_id = client.id;
@@ -361,27 +360,23 @@ async function submit() {
     submitError.value = "Veuillez sélectionner ou créer un client.";
     return;
   }
-  submitting.value = true;
-  try {
-    const { commentaire, nature_anomalie_libre, ...rest } = form.value;
-    // Quand « Autre » est sélectionné, le texte libre préfixe la description
-    const descriptionFinale =
-      rest.nature_anomalie === "autre" && nature_anomalie_libre.trim()
-        ? `[${nature_anomalie_libre.trim()}]\n\n${rest.description}`.trim()
-        : rest.description;
-    const demande = await createDemande({
-      type_demande: "anomalie",
-      ...rest,
-      description: descriptionFinale,
-      localisation_precise: commentaire || null,
-    });
-    emit("submitted", demande);
-  } catch (err) {
-    submitError.value =
-      err?.response?.data?.error ?? "Erreur lors de la création.";
-  } finally {
-    submitting.value = false;
-  }
+  const { commentaire, nature_anomalie_libre, ...rest } = form.value;
+  // Quand « Autre » est sélectionné, le texte libre préfixe la description
+  const descriptionFinale =
+    rest.nature_anomalie === "autre" && nature_anomalie_libre.trim()
+      ? `[${nature_anomalie_libre.trim()}]\n\n${rest.description}`.trim()
+      : rest.description;
+  await submitDemande({
+    type_demande: "anomalie",
+    ...rest,
+    description: descriptionFinale,
+    // Renommage volontaire : le champ local `commentaire` (libellé
+    // "Commentaire" côté UI) correspond à la colonne API/DB
+    // `localisation_precise` — cf. backend/app/models/demande.py,
+    // DemandeAnomalie. Documenté ici (audit du 12/08) car ce mapping
+    // n'est visible nulle part ailleurs qu'à cette ligne.
+    localisation_precise: commentaire || null,
+  });
 }
 </script>
 

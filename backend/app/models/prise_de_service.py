@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.time import utcnow
 
 from sqlalchemy import Column, Integer, DateTime, ForeignKey, ForeignKeyConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
@@ -39,12 +40,12 @@ class PriseDeService(Base):
     client_id = Column(Integer, nullable=False, index=True)
     site_id = Column(Integer, nullable=True, index=True)
 
-    date_debut = Column(DateTime, nullable=False, default=datetime.utcnow)
+    date_debut = Column(DateTime, nullable=False, default=utcnow)
     date_fin = Column(DateTime, nullable=True)
 
     created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
 
     @property
     def statut(self) -> str:
@@ -52,7 +53,7 @@ class PriseDeService(Base):
 
     @property
     def duree_minutes(self) -> int:
-        fin = self.date_fin or datetime.utcnow()
+        fin = self.date_fin or utcnow()
         return max(0, int((fin - self.date_debut).total_seconds() // 60))
 
     def to_dict(self, *, agent=None, client_nom=None, site_nom=None) -> dict:

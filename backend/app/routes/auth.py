@@ -10,6 +10,7 @@ Endpoints :
   POST  /api/auth/select-tenant — Sélectionne un tenant actif et génère de nouveaux tokens
 """
 from datetime import datetime
+from app.utils.time import utcnow, utcfromtimestamp
 
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import (
@@ -126,7 +127,7 @@ def _revoke_all_active_sessions(user_id: int) -> None:
     connexions."""
     from datetime import timedelta
 
-    now = datetime.utcnow()
+    now = utcnow()
     sessions = UserSession.query.filter_by(user_id=user_id, status=SessionStatus.ACTIVE).all()
     for session in sessions:
         if session.jti and not TokenBlocklist.query.filter_by(jti=session.jti).first():
@@ -164,10 +165,10 @@ def _check_inactivity(session: UserSession) -> bool:
     timeout = current_app.config.get("SESSION_INACTIVITY_TIMEOUT", 30)
     if not session.last_activity_at:
         return False
-    elapsed = (datetime.utcnow() - session.last_activity_at).total_seconds() / 60
+    elapsed = (utcnow() - session.last_activity_at).total_seconds() / 60
     if elapsed > timeout:
         session.status = SessionStatus.EXPIRED
-        session.session_end = datetime.utcnow()
+        session.session_end = utcnow()
         return True
     return False
 
@@ -351,12 +352,12 @@ def login():
     )
 
     # Décode les tokens pour obtenir exp et autres données
-    refresh_exp     = datetime.utcfromtimestamp(refresh_decoded["exp"])
+    refresh_exp     = utcfromtimestamp(refresh_decoded["exp"])
 
     # Décode l'access token pour l'expires_in en secondes
     access_decoded  = decode_token(access_token)
-    access_exp      = datetime.utcfromtimestamp(access_decoded["exp"])
-    expires_in      = int((access_exp - datetime.utcnow()).total_seconds())
+    access_exp      = utcfromtimestamp(access_decoded["exp"])
+    expires_in      = int((access_exp - utcnow()).total_seconds())
 
     # ── Création session ──────────────────────────────────────────────────── #
     session = UserSession(
@@ -367,14 +368,14 @@ def login():
         station_extension= user.station_extension,
         ip_address       = ip,
         user_agent       = user_agent,
-        session_start    = datetime.utcnow(),
-        last_activity_at = datetime.utcnow(),
+        session_start    = utcnow(),
+        last_activity_at = utcnow(),
         status           = SessionStatus.ACTIVE,
     )
     db.session.add(session)
 
     # ── Mise à jour last_login_at ─────────────────────────────────────────── #
-    user.last_login_at = datetime.utcnow()
+    user.last_login_at = utcnow()
 
     # ── Audit ─────────────────────────────────────────────────────────────── #
     _log_audit(user.id, "LOGIN_SUCCESS", {
@@ -399,7 +400,7 @@ def login():
         "active_tenant_id": active_tenant_id,
         "is_global_admin": is_super_admin,
         "is_tenant_admin": is_tenant_admin_resp,
-        "features":      tenant_features(Tenant.query.get(active_tenant_uuid)) if active_tenant_uuid else None,
+        "features":      tenant_features(db.session.get(Tenant, active_tenant_uuid)) if active_tenant_uuid else None,
         "user":          user.to_dict(),
     }), 200
 
@@ -436,7 +437,7 @@ def select_tenant():
         return jsonify({"error": "Format de 'tenant_id' invalide."}), 400
 
     user_id = int(get_jwt_identity())
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if not user or not user.is_active:
         return jsonify({"error": "Utilisateur introuvable ou désactivé."}), 401
 
@@ -479,7 +480,7 @@ def select_tenant():
     if session:
         session.jti = new_refresh_jti  # La session est maintenant liée au nouveau refresh token
         session.active_tenant_id = tenant_id
-        session.last_activity_at = datetime.utcnow()
+        session.last_activity_at = utcnow()
 
     _log_audit(user_id, "TENANT_SELECTED", {"tenant_id": str(tenant_id)}, tenant_id=tenant_id)
     db.session.commit()
@@ -489,7 +490,7 @@ def select_tenant():
         "refresh_token": new_refresh_token,
         "active_tenant_id": str(tenant_id),
         "is_tenant_admin": tenant_admin,
-        "features": tenant_features(Tenant.query.get(tenant_id)),
+        "features": tenant_features(db.session.get(Tenant, tenant_id)),
     }), 200
 
 
@@ -508,7 +509,7 @@ def my_tenants():
     Réponse 200 : { "tenants": [...], "is_global_admin": bool }
     """
     user_id = int(get_jwt_identity())
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if not user or not user.is_active:
         return jsonify({"error": "Utilisateur introuvable ou désactivé."}), 401
 
@@ -593,7 +594,7 @@ def refresh():
         }), 403
 
     # ── Récupération utilisateur ──────────────────────────────────────────── #
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if not user or not user.is_active:
         return jsonify({"error": "Utilisateur introuvable ou désactivé."}), 401
 
@@ -621,11 +622,11 @@ def refresh():
     )
 
     access_decoded = decode_token(new_access_token)
-    access_exp     = datetime.utcfromtimestamp(access_decoded["exp"])
-    expires_in     = int((access_exp - datetime.utcnow()).total_seconds())
+    access_exp     = utcfromtimestamp(access_decoded["exp"])
+    expires_in     = int((access_exp - utcnow()).total_seconds())
 
     # ── Mise à jour last_activity_at ─────────────────────────────────────── #
-    session.last_activity_at = datetime.utcnow()
+    session.last_activity_at = utcnow()
 
     tid_from_claims = claims.get("tid")
     tenant_id_for_log = uuid.UUID(tid_from_claims) if tid_from_claims else None
@@ -680,10 +681,10 @@ def logout():
     refresh_jti = claims.get("refresh_jti")               # JTI du refresh token (pour identifier la session)
     tid_from_claims = claims.get("tid")
     ip      = _get_client_ip()
-    now     = datetime.utcnow()
+    now     = utcnow()
 
     # Expiration de l'access token (pour stocker dans la blocklist)
-    access_exp = datetime.utcfromtimestamp(claims["exp"])
+    access_exp = utcfromtimestamp(claims["exp"])
 
     # ── Étape 1 : Révocation de l'access token ────────────────────────────── #
     # On vérifie qu'il n'est pas déjà révoqué (double-logout)
@@ -789,7 +790,7 @@ def me():
         404 — Utilisateur introuvable (ne devrait pas arriver)
     """
     user_id = int(get_jwt_identity())
-    user    = User.query.get(user_id)
+    user    = db.session.get(User, user_id)
 
     if not user:
         return jsonify({"error": "Utilisateur introuvable."}), 404
@@ -929,9 +930,9 @@ def revoke_session(session_id):
     caller_role = claims.get("role")
     tid       = claims.get("tid")
     ip        = _get_client_ip()
-    now       = datetime.utcnow()
+    now       = utcnow()
 
-    session = UserSession.query.get(session_id)
+    session = db.session.get(UserSession, session_id)
     if not session:
         return jsonify({"error": "Session introuvable."}), 404
 
@@ -1007,7 +1008,7 @@ def sessions_stats():
         except (ValueError, TypeError):
             return jsonify({"error": "Tenant invalide."}), 400
 
-    now = datetime.utcnow()
+    now = utcnow()
 
     def _parse(dt_str, default):
         if not dt_str:
@@ -1185,7 +1186,7 @@ def forgot_password():
     raw, token_hash = generate_token()
     reset_token = UserToken(
         user_id=user.id, purpose=PURPOSE_PASSWORD_RESET, token_hash=token_hash,
-        status=STATUS_PENDING, expires_at=datetime.utcnow() + PASSWORD_RESET_TTL,
+        status=STATUS_PENDING, expires_at=utcnow() + PASSWORD_RESET_TTL,
     )
     db.session.add(reset_token)
     db.session.flush()
@@ -1221,7 +1222,7 @@ def _resolve_reset_token(token: str):
     ).first()
     if not reset_token or reset_token.status != STATUS_PENDING:
         return None, (jsonify({"error": "Lien de réinitialisation invalide ou déjà utilisé."}), 404)
-    if reset_token.expires_at <= datetime.utcnow():
+    if reset_token.expires_at <= utcnow():
         reset_token.status = STATUS_EXPIRED
         db.session.commit()
         return None, (jsonify({"error": "Lien de réinitialisation expiré."}), 410)
@@ -1254,7 +1255,7 @@ def reset_password(token):
     user = reset_token.user
     user.set_password(password)
     reset_token.status = STATUS_COMPLETED
-    reset_token.completed_at = datetime.utcnow()
+    reset_token.completed_at = utcnow()
 
     # Un mot de passe qu'on vient de réinitialiser ne doit laisser aucune
     # session déjà ouverte valide — décision produit actée explicitement.

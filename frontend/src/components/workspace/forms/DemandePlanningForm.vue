@@ -182,15 +182,14 @@
 
 <script setup>
 import { ref } from "vue";
-import { createDemande } from "@/services/demandeService";
+import { useDemandeCreate } from "@/composables/useDemandeCreate";
 import ClientCombobox from "@/components/workspace/ClientCombobox.vue";
 import ContactSelectWithAdd from "@/components/workspace/ContactSelectWithAdd.vue";
 
 const props = defineProps({ contactId: { type: Number, default: null } });
 const emit = defineEmits(["submitted", "cancel"]);
 
-const submitting = ref(false);
-const submitError = ref("");
+const { submitting, submitError, submit: submitDemande } = useDemandeCreate(emit);
 
 function onClientSelected(client) {
   form.value.client_id = client.id;
@@ -227,19 +226,10 @@ async function submit() {
     submitError.value = "Veuillez sélectionner ou créer un client.";
     return;
   }
-  submitting.value = true;
-  try {
-    const demande = await createDemande({
-      type_demande: "planning",
-      ...form.value,
-    });
-    emit("submitted", demande);
-  } catch (err) {
-    submitError.value =
-      err?.response?.data?.error ?? "Erreur lors de la création.";
-  } finally {
-    submitting.value = false;
-  }
+  await submitDemande({
+    type_demande: "planning",
+    ...form.value,
+  });
 }
 </script>
 

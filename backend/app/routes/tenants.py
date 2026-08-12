@@ -413,7 +413,7 @@ def add_user_to_tenant(tenant_id):
     if role not in ROLES_VALIDES:
         return jsonify({"error": f"Rôle invalide. Valeurs acceptées : {sorted(ROLES_VALIDES)}"}), 422
 
-    if not User.query.get(target_user_id):
+    if not db.session.get(User, target_user_id):
         return jsonify({"error": f"Utilisateur {target_user_id} introuvable."}), 404
 
     existing = TenantUser.query.filter_by(

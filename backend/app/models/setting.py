@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.time import utcnow
 
 from sqlalchemy import (
     Column, Integer, String, Boolean, DateTime, ForeignKey, UniqueConstraint
@@ -37,8 +38,8 @@ class SmtpSetting(Base):
     imap_username = Column(String(255), nullable=True)
     imap_password = Column(String(255), nullable=True)  # chiffré au repos
     inbound_enabled = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     def to_dict(self, include_password=False):
         data = {
@@ -92,8 +93,8 @@ class ReferenceValue(Base):
     # « Incidents agent » et le score agent. Paramétrable par tenant.
     is_discriminant = Column(Boolean, default=False, nullable=False)
     position = Column(Integer, default=0, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     def to_dict(self):
         return {

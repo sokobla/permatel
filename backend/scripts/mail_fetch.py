@@ -14,6 +14,7 @@ Tâche planifiée Windows :
 import os
 import sys
 from datetime import datetime
+from app.utils.time import utcnow
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -27,10 +28,10 @@ def main():
         try:
             summary = fetch_all(db)
         except Exception as exc:  # noqa: BLE001
-            print(f"[{datetime.utcnow().isoformat()}] MAIL_FETCH_ERROR | {exc}", file=sys.stderr)
+            print(f"[{utcnow().isoformat()}] MAIL_FETCH_ERROR | {exc}", file=sys.stderr)
             return 1
         total = sum(v for v in summary.values() if isinstance(v, int))
-        print(f"[{datetime.utcnow().isoformat()}] MAIL_FETCH_OK | total={total} | {summary}")
+        print(f"[{utcnow().isoformat()}] MAIL_FETCH_OK | total={total} | {summary}")
         return 0
 
 

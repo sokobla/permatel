@@ -8,6 +8,7 @@ Cycle ouvert/fermé :
   - GET  /api/prises-de-service/stats   → indicateurs (rapports)
 """
 from datetime import datetime
+from app.utils.time import utcnow
 
 from flask import Blueprint, jsonify, request, g
 
@@ -111,7 +112,7 @@ def start_prise():
         agent_id=agent_id,
         client_id=client_id,
         site_id=site_id,
-        date_debut=datetime.utcnow(),
+        date_debut=utcnow(),
         created_by_id=getattr(g.user, "id", None),
     )
     db.session.add(pds)
@@ -134,7 +135,7 @@ def end_current_prise():
     if not pds:
         return jsonify({"error": "Aucune vacation en cours pour cet agent."}), 404
 
-    pds.date_fin = datetime.utcnow()
+    pds.date_fin = utcnow()
     db.session.commit()
     return jsonify(_enrich([pds])[0]), 200
 
@@ -150,7 +151,7 @@ def end_prise(pds_id):
     if pds.date_fin is not None:
         return jsonify({"error": "Cette vacation est déjà terminée."}), 409
 
-    pds.date_fin = datetime.utcnow()
+    pds.date_fin = utcnow()
     db.session.commit()
     return jsonify(_enrich([pds])[0]), 200
 

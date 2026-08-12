@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.time import utcnow
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum as SQLEnum, ForeignKeyConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -32,7 +33,7 @@ class Interaction(Base):
     ancien_statut = Column(String(50), nullable=True)
     nouveau_statut = Column(String(50), nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
 
     # Multi-tenant column (NOT NULL)
     tenant_id = Column(UUID(as_uuid=True), ForeignKey('tenants.id'), nullable=False, index=True)

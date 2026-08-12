@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.time import utcnow
 from app import db
 
 
@@ -19,7 +20,7 @@ class TokenBlocklist(db.Model):
         nullable=False,
         index=True,
     )
-    revoked_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    revoked_at = db.Column(db.DateTime, default=utcnow, nullable=False)
     expires_at = db.Column(db.DateTime, nullable=False)
 
     def __repr__(self) -> str:

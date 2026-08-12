@@ -17,6 +17,7 @@ Code de sortie : 0 si succès, 1 si erreur.
 import os
 import sys
 from datetime import datetime
+from app.utils.time import utcnow
 
 # Permet d'importer le package `app` quel que soit le répertoire d'appel
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -31,10 +32,10 @@ def main():
         try:
             result = sweep_sessions(db)
         except Exception as exc:  # noqa: BLE001
-            print(f"[{datetime.utcnow().isoformat()}] SESSIONS_SWEEP_ERROR | {exc}", file=sys.stderr)
+            print(f"[{utcnow().isoformat()}] SESSIONS_SWEEP_ERROR | {exc}", file=sys.stderr)
             return 1
         print(
-            f"[{datetime.utcnow().isoformat()}] SESSIONS_SWEEP_OK | "
+            f"[{utcnow().isoformat()}] SESSIONS_SWEEP_OK | "
             f"expired={result['expired']} purged={result['purged']}"
         )
         return 0

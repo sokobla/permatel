@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.time import utcnow
 import uuid
 from sqlalchemy import Column, String, Boolean, DateTime
 from sqlalchemy.dialects.postgresql import UUID
@@ -25,8 +26,8 @@ class Tenant(Base):
     channel_telephonie = Column(Boolean, default=False, nullable=False)
     channel_email = Column(Boolean, default=False, nullable=False)
     channel_chat = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
 
     users = relationship("User", secondary="tenant_users", back_populates="tenants")

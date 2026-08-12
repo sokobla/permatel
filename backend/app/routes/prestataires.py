@@ -23,6 +23,7 @@ Regles metier :
 import os
 import json
 from datetime import datetime
+from app.utils.time import utcnow
 from flask import Blueprint, g, jsonify, request, current_app
 from werkzeug.utils import secure_filename
 from sqlalchemy import or_
@@ -448,7 +449,7 @@ def update_prestataire_status(prestataire_id):
 
             for agent in agents_actifs:
                 agent.is_active   = False
-                agent.updated_at  = datetime.utcnow()
+                agent.updated_at  = utcnow()
 
             agents_desactives = len(agents_actifs)
 

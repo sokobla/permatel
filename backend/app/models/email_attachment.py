@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.time import utcnow
 
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
@@ -19,7 +20,7 @@ class EmailAttachment(Base):
     content_type = Column(String(120), nullable=True)
     size = Column(Integer, nullable=True)
     storage_path = Column(String(500), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
 
     def to_dict(self):
         return {

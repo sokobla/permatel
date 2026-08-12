@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.time import utcnow
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSON as PG_JSON, JSONB
 from sqlalchemy.orm import relationship
@@ -58,8 +59,8 @@ class PbxConnector(Base):
     cdr_webhook_token_hash = Column(String(64), nullable=True, unique=True, index=True)
     cdr_webhook_token = Column(EncryptedText, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     tenant = relationship("Tenant", back_populates="pbx_connectors")
     domains = relationship("PbxConnectorDomain", back_populates="connector", cascade="all, delete-orphan")
@@ -116,8 +117,8 @@ class PbxConnectorDomain(Base):
     pbx_domain = Column(String(255), nullable=False, index=True)
     queue_ids = Column(JSONB_VARIANT, nullable=True)  # liste de queue_id supervisées
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     connector = relationship("PbxConnector", back_populates="domains")
 

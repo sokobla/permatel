@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.time import utcnow
 
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, ForeignKeyConstraint
 from sqlalchemy.dialects.postgresql import UUID
@@ -62,7 +63,7 @@ class Email(Base):
     error = Column(Text, nullable=True)
 
     has_attachments = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
 
     def to_dict(self):
         return {

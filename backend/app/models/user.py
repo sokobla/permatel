@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.time import utcnow
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from app import db
@@ -40,8 +41,8 @@ class User(Base):
     onboarding_status = Column(String(20), nullable=True)
     
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
     
     # Relations
     demandes_assignees = relationship("Demande", foreign_keys="Demande.permanencier_id", back_populates="permanencier")

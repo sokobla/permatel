@@ -6,6 +6,7 @@ tenant. Le token clair n'est jamais stocké : seul son hash l'est. L'invitation
 est à usage unique et expire au bout de 48h (non configurable).
 """
 from datetime import datetime, timedelta
+from app.utils.time import utcnow
 
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
@@ -36,11 +37,11 @@ class TenantInvitation(db.Model):
     status = Column(String(20), nullable=False, default=INVITE_PENDING, index=True)
     invited_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     expires_at = Column(DateTime, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
     accepted_at = Column(DateTime, nullable=True)
 
     def is_valid(self) -> bool:
-        return self.status == INVITE_PENDING and self.expires_at > datetime.utcnow()
+        return self.status == INVITE_PENDING and self.expires_at > utcnow()
 
     def to_dict(self) -> dict:
         return {

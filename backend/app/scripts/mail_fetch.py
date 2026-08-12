@@ -25,6 +25,7 @@ import click
 from flask import current_app
 from werkzeug.utils import secure_filename
 
+from app import db
 from app.models.setting import SmtpSetting
 from app.models.email import Email
 from app.models.email_attachment import EmailAttachment
@@ -190,7 +191,7 @@ def fetch_all(db):
 
     summary = {}
     for cfg in configs:
-        tenant = Tenant.query.get(cfg.tenant_id)
+        tenant = db.session.get(Tenant, cfg.tenant_id)
         label = tenant.code if tenant else str(cfg.tenant_id)
         try:
             summary[label] = fetch_inbound_for_tenant(db, cfg)
