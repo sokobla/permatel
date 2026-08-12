@@ -8,7 +8,9 @@ PERMATEL is a full-stack multi-tenant SaaS for managing security-agent operation
 
 > The root `README.md`, `PROJECT_STRUCTURE.md`, and `DATABASE_SCHEMA.md` are long-running changelog-style docs and contain **stale/contradictory sections** (older content wasn't deleted when new changelog entries were prepended, so "à implémenter" markers coexist with features that are actually shipped). Treat their changelog headers as the most reliable part; verify implementation status against the actual code (`backend/app/routes/`, `backend/app/models/`) rather than trusting the prose tables.
 
-> `AUDIT_PERMATEL.md`, `ODOO_INTEGRATION_PLAN.md`, `TELEPHONIE_INTEGRATION_PLAN.md`, and `docs/cdc/` are **planning/audit documents, not implementation status** — the Odoo and Téléphonie modules they describe are not built (no `odoo_*`/`pbx_*` tables, no connector process exist yet). One partial exception: `telephony_events` (`backend/app/models/telephony_event.py`) and the `channel_telephonie` tenant flag already exist in the schema but are dormant — no route/service reads or writes them today; don't assume telephony ingestion works because the table is present.
+> `AUDIT_PERMATEL.md`, `ODOO_INTEGRATION_PLAN.md`, `TELEPHONIE_INTEGRATION_PLAN.md`, and `docs/cdc/` are **planning/audit documents, not implementation status** — treat their changelog/phase tables as the most reliable status source (they're actively maintained per-phase), but verify against actual code for anything not covered here. Corrected 2026-08-12 (this line previously claimed Téléphonie was unbuilt — it wasn't true and had drifted out of sync with `TELEPHONIE_INTEGRATION_PLAN.md`):
+> - **Odoo**: genuinely not started — zero `odoo_*` code anywhere (models, routes, connector). `ODOO_INTEGRATION_PLAN.md`'s "implémentation non démarrée" status is accurate.
+> - **Téléphonie**: Phases 11–14 are built and live — `backend/app/routes/telephony.py` (ingestion, KPIs, active calls, CDR webhook, agent presence), `backend/app/models/pbx.py` (`PbxConnector`/`PbxConnectorDomain`, tenant-scoped), a standalone `connector/` process (ESL adapter for FusionPBX, its own test suite), WebSocket live updates, and `Supervision > Téléphonie` / `Rapports > Téléphonie` frontend tabs — see `TELEPHONIE_INTEGRATION_PLAN.md` §7–9 for the authoritative phase-by-phase detail. Only **Phase 15 (Asterisk/AMI connector)** is not started; FusionPBX/ESL is production-connected. Don't assume telephony is dormant because an older note here said so — verify against `telephony.py`/`connector/` directly if in doubt.
 
 ## Commands
 
@@ -24,6 +26,7 @@ pytest tests/test_clients.py -v    # single file
 pytest tests/test_users.py::test_login_valide_retourne_200 -v  # single test
 pytest --cov=app tests/            # coverage
 
+flask db heads                     # list current head(s) — run BEFORE creating a new migration
 flask db upgrade heads             # apply migrations (multi-head safe)
 flask db migrate -m "message"      # generate a migration after model changes
 flask init-db                      # create schema if empty, then seed Root tenant + global admin
@@ -37,6 +40,8 @@ flask seed-prestataires --tenant-code <CODE> --no-dry-run --yes
 flask seed-agents --tenant-code <CODE> [--prestataire-code <CODE>] --no-dry-run --yes
 ```
 Note: `create_app()` auto-runs migrations/seeding on startup (empty DB → `db.create_all()` + seed; existing DB → `flask db upgrade heads` if `AUTO_MIGRATE` is set) — this runs every time the app factory is invoked, including under `pytest` against the in-memory SQLite test DB. Guarded by a Postgres advisory lock (no-op under SQLite) so concurrent Gunicorn workers don't race the same migration/seed on startup.
+
+⚠️ **Before running `flask db migrate` for a new model change, always run `flask db heads` first and confirm there is exactly one head.** Parallel work (multiple sessions/branches touching models around the same time) has produced diverging migration heads at least 4 times in this project's history, each requiring a manual merge migration (`down_revision = (head_a, head_b)`) after the fact — cheap to avoid up front, annoying to untangle later. If `flask db heads` ever shows more than one, resolve it with a merge migration before adding new work on top.
 
 Redis (`REDIS_URL` config var) backs the login anti-brute-force counter (`app/utils/login_throttle.py`) with a graceful in-memory fallback if unset/unreachable — required in multi-worker production so the lockout threshold isn't diluted per-worker; optional for local dev.
 

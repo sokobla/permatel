@@ -7,11 +7,20 @@ from datetime import datetime, timedelta
 import pytest
 
 from app.models.setting import SmtpSetting
+from app.models.tenant import Tenant
 from app.models.user import User, UserRole
 from app.models.user_token import (
     UserToken, PURPOSE_ONBOARDING, STATUS_PENDING, STATUS_COMPLETED, STATUS_REVOKED, STATUS_EXPIRED,
 )
 from app.utils.tokens import hash_token
+
+
+@pytest.fixture
+def tenant_b(db):
+    t = Tenant(code="TENB-ONBOARD", nom="Tenant B", slug="tenant-b-onboard")
+    db.session.add(t)
+    db.session.commit()
+    return t
 
 
 @pytest.fixture
@@ -223,6 +232,75 @@ class TestResendRevokeOnboarding:
         # Le jeton révoqué ne fonctionne plus pour compléter l'onboarding
         get_resp = client.get("/api/onboarding/old-token")
         assert get_resp.status_code == 404
+
+    def test_resend_refuse_sans_droits_admin(self, client, db, auth_headers, default_tenant):
+        """@role_required(ADMIN) uniquement — un PERMANENCIER ne peut pas
+        relancer un onboarding, même pour un utilisateur de son propre
+        tenant (RBAC non couvert jusqu'ici pour cette route)."""
+        user, _token = self._create_pending_user(db, default_tenant, "resend-rbac@example.com")
+        resp = client.post(f"/api/users/{user.id}/onboarding/resend", headers=auth_headers)
+        assert resp.status_code == 403
+
+    def test_revoke_refuse_sans_droits_admin(self, client, db, auth_headers, default_tenant):
+        user, _token = self._create_pending_user(db, default_tenant, "revoke-rbac@example.com")
+        resp = client.delete(f"/api/users/{user.id}/onboarding", headers=auth_headers)
+        assert resp.status_code == 403
+
+
+class TestOnboardingAdminGlobalScope:
+    """Audit du 12/08 : `UserToken` n'a pas de colonne `tenant_id` (scopé
+    uniquement via `user_id`) et les 3 routes admin d'onboarding
+    (resend/send/revoke) sont protégées par `@role_required(ADMIN)` — le
+    rôle ADMIN GLOBAL, pas `@tenant_admin_required`. Il n'y a donc pas de
+    frontière d'isolation par tenant à faire respecter ici : seul un
+    super-admin global peut déclencher ces actions, et un super-admin
+    global est documenté (CLAUDE.md, cf. test_isolation.py::
+    test_super_admin_bypass_appartenance) comme pouvant agir sur n'importe
+    quel tenant sans y être membre — exactement comme le reste de l'API
+    `/api/users`, elle-même globale par conception (users/tenant_users ne
+    sont pas des ressources tenant-scopées). Ce test fige ce comportement
+    intentionnel plutôt que de fabriquer un faux test d'isolation qui
+    échouerait à trouver un vrai problème."""
+
+    def test_admin_global_relance_onboarding_utilisateur_autre_tenant(
+        self, client, db, user_admin, tenant_b, default_tenant, smtp_settings, mock_smtp_send,
+    ):
+        from app.models.user import UserRole as _Role
+
+        # Utilisateur pending rattaché à default_tenant (CORE) — pas à tenant_b.
+        target = User(username="cross-tenant@example.com", email="cross-tenant@example.com",
+                      nom="N", prenom="P", role=_Role.PERMANENCIER, is_active=True,
+                      onboarding_status=STATUS_PENDING)
+        target.set_password("unusable")
+        target.tenants.append(default_tenant)
+        db.session.add(target)
+        db.session.flush()
+        db.session.add(UserToken(
+            user_id=target.id, purpose=PURPOSE_ONBOARDING, token_hash=hash_token("cross-tenant-token"),
+            status=STATUS_PENDING, expires_at=datetime.utcnow() + timedelta(hours=24),
+        ))
+        db.session.commit()
+
+        login = client.post("/api/auth/login", json={
+            "username": "admin1", "password": "Password123!",
+        }).get_json()
+        # Le super-admin sélectionne tenant_b comme tenant actif — n'y est
+        # pas membre, mais reste un admin global.
+        sel = client.post(
+            "/api/auth/select-tenant",
+            json={"tenant_id": str(tenant_b.id)},
+            headers={"Authorization": f"Bearer {login['access_token']}"},
+        ).get_json()
+        headers_scoped_to_b = {"Authorization": f"Bearer {sel['access_token']}"}
+
+        # Alors qu'il est scopé sur tenant_b, il peut quand même relancer
+        # l'onboarding d'un utilisateur de default_tenant — comportement
+        # intentionnel, pas une fuite : `/api/users/*` est une API globale.
+        resp = client.post(
+            f"/api/users/{target.id}/onboarding/resend", headers=headers_scoped_to_b,
+        )
+        assert resp.status_code == 200
+        assert len(mock_smtp_send) == 1
 
 
 class TestSendOnboardingExisting:

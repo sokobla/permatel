@@ -29,6 +29,7 @@ import hmac
 import io
 import json
 import logging
+import os
 import re
 import secrets
 import zipfile
@@ -349,20 +350,60 @@ def _cdr_epoch_to_dt(raw):
     return datetime.utcfromtimestamp(value) if value else None
 
 
+# Fragments de nom de clé (insensible à la casse) considérés porteurs de
+# PII/contenu d'appel — la VALEUR de toute clé qui en contient un est
+# masquée dans la trace CDR (log ET fichier), seuls le nom de clé et le
+# type sont conservés. Volontairement large (mieux vaut sur-masquer une
+# clé anodine que laisser fuiter un numéro ou un chemin d'enregistrement) :
+# l'outil sert à découvrir la STRUCTURE des payloads PBX, pas leur contenu.
+_CDR_TRACE_SENSITIVE_KEY_FRAGMENTS = (
+    "caller", "callee", "destination", "cid", "ani", "dnis", "phone",
+    "number", "sip_from", "sip_to", "sip_full", "record", "contact",
+    "email", "agent", "member",
+)
+
+
+def _cdr_trace_redact(obj):
+    """Masque récursivement les valeurs des clés sensibles (voir
+    _CDR_TRACE_SENSITIVE_KEY_FRAGMENTS) dans un payload CDR, pour le log ET
+    l'écriture disque de _trace_cdr_payload() — jamais de PII/contenu
+    d'appel réel dans la trace, seulement sa structure."""
+    if isinstance(obj, dict):
+        redacted = {}
+        for k, v in obj.items():
+            if isinstance(v, (dict, list)):
+                redacted[k] = _cdr_trace_redact(v)
+            elif any(frag in k.lower() for frag in _CDR_TRACE_SENSITIVE_KEY_FRAGMENTS):
+                redacted[k] = "<redacted>" if v not in (None, "") else v
+            else:
+                redacted[k] = v
+        return redacted
+    if isinstance(obj, list):
+        return [_cdr_trace_redact(v) for v in obj]
+    return obj
+
+
 def _trace_cdr_payload(connector_id: int, payload: dict) -> None:
     """
     Diagnostic activable via TELEPHONY_CDR_TRACE=true — journalise
-    l'inventaire complet des variables reçues (clé, type, aperçu de valeur)
-    et écrit le payload intégral dans un fichier, pour confirmer quelles
-    variables un PBX réel envoie effectivement. A déjà permis de corriger
-    deux hypothèses fausses : caller_id_number/destination_number ne sont
-    pas systématiquement sous 'variables' (vivent sous
+    l'inventaire complet des variables reçues (clé, type, aperçu de valeur
+    MASQUÉ pour les clés sensibles, cf. _cdr_trace_redact) et écrit le
+    payload (redacté) dans un fichier, pour confirmer quelles variables un
+    PBX réel envoie effectivement. A déjà permis de corriger deux
+    hypothèses fausses : caller_id_number/destination_number ne sont pas
+    systématiquement sous 'variables' (vivent sous
     callflow[0].caller_profile) et cc_agent est un UUID interne FusionPBX,
     pas un login/une extension (l'agent réel est sous
     callflow[0].caller_profile.originatee). Ne doit jamais faire échouer
     l'ingestion : toute erreur ici est journalisée puis ignorée.
+
+    ⚠️ Audit du 12/08 : ce flag ne doit JAMAIS rester actif durablement en
+    production (même redacté, un dump de structure à chaque appel entrant
+    est un bruit et un risque évitables) — à activer ponctuellement pour
+    diagnostiquer un nouveau PBX, puis désactiver.
     """
     try:
+        payload = _cdr_trace_redact(payload)
         variables = payload.get("variables") or {}
         top_level_keys = sorted(k for k in payload.keys() if k != "variables")
         var_lines = []
@@ -378,13 +419,19 @@ def _trace_cdr_payload(connector_id: int, payload: dict) -> None:
         try:
             with open(trace_path, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=2, ensure_ascii=False, default=str)
+            # Lecture restreinte au propriétaire du process — le fichier est
+            # écrasé à chaque appel (pas d'accumulation), mais /tmp reste
+            # potentiellement lisible par d'autres utilisateurs du même hôte
+            # entre deux écritures sans cette restriction.
+            os.chmod(trace_path, 0o600)
         except OSError as exc:
             logger.warning("CDR TRACE : échec d'écriture du fichier %s : %s", trace_path, exc)
             trace_path = None
 
         logger.info(
             "CDR TRACE connecteur id=%s call_uuid=%s — %d clé(s) top-level=%s, "
-            "%d variable(s) sous 'variables' :\n%s\n  (payload complet écrit dans %s)",
+            "%d variable(s) sous 'variables' (valeurs sensibles masquées) :\n%s\n"
+            "  (payload complet écrit dans %s)",
             connector_id, call_uuid, len(top_level_keys), top_level_keys,
             len(var_lines), "\n".join(var_lines), trace_path or "(échec)",
         )
@@ -515,12 +562,15 @@ def cdr_ingest(token):
     if payload is None:
         payload = request.get_json(silent=True, force=True)
     if not isinstance(payload, dict):
-        # Instrumentation temporaire (à retirer une fois le format confirmé) :
-        # les tentatives ci-dessus échouent encore sur du trafic FusionPBX
-        # réel malgré plusieurs hypothèses déjà corrigées — plutôt que de
-        # deviner encore, on journalise la position EXACTE où json.loads
-        # échoue (sur le candidat 'unquote', le plus plausible d'après les
-        # logs précédents) avec un extrait centré sur ce point précis.
+        # Diagnostic permanent (requalifié le 12/08 — n'est plus "temporaire",
+        # ce chemin ne se déclenche QUE sur un échec réel de parsing, jamais
+        # sur du trafic normal) : journalise la position EXACTE où json.loads
+        # échoue, avec un extrait centré sur ce point précis, pour diagnostiquer
+        # un futur format CDR inattendu sans deviner à l'aveugle. Le WARNING
+        # reste justifié malgré l'extrait de payload potentiellement sensible
+        # dans le log : il ne fires que sur un échec d'ingestion réel (rare),
+        # jamais en fonctionnement normal — contrairement à _trace_cdr_payload
+        # ci-dessus qui doit rester désactivée par défaut.
         error_detail = "aucune erreur JSON capturée (aucun '{'/'}' trouvé dans les 4 candidats)"
         if last_error is not None:
             label, exc, sliced = last_error

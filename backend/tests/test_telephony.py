@@ -1395,6 +1395,44 @@ class TestCdrIngest:
         assert resp.status_code == 201
         assert TelephonyEvent.query.filter_by(call_uuid="call-cdr-trace-mode").count() >= 1
 
+    def test_cdr_trace_redact_masque_les_champs_sensibles(self):
+        """Audit du 12/08 : la trace CDR ne doit jamais exposer de PII/contenu
+        d'appel, même quand TELEPHONY_CDR_TRACE est activé — seule la
+        structure (noms de clés, types) doit rester lisible."""
+        from app.routes.telephony import _cdr_trace_redact
+
+        payload = {
+            "uuid": "call-uuid-abc",
+            "variables": {
+                "caller_id_number": "+33612345678",
+                "destination_number": "+33698765432",
+                "record_file_path": "/var/lib/freeswitch/recordings/abc.wav",
+                "sip_full_from": '"Jean Dupont" <sip:0612345678@example.com>',
+                "cc_agent": "e8a58298-87e7-4960-a222-d05763866b15",
+                "billsec": "42",
+            },
+            "callflow": [{"caller_profile": {"caller_id_number": "+33612345678"}}],
+        }
+        redacted = _cdr_trace_redact(payload)
+
+        assert redacted["uuid"] == "call-uuid-abc"  # non sensible, conservé
+        assert redacted["variables"]["billsec"] == "42"  # non sensible, conservé
+        assert redacted["variables"]["caller_id_number"] == "<redacted>"
+        assert redacted["variables"]["destination_number"] == "<redacted>"
+        assert redacted["variables"]["record_file_path"] == "<redacted>"
+        assert redacted["variables"]["sip_full_from"] == "<redacted>"
+        # cc_agent est un identifiant technique (uuid FusionPBX), pas un
+        # numéro/contact — mais contient le fragment "agent", masqué par
+        # excès de prudence (préférence documentée : sur-masquer plutôt que
+        # risquer une fuite).
+        assert redacted["variables"]["cc_agent"] == "<redacted>"
+        # Récursif dans les listes/dicts imbriqués (callflow[0].caller_profile)
+        assert redacted["callflow"][0]["caller_profile"]["caller_id_number"] == "<redacted>"
+        # Ne casse jamais l'appelant même sur un payload vide/minimal
+        from app.routes.telephony import _cdr_trace_redact as redact_fn
+        assert redact_fn({}) == {}
+        assert redact_fn(None) is None
+
 
 class TestCdrTokenRegenerate:
     def test_refuse_sans_droit_admin_tenant(self, client, auth_headers, pbx_connector):

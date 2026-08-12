@@ -4,7 +4,71 @@ Couvre en particulier la validation sandboxée (rejet propre d'une variable
 non autorisée, d'une syntaxe invalide, et d'une tentative d'injection SSTI
 réelle — pas juste l'absence de crash).
 """
+import pytest
+
 from app.models.email_template import EmailTemplate, TEMPLATE_ONBOARDING_WELCOME, TEMPLATE_PASSWORD_RESET
+from app.models.tenant import Tenant
+
+
+# ── Fixture locale : 2e tenant, même convention que test_isolation.py ───────
+@pytest.fixture
+def tenant_b(db):
+    t = Tenant(code="TENB-EMAIL", nom="Tenant B", slug="tenant-b-email")
+    db.session.add(t)
+    db.session.commit()
+    return t
+
+
+class TestIsolationCrossTenant:
+    """Audit du 12/08 : EmailTemplate est tenant-scopé mais n'avait aucun
+    test d'isolation cross-tenant — ces routes ne prennent pas d'ID dans
+    l'URL (juste un template_key global aux deux clés connues), donc le
+    risque n'est pas "deviner l'ID d'un autre tenant" mais "l'override d'un
+    tenant fuite dans la réponse d'un autre tenant"."""
+
+    def test_override_tenant_b_n_apparait_pas_pour_le_tenant_courant(
+        self, client, db, auth_headers_admin, tenant_b,
+    ):
+        db.session.add(EmailTemplate(
+            tenant_id=tenant_b.id, template_key=TEMPLATE_PASSWORD_RESET,
+            subject="SUJET PRIVÉ TENANT B — ne doit jamais fuiter",
+            body_html="<p>secret tenant B</p>", is_active=True,
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/tenant/email-templates", headers=auth_headers_admin)
+        assert resp.status_code == 200
+        templates = {t["template_key"]: t for t in resp.get_json()["templates"]}
+        # Le tenant courant (CORE, via auth_headers_admin) ne doit voir QUE
+        # le défaut système — jamais l'override de tenant_b.
+        assert templates[TEMPLATE_PASSWORD_RESET]["is_customized"] is False
+        assert "TENANT B" not in templates[TEMPLATE_PASSWORD_RESET]["subject"]
+
+    def test_put_depuis_un_tenant_ne_modifie_pas_l_override_d_un_autre(
+        self, client, db, auth_headers_admin, tenant_b, default_tenant,
+    ):
+        b_override = EmailTemplate(
+            tenant_id=tenant_b.id, template_key=TEMPLATE_PASSWORD_RESET,
+            subject="Original tenant B", body_html="<p>original</p>", is_active=True,
+        )
+        db.session.add(b_override)
+        db.session.commit()
+
+        resp = client.put(
+            f"/api/tenant/email-templates/{TEMPLATE_PASSWORD_RESET}",
+            json={"subject": "Modifié par CORE", "body_html": "<p>{{ reset_url }}</p>"},
+            headers=auth_headers_admin,
+        )
+        assert resp.status_code == 200
+
+        db.session.refresh(b_override)
+        assert b_override.subject == "Original tenant B"  # inchangé
+
+        core_override = EmailTemplate.query.filter_by(
+            tenant_id=default_tenant.id, template_key=TEMPLATE_PASSWORD_RESET,
+        ).first()
+        assert core_override is not None
+        assert core_override.subject == "Modifié par CORE"
 
 
 class TestListTemplates:
