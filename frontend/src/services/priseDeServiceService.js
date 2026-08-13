@@ -30,6 +30,11 @@ export async function getPriseDeServiceStats(params = {}) {
   return data;
 }
 
+/** Export CSV des prises de service filtrées (mêmes filtres que listPrisesDeService) — réponse blob. */
+export function exportPrisesDeServiceCsv(params = {}) {
+  return apiClient.get(`${BASE}/export`, { params, responseType: "blob" });
+}
+
 // ── Référentiels pour les autocomplete (réutilise les endpoints existants) ────
 export async function fetchAgents() {
   const { data } = await apiClient.get("/agents", { params: { per_page: 500 } });

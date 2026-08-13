@@ -14,7 +14,7 @@ from app.models import AgentSecurite, Contact, Prestataire, UserRole
 from app.utils.decorators import tenant_required
 from app.utils.auth import role_required
 from app.routes.contacts import _save_avatar, _delete_avatar
-from app.services.agent_kpis import agent_kpis
+from app.services.agent_kpis import agent_kpis, discriminant_codes
 
 agents_securite_bp = Blueprint('agents_securite', __name__, url_prefix='/api/agents')
 
@@ -323,9 +323,10 @@ def agents_kpis_list():
     """KPI agrégés de tous les agents actifs du tenant (tableau de bord)."""
     dt_from, dt_to = _parse_kpi_period()
     agents = AgentSecurite.query.filter_by(tenant_id=g.tenant.id, is_active=True).all()
+    disc = discriminant_codes(g.tenant.id)
     rows = []
     for a in agents:
-        k = agent_kpis(g.tenant.id, a.id, dt_from, dt_to)
+        k = agent_kpis(g.tenant.id, a.id, dt_from, dt_to, disc=disc)
         k["matricule"] = a.matricule
         k["nom"] = f"{a.prenom} {a.nom}".strip()
         k["type_agent"] = a.type_agent

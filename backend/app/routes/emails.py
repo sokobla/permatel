@@ -32,6 +32,7 @@ from app.models.demande import Demande
 from app.models.interaction import Interaction, TypeInteraction
 from app.utils.mailer import send_via_smtp
 from app.utils.crypto import encrypt_bytes, decrypt_bytes
+from app.utils.csv_export import build_csv_response, MAX_EXPORT_ROWS
 
 emails_bp = Blueprint("emails", __name__, url_prefix="/api/emails")
 CORS(emails_bp, supports_credentials=True)
@@ -220,16 +221,20 @@ def _email_full(email):
     return data
 
 
-@emails_bp.get("")
-@jwt_required()
-def list_emails():
-    tenant_id, err = _tenant_uuid()
-    if err:
-        return err
+def _parse_iso_datetime(value):
+    """Parse une date ISO ('YYYY-MM-DD' ou avec suffixe 'Z') ; None si invalide."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", ""))
+    except ValueError:
+        return None
+
+
+def _filtered_emails_query(tenant_id):
     direction = request.args.get("direction", "outbound")
     contact_id = request.args.get("contact_id", type=int)
     demande_id = request.args.get("demande_id", type=int)
-    limit = min(request.args.get("limit", default=50, type=int), 200)
 
     query = Email.query.filter_by(tenant_id=tenant_id)
     if direction:
@@ -238,9 +243,63 @@ def list_emails():
         query = query.filter_by(contact_id=contact_id)
     if demande_id:
         query = query.filter_by(demande_id=demande_id)
+    if from_val := request.args.get("from"):
+        if dt_from := _parse_iso_datetime(from_val):
+            query = query.filter(Email.created_at >= dt_from)
+    if to_val := request.args.get("to"):
+        if dt_to := _parse_iso_datetime(to_val):
+            query = query.filter(Email.created_at <= dt_to)
 
-    rows = query.order_by(Email.created_at.desc()).limit(limit).all()
+    return query.order_by(Email.created_at.desc())
+
+
+@emails_bp.get("")
+@jwt_required()
+def list_emails():
+    tenant_id, err = _tenant_uuid()
+    if err:
+        return err
+    limit = min(request.args.get("limit", default=50, type=int), 200)
+
+    rows = _filtered_emails_query(tenant_id).limit(limit).all()
     return jsonify({"emails": [e.to_dict() for e in rows], "total": len(rows)}), 200
+
+
+@emails_bp.get("/export")
+@jwt_required()
+def export_emails_csv():
+    """Export CSV des emails filtrés (métadonnées uniquement par défaut —
+    subject/body_text/body_html sont chiffrés, cf. EncryptedText). Passer
+    `include_body=true` pour ajouter body_text déchiffré à la demande."""
+    tenant_id, err = _tenant_uuid()
+    if err:
+        return err
+    include_body = request.args.get("include_body", "").lower() == "true"
+
+    rows = _filtered_emails_query(tenant_id).limit(MAX_EXPORT_ROWS).all()
+
+    header = [
+        "direction", "status", "from_address", "to_addresses", "cc", "subject",
+        "sent_at", "received_at", "created_at", "has_attachments",
+    ]
+    if include_body:
+        header.append("body_text")
+
+    csv_rows = []
+    for e in rows:
+        row = [
+            e.direction, e.status, e.from_address, e.to_addresses, e.cc, e.subject,
+            e.sent_at.isoformat() if e.sent_at else None,
+            e.received_at.isoformat() if e.received_at else None,
+            e.created_at.isoformat() if e.created_at else None,
+            e.has_attachments,
+        ]
+        if include_body:
+            row.append(e.body_text)
+        csv_rows.append(row)
+
+    filename = f"emails_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return build_csv_response(header, csv_rows, filename)
 
 
 @emails_bp.post("/fetch")

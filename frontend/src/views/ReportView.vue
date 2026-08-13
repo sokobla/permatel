@@ -64,11 +64,25 @@
 
           <v-spacer />
 
+          <v-btn
+            v-if="exportableTabs.includes(activeTab)"
+            size="small"
+            color="#00a8a8"
+            variant="flat"
+            class="text-none"
+            prepend-icon="mdi-tray-arrow-down"
+            :loading="exportingCsv"
+            @click="exportCurrentTab"
+          >
+            Exporter CSV
+          </v-btn>
+
           <div class="rp-status">
             <span :class="['rp-status__dot', loading ? 'rp-status__dot--loading' : 'rp-status__dot--ok']" />
             <span class="rp-status__lbl">{{ loading ? 'CHARGEMENT…' : 'OPÉRATIONNEL' }}</span>
           </div>
         </v-sheet>
+        <div v-if="exportError" class="rp-sess-error mt-1">{{ exportError }}</div>
       </v-col>
     </v-row>
 
@@ -90,6 +104,8 @@
 
     <!-- ══ PRODUCTION ══════════════════════════════════════════════════════ -->
     <template v-if="activeTab === 'production'">
+
+      <v-row v-if="productionError"><v-col><div class="rp-sess-error">{{ productionError }}</div></v-col></v-row>
 
       <v-row>
         <v-col v-for="kpi in productionKpis" :key="kpi.label" cols="12" sm="6" md="4" lg="2">
@@ -214,6 +230,8 @@
 
     <!-- ══ PRISES DE SERVICE ═══════════════════════════════════════════════ -->
     <template v-if="activeTab === 'vacations'">
+
+      <v-row v-if="productionError"><v-col><div class="rp-sess-error">{{ productionError }}</div></v-col></v-row>
 
       <v-row>
         <v-col v-for="kpi in vacationsKpis" :key="kpi.label" cols="12" sm="6" md="4" lg="2">
@@ -789,11 +807,12 @@
 <script setup>
 import { ref, computed, watch, onMounted } from "vue";
 import ApexChart from "vue3-apexcharts";
-import { listDemandes } from "@/services/demandeService";
-import { listPrisesDeService } from "@/services/priseDeServiceService";
+import { listDemandes, exportDemandesCsv } from "@/services/demandeService";
+import { listPrisesDeService, exportPrisesDeServiceCsv } from "@/services/priseDeServiceService";
 import { sessionService } from "@/services/sessionService";
 import { userService } from "@/services/userService";
 import { emailService } from "@/services/emailService";
+import { downloadBlob, blobErrorMessage, arrayToCsv } from "@/utils/downloadBlob";
 import { agentKpiService } from "@/services/agentKpiService";
 import { settingsService } from "@/services/settingsService";
 import { useAuthStore } from "@/store/auth";
@@ -868,16 +887,24 @@ const useCustomRange = computed(() => !!(customFrom.value || customTo.value));
 const rawAnomalies = ref([]);
 const rawCommandes = ref([]);
 const rawPrises    = ref([]);
+const productionError = ref("");
 
 // ── Load ─────────────────────────────────────────────────────────────
 
 async function loadData() {
   loading.value = true;
+  productionError.value = "";
   try {
+    // Le filtre client reste appliqué côté client (applyFilters) : le passer
+    // ici en plus rétrécirait clientOptions (dérivé de rawAnomalies/rawCommandes)
+    // au seul client déjà sélectionné, empêchant de revenir en arrière dans
+    // le sélecteur.
+    const { from, to } = periodRange();
+    const params = { from, to };
     const [a, c, p] = await Promise.all([
-      listDemandes({ type_demande: "anomalie" }),
-      listDemandes({ type_demande: "commande" }),
-      listPrisesDeService().catch((err) => {
+      listDemandes({ ...params, type_demande: "anomalie" }),
+      listDemandes({ ...params, type_demande: "commande" }),
+      listPrisesDeService(params).catch((err) => {
         console.error("Erreur lors du chargement des prises de service:", err);
         return [];
       }),
@@ -885,8 +912,71 @@ async function loadData() {
     rawAnomalies.value = Array.isArray(a) ? a : (a.items ?? []);
     rawCommandes.value = Array.isArray(c) ? c : (c.items ?? []);
     rawPrises.value    = Array.isArray(p) ? p : (p.items ?? []);
+  } catch (err) {
+    productionError.value =
+      err?.response?.data?.error || "Impossible de charger les données de production.";
   } finally {
     loading.value = false;
+  }
+}
+
+// ── Export CSV des données brutes ───────────────────────────────────
+const exportableTabs = ["production", "vacations", "sessions", "email", "agents", "permanenciers"];
+const exportingCsv = ref(false);
+const exportError = ref("");
+
+async function exportCurrentTab() {
+  exportingCsv.value = true;
+  exportError.value = "";
+  try {
+    const { from, to } = periodRange();
+    const params = { from, to };
+    if (filterClientId.value != null) params.client_id = filterClientId.value;
+
+    switch (activeTab.value) {
+      case "production": {
+        const { data } = await exportDemandesCsv(params);
+        downloadBlob(data, `demandes_${filterPeriod.value}.csv`);
+        break;
+      }
+      case "vacations": {
+        const { data } = await exportPrisesDeServiceCsv(params);
+        downloadBlob(data, `prises_de_service_${filterPeriod.value}.csv`);
+        break;
+      }
+      case "sessions": {
+        const sessParams = { from, to };
+        if (sessionUserId.value) sessParams.user_id = sessionUserId.value;
+        const { data } = await sessionService.exportMonitoringCsv(sessParams);
+        downloadBlob(data, `sessions_${filterPeriod.value}.csv`);
+        break;
+      }
+      case "email": {
+        const { data } = await emailService.exportEmailsCsv({ from, to });
+        downloadBlob(data, `emails_${filterPeriod.value}.csv`);
+        break;
+      }
+      case "agents": {
+        arrayToCsv(
+          ["nom", "anomalies", "incidents", "score"],
+          agentRanking.value.map(a => [a.nom, a.anomalies, a.incidents, a.score]),
+          `agents_${filterPeriod.value}.csv`,
+        );
+        break;
+      }
+      case "permanenciers": {
+        arrayToCsv(
+          ["nom", "role", "total", "completude_pct", "souffrance", "delai_moyen_h"],
+          permanencierRanking.value.map(u => [u.nom, u.role, u.total, u.completude, u.souffrance, u.delai]),
+          `operateurs_${filterPeriod.value}.csv`,
+        );
+        break;
+      }
+    }
+  } catch (err) {
+    exportError.value = await blobErrorMessage(err, "L'export CSV a échoué.");
+  } finally {
+    exportingCsv.value = false;
   }
 }
 
@@ -902,6 +992,13 @@ async function loadQualificationOptions() {
 onMounted(() => {
   loadData();
   loadQualificationOptions();
+});
+
+// Recharge Production/Vacations (et par ricochet Agents/Opérateurs, qui en
+// dérivent) quand la période ou la plage libre changent. Le filtre client
+// reste appliqué côté client (applyFilters), inchangé.
+watch([filterPeriod, customFrom, customTo], () => {
+  loadData();
 });
 
 // ── KPI Sessions ─────────────────────────────────────────────────────

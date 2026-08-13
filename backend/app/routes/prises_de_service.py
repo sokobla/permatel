@@ -18,6 +18,7 @@ from app.models.agent_securite import AgentSecurite
 from app.models.client import Client
 from app.models.site import Site
 from app.utils.decorators import tenant_required
+from app.utils.csv_export import build_csv_response, MAX_EXPORT_ROWS
 
 prises_de_service_bp = Blueprint("prises_de_service", __name__, url_prefix="/api/prises-de-service")
 
@@ -59,9 +60,7 @@ def _enrich(rows):
 
 # ── Liste ────────────────────────────────────────────────────────────────────
 
-@prises_de_service_bp.get("")
-@tenant_required
-def list_prises():
+def _filtered_prises_query():
     q = PriseDeService.query.filter_by(tenant_id=g.tenant_id)
 
     if agent_id := request.args.get("agent_id", type=int):
@@ -75,9 +74,42 @@ def list_prises():
                      else PriseDeService.date_fin.isnot(None))
     if (d := _parse_date(request.args.get("date"))):
         q = q.filter(PriseDeService.date_debut >= d)
+    if (dt_from := _parse_date(request.args.get("from"))):
+        q = q.filter(PriseDeService.date_debut >= dt_from)
+    if (dt_to := _parse_date(request.args.get("to"))):
+        q = q.filter(PriseDeService.date_debut <= dt_to)
 
-    rows = q.order_by(PriseDeService.date_debut.desc()).all()
+    return q.order_by(PriseDeService.date_debut.desc())
+
+
+@prises_de_service_bp.get("")
+@tenant_required
+def list_prises():
+    rows = _filtered_prises_query().all()
     return jsonify(_enrich(rows)), 200
+
+
+@prises_de_service_bp.get("/export")
+@tenant_required
+def export_prises_csv():
+    """Export CSV des prises de service filtrées (mêmes filtres que la liste)."""
+    rows = _filtered_prises_query().limit(MAX_EXPORT_ROWS).all()
+    enriched = _enrich(rows)
+
+    header = [
+        "agent_nom", "agent_matricule", "client_nom", "site_nom",
+        "date_debut", "date_fin", "duree_minutes", "statut", "created_at",
+    ]
+    csv_rows = [
+        [
+            e["agent_nom"], e["agent_matricule"], e["client_nom"], e["site_nom"],
+            e["date_debut"], e["date_fin"], e["duree_minutes"], e["statut"], e["created_at"],
+        ]
+        for e in enriched
+    ]
+
+    filename = f"prises_de_service_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return build_csv_response(header, csv_rows, filename)
 
 
 # ── Débuter une vacation ─────────────────────────────────────────────────────

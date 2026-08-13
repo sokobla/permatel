@@ -39,3 +39,8 @@ export async function getInteractions(demandeId) {
   const { data } = await apiClient.get(`/demandes/${demandeId}/interactions`);
   return data;
 }
+
+/** Export CSV des demandes filtrées (mêmes filtres que listDemandes) — réponse blob. */
+export function exportDemandesCsv(params = {}) {
+  return apiClient.get("/demandes/export", { params, responseType: "blob" });
+}

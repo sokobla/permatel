@@ -21,6 +21,7 @@ from app.models.tenant import Tenant
 from app.utils.auth import role_required
 from app.utils.decorators import tenant_required
 from app.services.sla import apply_sla, on_status_change, sla_state
+from app.utils.csv_export import build_csv_response, MAX_EXPORT_ROWS
 
 
 logger = logging.getLogger(__name__)
@@ -225,15 +226,9 @@ def _serialize_demande(demande: Demande) -> dict:
 # ENDPOINTS
 # ============================================================================
 
-@demandes_bp.get("")
-@tenant_required
-def list_demandes():
-    """Liste toutes les demandes non supprimées pour le tenant actif."""
-    claims = get_jwt()
-    tenant_id = _get_tenant_id_from_claims(claims)
-    if not tenant_id:
-        return jsonify({"message": "Aucun tenant actif sélectionné."}), 400
-
+def _filtered_demandes_query(tenant_id):
+    """Requête `Demande` filtrée selon les query params communs à la liste et
+    à l'export (contact_id, client_id, type_demande, statut, from, to)."""
     query = Demande.query.filter_by(tenant_id=tenant_id, is_deleted=False)
 
     if contact_id := request.args.get("contact_id", type=int):
@@ -250,9 +245,70 @@ def list_demandes():
             query = query.filter(Demande.statut == StatutDemande(statut_val))
         except ValueError:
             pass
+    if from_val := request.args.get("from"):
+        if dt_from := _parse_datetime(from_val):
+            query = query.filter(Demande.created_at >= dt_from)
+    if to_val := request.args.get("to"):
+        if dt_to := _parse_datetime(to_val):
+            query = query.filter(Demande.created_at <= dt_to)
 
-    demandes = query.order_by(Demande.created_at.desc()).all()
+    return query.order_by(Demande.created_at.desc())
+
+
+@demandes_bp.get("")
+@tenant_required
+def list_demandes():
+    """Liste toutes les demandes non supprimées pour le tenant actif."""
+    claims = get_jwt()
+    tenant_id = _get_tenant_id_from_claims(claims)
+    if not tenant_id:
+        return jsonify({"message": "Aucun tenant actif sélectionné."}), 400
+
+    query = _filtered_demandes_query(tenant_id)
+
+    # Pagination strictement opt-in : plusieurs appelants attendent un tableau
+    # brut et ne passent jamais page/per_page — ne pas changer la forme de la
+    # réponse par défaut sous peine de les casser.
+    page = request.args.get("page", type=int)
+    per_page = request.args.get("per_page", type=int)
+    if page or per_page:
+        pagination = query.paginate(page=page or 1, per_page=per_page or 50, error_out=False)
+        return jsonify({
+            "items": [_serialize_demande(d) for d in pagination.items],
+            "total": pagination.total,
+        }), 200
+
+    demandes = query.all()
     return jsonify([_serialize_demande(d) for d in demandes]), 200
+
+
+@demandes_bp.get("/export")
+@tenant_required
+def export_demandes_csv():
+    """Export CSV des demandes filtrées (mêmes filtres que la liste)."""
+    claims = get_jwt()
+    tenant_id = _get_tenant_id_from_claims(claims)
+    if not tenant_id:
+        return jsonify({"message": "Aucun tenant actif sélectionné."}), 400
+
+    demandes = _filtered_demandes_query(tenant_id).limit(MAX_EXPORT_ROWS).all()
+
+    header = [
+        "numero_ticket", "type_demande", "titre", "statut", "priorite",
+        "client_nom", "site_nom", "contact_nom", "created_by_nom",
+        "created_at", "date_resolution",
+    ]
+    rows = []
+    for d in demandes:
+        s = _serialize_demande(d)
+        rows.append([
+            s["numero_ticket"], s["type_demande"], s["titre"], s["statut"], s["priorite"],
+            s["client_nom"], s["site_nom"], s["contact_nom"], s["created_by_nom"],
+            s["created_at"], s["date_resolution"],
+        ])
+
+    filename = f"demandes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return build_csv_response(header, rows, filename)
 
 
 @demandes_bp.get("/<int:demande_id>")

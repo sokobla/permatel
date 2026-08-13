@@ -38,6 +38,7 @@ from app.models.user_token import (
     STATUS_PENDING, STATUS_COMPLETED, STATUS_EXPIRED,
 )
 from app.utils.auth import role_required
+from app.utils.csv_export import build_csv_response, MAX_EXPORT_ROWS
 from app.utils.email_templates import build_reset_url, send_templated_email
 from app.utils.logger import auth_logger
 from app.utils.login_throttle import check_locked, register_failure, reset as reset_login_throttle
@@ -46,6 +47,21 @@ from app.utils.validators import password_error
 from app.services.tenant_features import tenant_features
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
+
+
+def _parse_monitoring_datetime(value):
+    """Convertit une string date/datetime en objet datetime Python.
+    Accepte : 'YYYY-MM-DD', 'YYYY-MM-DDTHH:MM', 'YYYY-MM-DDTHH:MM:SS'.
+    Retourne None si la valeur est absente ou non parseable.
+    """
+    if not value:
+        return None
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(str(value), fmt)
+        except (ValueError, TypeError):
+            pass
+    return None
 
 # Appliquer CORS à tout le blueprint pour une gestion centralisée.
 # supports_credentials=True est crucial pour que le navigateur envoie les cookies
@@ -853,6 +869,42 @@ def sessions():
 #  GET /api/auth/sessions/monitoring   (supervision — STAFF, tenant-scoped)    #
 # ─────────────────────────────────────────────────────────────────────────── #
 
+def _filtered_sessions_query(tenant_uuid):
+    scope = request.args.get("status", "live")
+    query = UserSession.query.filter(UserSession.active_tenant_id == tenant_uuid)
+    if scope != "all":
+        query = query.filter(
+            UserSession.status.in_([SessionStatus.ACTIVE, SessionStatus.PAUSED])
+        )
+    if from_val := request.args.get("from"):
+        if dt_from := _parse_monitoring_datetime(from_val):
+            query = query.filter(UserSession.session_start >= dt_from)
+    if to_val := request.args.get("to"):
+        if dt_to := _parse_monitoring_datetime(to_val):
+            query = query.filter(UserSession.session_start <= dt_to)
+    return query.order_by(UserSession.last_activity_at.desc().nullslast())
+
+
+def _serialize_session_row(s, caller_refresh_jti):
+    u = s.user
+    return {
+        "id":               s.id,
+        "user_id":          s.user_id,
+        "username":         u.username if u else None,
+        "full_name":        f"{(u.prenom or '').strip()} {(u.nom or '').strip()}".strip() if u else None,
+        "role":             u.role.value if u and u.role else None,
+        "status":           s.status.value,
+        "ip_address":       s.ip_address,
+        "user_agent":       s.user_agent,
+        "agent_login":      s.agent_login,
+        "station_extension": s.station_extension,
+        "session_start":    s.session_start.isoformat() if s.session_start else None,
+        "last_activity_at": s.last_activity_at.isoformat() if s.last_activity_at else None,
+        "session_end":      s.session_end.isoformat() if s.session_end else None,
+        "is_current":       bool(caller_refresh_jti and s.jti == caller_refresh_jti),
+    }
+
+
 @auth_bp.route("/sessions/monitoring", methods=["GET"])
 @role_required(UserRole.ADMIN, UserRole.MANAGER)
 def sessions_monitoring():
@@ -862,6 +914,7 @@ def sessions_monitoring():
 
     Query optionnels :
       - status : 'live' (défaut, ACTIVE+PAUSED) | 'all'
+      - from / to : bornes sur session_start
     """
     claims = get_jwt()
     tid = claims.get("tid")
@@ -872,38 +925,44 @@ def sessions_monitoring():
     except (ValueError, TypeError):
         return jsonify({"error": "Tenant invalide."}), 400
 
-    caller_id = int(get_jwt_identity())
     caller_refresh_jti = claims.get("refresh_jti")
-
-    scope = request.args.get("status", "live")
-    query = UserSession.query.filter(UserSession.active_tenant_id == tenant_uuid)
-    if scope != "all":
-        query = query.filter(
-            UserSession.status.in_([SessionStatus.ACTIVE, SessionStatus.PAUSED])
-        )
-    sessions_list = query.order_by(UserSession.last_activity_at.desc().nullslast()).all()
-
-    payload = []
-    for s in sessions_list:
-        u = s.user
-        payload.append({
-            "id":               s.id,
-            "user_id":          s.user_id,
-            "username":         u.username if u else None,
-            "full_name":        f"{(u.prenom or '').strip()} {(u.nom or '').strip()}".strip() if u else None,
-            "role":             u.role.value if u and u.role else None,
-            "status":           s.status.value,
-            "ip_address":       s.ip_address,
-            "user_agent":       s.user_agent,
-            "agent_login":      s.agent_login,
-            "station_extension": s.station_extension,
-            "session_start":    s.session_start.isoformat() if s.session_start else None,
-            "last_activity_at": s.last_activity_at.isoformat() if s.last_activity_at else None,
-            "session_end":      s.session_end.isoformat() if s.session_end else None,
-            "is_current":       bool(caller_refresh_jti and s.jti == caller_refresh_jti),
-        })
+    sessions_list = _filtered_sessions_query(tenant_uuid).all()
+    payload = [_serialize_session_row(s, caller_refresh_jti) for s in sessions_list]
 
     return jsonify({"sessions": payload, "total": len(payload), "tenant_id": tid}), 200
+
+
+@auth_bp.route("/sessions/monitoring/export", methods=["GET"])
+@role_required(UserRole.ADMIN, UserRole.MANAGER)
+def export_sessions_monitoring_csv():
+    """Export CSV des sessions du tenant actif (mêmes filtres que /monitoring)."""
+    claims = get_jwt()
+    tid = claims.get("tid")
+    if not tid:
+        return jsonify({"error": "Aucun tenant actif sélectionné."}), 400
+    try:
+        tenant_uuid = uuid.UUID(tid)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Tenant invalide."}), 400
+
+    caller_refresh_jti = claims.get("refresh_jti")
+    sessions_list = _filtered_sessions_query(tenant_uuid).limit(MAX_EXPORT_ROWS).all()
+    rows_data = [_serialize_session_row(s, caller_refresh_jti) for s in sessions_list]
+
+    header = [
+        "username", "full_name", "role", "status", "ip_address", "user_agent",
+        "agent_login", "station_extension", "session_start", "last_activity_at", "session_end",
+    ]
+    csv_rows = [
+        [
+            r["username"], r["full_name"], r["role"], r["status"], r["ip_address"], r["user_agent"],
+            r["agent_login"], r["station_extension"], r["session_start"], r["last_activity_at"], r["session_end"],
+        ]
+        for r in rows_data
+    ]
+
+    filename = f"sessions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return build_csv_response(header, csv_rows, filename)
 
 
 # ─────────────────────────────────────────────────────────────────────────── #

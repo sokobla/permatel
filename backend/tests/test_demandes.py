@@ -1,3 +1,7 @@
+import csv
+import io
+from datetime import datetime, timedelta
+
 import pytest
 from app.models import Demande, DemandeAnomalie, Client, Site, Contact, Tenant, TenantUser, TypeDemande, StatutDemande
 
@@ -306,3 +310,91 @@ class TestReadUpdateDeleteDemande:
         # Vérifier que l'accès direct retourne 404
         resp_get = client.get(f"/api/demandes/{sample_demande.id}", headers=auth_headers_tenant)
         assert resp_get.status_code == 404
+
+
+class TestDemandesDateFilterAndPagination:
+
+    @pytest.fixture
+    def demandes_echelonnees(self, db, test_data):
+        """Crée 3 demandes avec des created_at distincts pour tester le filtrage par date."""
+        now = datetime.utcnow()
+        demandes = []
+        for i, days_ago in enumerate([60, 15, 1]):
+            d = DemandeAnomalie(
+                type_demande=TypeDemande.ANOMALIE,
+                client_id=test_data["client"].id,
+                permanencier_id=test_data["permanencier"].id,
+                titre=f"Demande J-{days_ago}",
+                tenant_id=test_data["tenant_id"],
+                numero_ticket="TEMP",
+                created_at=now - timedelta(days=days_ago),
+            )
+            db.session.add(d)
+            db.session.flush()
+            d.numero_ticket = f"ANOM_{d.id}"
+            demandes.append(d)
+        db.session.commit()
+        return demandes
+
+    def test_list_demandes_filtree_par_date(self, client, auth_headers_tenant, demandes_echelonnees):
+        """`from` exclut les demandes antérieures à la borne."""
+        cutoff = (datetime.utcnow() - timedelta(days=20)).strftime("%Y-%m-%d")
+        resp = client.get(f"/api/demandes?from={cutoff}", headers=auth_headers_tenant)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        titres = {d["titre"] for d in data}
+        assert "Demande J-60" not in titres
+        assert "Demande J-15" in titres
+        assert "Demande J-1" in titres
+
+    def test_list_demandes_sans_pagination_retourne_tableau_brut(self, client, auth_headers_tenant, demandes_echelonnees):
+        """Sans `page`/`per_page`, la réponse reste un tableau brut (compat descendante)."""
+        resp = client.get("/api/demandes", headers=auth_headers_tenant)
+        assert resp.status_code == 200
+        assert isinstance(resp.get_json(), list)
+
+    def test_list_demandes_avec_pagination_retourne_enveloppe(self, client, auth_headers_tenant, demandes_echelonnees):
+        """Avec `page`/`per_page`, la réponse devient `{items, total}` (opt-in)."""
+        resp = client.get("/api/demandes?page=1&per_page=2", headers=auth_headers_tenant)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert isinstance(data, dict)
+        assert "items" in data and "total" in data
+        assert data["total"] == 3
+        assert len(data["items"]) == 2
+
+    def test_export_demandes_csv(self, client, auth_headers_tenant, demandes_echelonnees):
+        """L'export CSV retourne un fichier avec en-tête + une ligne par demande, filtré par date."""
+        cutoff = (datetime.utcnow() - timedelta(days=20)).strftime("%Y-%m-%d")
+        resp = client.get(f"/api/demandes/export?from={cutoff}", headers=auth_headers_tenant)
+        assert resp.status_code == 200
+        assert resp.mimetype == "text/csv"
+        rows = list(csv.reader(io.StringIO(resp.get_data(as_text=True))))
+        assert rows[0][:3] == ["numero_ticket", "type_demande", "titre"]
+        titres = {r[2] for r in rows[1:]}
+        assert "Demande J-60" not in titres
+        assert "Demande J-15" in titres
+        assert "Demande J-1" in titres
+
+    def test_export_demandes_isolation_tenant(self, client, auth_headers_tenant, demandes_echelonnees, db, user_permanencier):
+        """L'export ne fuit pas les demandes d'un autre tenant."""
+        other_tenant = Tenant(nom="Autre Tenant Export", code="OTHEXP", slug="othexp")
+        db.session.add(other_tenant)
+        db.session.commit()
+        other_client = Client(nom="Client Autre Tenant", code_client="CLIOTH", tenant_id=other_tenant.id)
+        db.session.add(other_client)
+        db.session.commit()
+        leak = DemandeAnomalie(
+            type_demande=TypeDemande.ANOMALIE,
+            client_id=other_client.id,
+            permanencier_id=user_permanencier.id,
+            titre="Ne doit pas fuiter",
+            tenant_id=other_tenant.id,
+            numero_ticket="LEAK",
+        )
+        db.session.add(leak)
+        db.session.commit()
+
+        resp = client.get("/api/demandes/export", headers=auth_headers_tenant)
+        assert resp.status_code == 200
+        assert "Ne doit pas fuiter" not in resp.get_data(as_text=True)

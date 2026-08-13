@@ -71,4 +71,9 @@ export const emailService = {
     const { data } = await apiClient.get("/emails/stats", { params });
     return data;
   },
+
+  /** Export CSV des emails filtrés (métadonnées uniquement sauf include_body=true) — réponse blob. */
+  exportEmailsCsv(params = {}) {
+    return apiClient.get("/emails/export", { params, responseType: "blob" });
+  },
 };

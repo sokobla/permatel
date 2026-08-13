@@ -32,8 +32,12 @@ def _is_incident(anomalie, disc: set[str]) -> bool:
     return bool(anomalie.impact_securite) or (nature in disc)
 
 
-def agent_kpis(tenant_id, agent_id, dt_from, dt_to) -> dict:
-    """KPI d'un agent sur la période [dt_from, dt_to]."""
+def agent_kpis(tenant_id, agent_id, dt_from, dt_to, disc: set[str] | None = None) -> dict:
+    """KPI d'un agent sur la période [dt_from, dt_to].
+
+    `disc` (codes de nature discriminants) peut être précalculé par l'appelant
+    pour éviter de le recharger à chaque agent lors d'un classement en masse.
+    """
     rows = (
         DemandeAnomalie.query
         .filter(
@@ -45,7 +49,8 @@ def agent_kpis(tenant_id, agent_id, dt_from, dt_to) -> dict:
         )
         .all()
     )
-    disc = discriminant_codes(tenant_id)
+    if disc is None:
+        disc = discriminant_codes(tenant_id)
     incidents = [a for a in rows if _is_incident(a, disc)]
 
     def _by_status(items):
