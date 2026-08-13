@@ -25,7 +25,29 @@ L'intégration d'Odoo 18 Community agit comme un service ERP additionnel (CRM/Ve
 Après le commit d'une action, tentative **synchrone à timeout court (2-3s)** vers Odoo via XML-RPC. Succès → terminé. Échec/timeout → insertion dans `odoo_sync_queue`, reprise par `flask odoo-sync-dispatch` sur cron. Aucun broker Celery n'est requis.
 
 ### 2.2 Client Odoo
-Utilisation de `xmlrpc.client` (stdlib Python), encapsulé dans `app/services/odoo_client.py`.
+Utilisation de `xmlrpc.client` (stdlib Python), encapsulé dans `app/services/odoo_client.py`, exposant une méthode bas niveau unique (`execute_kw`). Le client est **injecté par paramètre** dans les services de synchro plutôt qu'importé en singleton — nécessaire pour le mock en test (cf. §2.5).
+
+### 2.3 Topologie Odoo : instance partagée, scoping par société
+Une **seule instance Odoo**, partagée entre tenants, scopée via `res.company` (une société Odoo par tenant PERMATEL). `OdooConfig` (par tenant) ne stocke donc pas des credentials de connexion différents, mais l'URL/DB commune + le `company_id` Odoo cible.
+
+Conséquence directe sur le client : chaque appel `execute_kw` doit être émis avec `with_context(allowed_company_ids=[company_id], company_id=company_id)` pour que le filtrage multi-société d'Odoo fasse l'isolation — ce n'est pas automatique, à coder explicitement dans `odoo_client.py` (un paramètre `company_id` obligatoire sur chaque méthode du service, jamais un défaut implicite).
+
+### 2.4 Idempotence de la synchronisation : champ miroir côté Odoo
+Chaque modèle Odoo synchronisé (`res.partner`, `project.project`, `sale.order`, `hr.employee`, …) reçoit un champ custom **`x_permatel_ref`** (string, indexé), rempli avec `"{tenant_id}:{modele_permatel}:{id}"`.
+
+Toute écriture passe par **search-then-write**, jamais un `create` en aveugle :
+1. `search_read` sur `x_permatel_ref` — si trouvé, `write` sur l'id retourné ; sinon `create`, puis persistance immédiate de l'`odoo_id` obtenu dans la table de mapping correspondante (`odoo_partners`, `odoo_employees`, …).
+2. Une fois le mapping connu, les synchros suivantes écrivent directement par `odoo_id` (le `search_read` par `x_permatel_ref` ne sert qu'à la toute première création, ou en secours si la table de mapping locale a été perdue/désynchronisée).
+
+Ce mécanisme rend un retry sans effet de bord : si un appel précédent a réussi côté Odoo mais que la ligne de `odoo_sync_queue` n'a pas pu être marquée `done` (crash, timeout réseau après écriture), le retry suivant retrouve l'enregistrement existant via `x_permatel_ref` au lieu d'en créer un doublon.
+
+**État de la ligne de queue** (`odoo_sync_queue.status`) : `pending → in_flight → done | failed`, avec un `locked_at`/`locked_until` court pour qu'un run de `flask odoo-sync-dispatch` qui prend du retard ne se fasse pas doubler par le suivant (même logique de verrouillage que `sessions-sweep`).
+
+### 2.5 Tests : mock du client Odoo (pas de vraie instance en CI)
+La suite pytest tourne sur SQLite en mémoire, sans Odoo réel disponible. Le découplage du §2.2 (client injecté, pas de singleton) permet de fournir en test un **faux client en mémoire** — `tests/fakes/fake_odoo_client.py`, un dict Python implémentant juste `create`/`write`/`search_read` pour les modèles concernés — suffisant pour vérifier la logique de mapping/idempotence côté PERMATEL sans dépendre d'un vrai serveur Odoo ni mocker XML-RPC au niveau transport.
+
+### 2.6 Backfill initial
+Les clients/sites/contacts/agents déjà existants en base au moment de l'activation du flag `integrations.erp` pour un tenant ne sont pas synchronisés rétroactivement par le flux événementiel (qui ne couvre que les créations/modifications futures). Une commande CLI dédiée gère l'amorçage initial, sur le modèle de `flask seed-prestataires`/`seed-agents` déjà existants : dry-run par défaut, `--tenant-code <CODE> --no-dry-run --yes` pour appliquer, un tenant à la fois.
 
 ---
 
@@ -40,11 +62,13 @@ L'intégration Odoo requiert l'ajout de nouveaux modèles dans PERMATEL pour s'a
 * **`Devis` / `DevisLigne`** : Nouveaux modèles. Créés par un Manager à partir d'une commande. Miroir exact du `sale.order` et `sale.order.line` d'Odoo.
 
 ### B. Tables de Mapping Odoo (`backend/app/models/odoo.py`)
-* `odoo_config` : Config de connexion par tenant.
+* `odoo_config` : Par tenant — pas des credentials de connexion distincts (instance partagée, cf. §2.3), mais le `company_id` Odoo cible pour ce tenant.
 * `odoo_partners` : Mapping CRM (`tenant_id`, type, `permatel_id`, `odoo_partner_id`, `odoo_project_id`, `odoo_task_id`).
 * `odoo_employees` : Mapping RH (`tenant_id`, `agent_id`, `odoo_employee_id`).
-* `odoo_sync_queue` : File de retry (`flux`, `payload` JSONB, `status`).
+* `odoo_sync_queue` : File de retry (`flux`, `payload` JSONB, `status: pending|in_flight|done|failed`, `locked_at`/`locked_until` — cf. §2.4).
 * `odoo_factures` : Copie locale en lecture seule des factures Odoo (Pull).
+
+Chaque modèle Odoo cible porte en complément un champ custom `x_permatel_ref` (cf. §2.4) — c'est la clé d'idempotence de la synchro, indépendante des colonnes `odoo_*_id` ci-dessus qui ne sont que le cache local du mapping une fois établi.
 
 ---
 
@@ -54,8 +78,11 @@ Le détail des tâches est géré dans le fichier de suivi Excel (Phases 6 à 10
 
 ### Phase 6 : Fondations transverses
 * Flag `integrations.erp` activable par tenant.
-* Création de `OdooConfig` et `odoo_sync_queue`.
-* Service XML-RPC `odoo_client.py` et script CLI `flask odoo-sync-dispatch`.
+* Création de `OdooConfig` (référence au `company_id` Odoo du tenant, instance partagée — §2.3) et `odoo_sync_queue` (avec `status`/`locked_at` — §2.4).
+* Ajout du champ custom `x_permatel_ref` sur les modèles Odoo ciblés (`res.partner`, `project.project`, `sale.order`, `hr.employee`, …).
+* Service XML-RPC `odoo_client.py` (client injecté, `execute_kw` avec `company_id` systématique — §2.2/2.3) et script CLI `flask odoo-sync-dispatch`.
+* `tests/fakes/fake_odoo_client.py` pour la suite pytest (§2.5).
+* Commande CLI de backfill initial, sur le modèle de `seed-prestataires`/`seed-agents` (§2.6).
 
 ### Phase 7 : Gestion des Partenaires (Partie 1 : CRM)
 * **Client PERMATEL** → Odoo `res.partner(is_company=True)` + `project.project`.
