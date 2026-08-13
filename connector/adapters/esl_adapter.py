@@ -70,6 +70,17 @@ _EXTENSION_RE = re.compile(r"user/(\d+)@([\w.-]+)")
 # périmée si un événement intermédiaire est perdu.
 _PENDING_AGENT_RING_TTL_SECONDS = 30
 
+# Cooldown avant de retenter un rafraîchissement CIBLÉ de l'annuaire agents
+# suite à un 'agent-status-change' pour un uuid inconnu (13/08) — sans lui,
+# un agent PBX jamais déclaré côté PERMATEL (poste de test, ancien agent non
+# nettoyé) déclencherait un `agent list` à CHAQUE changement de statut tant
+# qu'il reste inconnu. Volontairement plus court que
+# AGENT_DIRECTORY_REFRESH_SECONDS (rafraîchissement périodique, 300s par
+# défaut) : le but ici est justement de rattraper vite un agent légitime
+# qui vient d'être déclaré côté PERMATEL, ou un annuaire simplement pas
+# encore à jour — pas de remplacer le cycle périodique.
+_UNKNOWN_AGENT_REFRESH_COOLDOWN_SECONDS = 60
+
 
 class ESLAdapter(PBXAdapter):
     def __init__(self, connector_config: dict, ingest_client):
@@ -118,6 +129,12 @@ class ESLAdapter(PBXAdapter):
         # ce leg de tentative comme lié au même appel physique plutôt que de
         # le laisser apparaître comme un appel fantôme.
         self._pending_agent_rings = {}
+        # uuid inconnu -> horodatage (time.monotonic()) de la dernière
+        # tentative de rafraîchissement ciblé de l'annuaire déclenchée pour
+        # lui (cf. _on_agent_status_event) — débounce pour ne pas appeler
+        # 'agent list' à chaque événement d'un agent qui restera inconnu
+        # (poste de test jamais nettoyé côté PBX, etc.).
+        self._unknown_agent_refresh_attempts = {}
         # Roster faisant autorité côté PERMATEL : `User.agent_login` contient
         # désormais l'UUID FusionPBX de l'agent (CC-Agent / colonne "name" de
         # 'agent list'), PAS l'extension — un agent PBX découvert via
@@ -500,6 +517,52 @@ class ESLAdapter(PBXAdapter):
                 self.connector_config["name"], action, dict(headers),
             )
 
+    def _retry_after_targeted_refresh(self, agent_uuid, raw_status):
+        """Rattrapage (13/08) : un 'agent-status-change' pour un uuid absent
+        de l'annuaire ne signifie pas forcément un agent illégitime — ça peut
+        être un annuaire simplement pas encore à jour (cycle périodique pas
+        encore passé) ou un agent qui vient tout juste d'être déclaré côté
+        PERMATEL (`User.agent_login`). Plutôt que d'attendre jusqu'à
+        AGENT_DIRECTORY_REFRESH_SECONDS (300s par défaut), on retente un
+        rafraîchissement immédiat une seule fois, borné par un cooldown par
+        uuid pour ne pas marteler `agent list` pour un agent qui restera
+        durablement inconnu (poste de test, agent non nettoyé côté PBX).
+        Retourne l'entrée d'annuaire si la reconfirmation aboutit, sinon
+        None (et journalise dans les deux cas)."""
+        now = time.monotonic()
+        last_attempt = self._unknown_agent_refresh_attempts.get(agent_uuid)
+        if last_attempt is not None and now - last_attempt < _UNKNOWN_AGENT_REFRESH_COOLDOWN_SECONDS:
+            logger.warning(
+                "[%s] agent-status-change pour un agent absent de l'annuaire (uuid=%s, statut=%r) — "
+                "déjà retenté récemment, abandonné (cooldown %ss).",
+                self.connector_config["name"], agent_uuid, raw_status,
+                _UNKNOWN_AGENT_REFRESH_COOLDOWN_SECONDS,
+            )
+            return None
+
+        self._unknown_agent_refresh_attempts[agent_uuid] = now
+        logger.info(
+            "[%s] agent-status-change pour un agent absent de l'annuaire (uuid=%s, statut=%r) — "
+            "rafraîchissement immédiat de l'annuaire avant abandon.",
+            self.connector_config["name"], agent_uuid, raw_status,
+        )
+        self._refresh_agent_directory()
+        entry = self._agent_directory.get(agent_uuid)
+        if entry is not None:
+            logger.info(
+                "[%s] agent uuid=%s retrouvé après rafraîchissement ciblé — événement transmis.",
+                self.connector_config["name"], agent_uuid,
+            )
+        else:
+            logger.warning(
+                "[%s] agent-status-change pour un agent absent de l'annuaire (uuid=%s, statut=%r) — "
+                "toujours inconnu après rafraîchissement immédiat : non déclaré côté PERMATEL, ou "
+                "annuaire non rafraîchi (plusieurs domaines configurés sur ce connecteur, cf. "
+                "_refresh_agent_directory).",
+                self.connector_config["name"], agent_uuid, raw_status,
+            )
+        return entry
+
     def _on_agent_status_event(self, headers, action):
         if action == "agent-status-get":
             return  # lecture passive (ex. rafraîchissement d'un écran admin), pas une transition réelle
@@ -507,12 +570,9 @@ class ESLAdapter(PBXAdapter):
         agent_uuid = headers.get("CC-Agent")
         entry = self._agent_directory.get(agent_uuid)
         if entry is None:
-            logger.warning(
-                "[%s] agent-status-change pour un agent absent de l'annuaire (uuid=%s, statut=%r) — "
-                "annuaire pas encore rafraîchi, ou agent non déclaré côté PERMATEL.",
-                self.connector_config["name"], agent_uuid, headers.get("CC-Agent-Status"),
-            )
-            return
+            entry = self._retry_after_targeted_refresh(agent_uuid, headers.get("CC-Agent-Status"))
+        if entry is None:
+            return  # toujours inconnu après tentative de rattrapage (ou debounced) — abandonné, déjà journalisé
 
         # agent.login = l'uuid lui-même (identité stable, == User.agent_login
         # désormais) — PAS entry["extension"], qui n'est que le poste
@@ -530,6 +590,13 @@ class ESLAdapter(PBXAdapter):
         connecteur (même repli qu'ailleurs) — jamais deviné silencieusement."""
         agent_uuid = headers.get("CC-Agent")
         entry = self._agent_directory.get(agent_uuid) if agent_uuid else None
+        if agent_uuid and entry is None:
+            # Rattrapage (13/08, même motif que _on_agent_status_event) :
+            # cet événement alimente désormais aussi la détection de
+            # présence côté PERMATEL (agents_status), donc perdre l'identité
+            # ici faute d'annuaire à jour a le même coût qu'un statut manuel
+            # jamais reçu.
+            entry = self._retry_after_targeted_refresh(agent_uuid, None)
         domain = entry["domain"] if entry else None
         # agent.login = l'uuid lui-même (== User.agent_login désormais), pas
         # l'extension/poste physique — voir _on_agent_status_event.
@@ -593,6 +660,10 @@ class ESLAdapter(PBXAdapter):
         normalizer.normalize_bridge_recording)."""
         agent_uuid = headers.get("CC-Agent")
         entry = self._agent_directory.get(agent_uuid) if agent_uuid else None
+        if agent_uuid and entry is None:
+            # Rattrapage (13/08, même motif que _on_agent_status_event) —
+            # voir le commentaire équivalent dans _on_member_enrichment_event.
+            entry = self._retry_after_targeted_refresh(agent_uuid, None)
         domain = entry["domain"] if entry else None
         # agent.login = l'uuid lui-même (== User.agent_login désormais), pas
         # l'extension/poste physique — voir _on_agent_status_event.

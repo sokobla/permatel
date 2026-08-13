@@ -141,7 +141,9 @@ def test_agent_status_change_resout_via_annuaire_et_transmet():
 def test_agent_status_change_agent_absent_de_l_annuaire_est_journalise(caplog):
     """Annuaire pas encore rafraîchi ou agent hors des files supervisées :
     abandonné proprement, pas d'exception, mais journalisé (pas perdu sans
-    trace)."""
+    trace). Sans domaine configuré, la tentative de rafraîchissement ciblé
+    (13/08) est un no-op immédiat (`_refresh_agent_directory` retourne sans
+    appeler ESL faute de domaine) — le comportement observable est inchangé."""
     ingest_client = MagicMock()
     adapter = ESLAdapter(_fake_connector_config(), ingest_client=ingest_client)
     headers = {
@@ -155,6 +157,72 @@ def test_agent_status_change_agent_absent_de_l_annuaire_est_journalise(caplog):
 
     ingest_client.send.assert_not_called()
     assert any("uuid-inconnu" in r.message for r in caplog.records)
+
+
+def test_agent_status_change_rattrape_via_rafraichissement_immediat():
+    """Correctif du 13/08 : un uuid absent de l'annuaire au moment de
+    l'événement, mais que 'agent list' résout dès ce même appel (annuaire
+    simplement pas encore à jour, ou agent tout juste déclaré côté
+    PERMATEL), doit être transmis à cette même occurrence — pas seulement
+    au prochain cycle périodique de rafraîchissement."""
+    domains = [{"pbx_domain": "d1", "queue_ids": ["queue-support"]}]
+    ingest_client = MagicMock()
+    adapter = ESLAdapter(
+        _fake_connector_config(domains, known_agent_logins=["e8a58298-87e7-4960-a222-d05763866b15"]),
+        ingest_client=ingest_client,
+    )
+    fake_esl = MagicMock()
+    fake_esl.send.return_value = _FakeResponse(
+        "name|instance_id|uuid|type|contact|status|state|max_no_answer|wrap_up_time|"
+        "reject_delay_time|busy_delay_time|no_answer_delay_time|last_bridge_start|"
+        "last_bridge_end|last_offered_call|last_status_change|no_answer_count|"
+        "calls_answered|talk_time|ready_time|external_calls_count\n"
+        "e8a58298-87e7-4960-a222-d05763866b15|single_box||callback|user/22101005@d1|"
+        "Available|Waiting|5|10|3|3|10|0|0|0|0|0|0|0|0|0\n"
+        "+OK"
+    )
+    adapter._esl = fake_esl
+    assert adapter._agent_directory == {}  # pas encore rafraîchi
+
+    headers = {
+        "CC-Action": "agent-status-change",
+        "CC-Agent": "e8a58298-87e7-4960-a222-d05763866b15",
+        "CC-Agent-Status": "Available",
+        "CC-Queue": "8004@d1",
+    }
+    adapter._on_callcenter_info(_FakeEvent(headers))
+
+    fake_esl.send.assert_called_once_with("api callcenter_config agent list")
+    ingest_client.send.assert_called_once()
+    payload = ingest_client.send.call_args[0][0]
+    assert payload["agent"]["login"] == "e8a58298-87e7-4960-a222-d05763866b15"
+    assert adapter._agent_directory["e8a58298-87e7-4960-a222-d05763866b15"]["extension"] == "22101005"
+
+
+def test_agent_status_change_inconnu_respecte_le_cooldown():
+    """Un uuid qui reste inconnu même après rafraîchissement ne doit pas
+    redéclencher 'agent list' à chaque événement suivant (debounce) — sinon
+    un poste de test jamais nettoyé côté PBX martelle l'ESL en continu."""
+    domains = [{"pbx_domain": "d1", "queue_ids": ["queue-support"]}]
+    ingest_client = MagicMock()
+    adapter = ESLAdapter(
+        _fake_connector_config(domains, known_agent_logins=["autre-agent"]),
+        ingest_client=ingest_client,
+    )
+    fake_esl = MagicMock()
+    fake_esl.send.return_value = _FakeResponse("+OK")  # aucun agent résolu
+    adapter._esl = fake_esl
+
+    headers = {
+        "CC-Action": "agent-status-change",
+        "CC-Agent": "uuid-toujours-inconnu",
+        "CC-Agent-Status": "Available",
+    }
+    adapter._on_callcenter_info(_FakeEvent(headers))
+    adapter._on_callcenter_info(_FakeEvent(headers))
+
+    fake_esl.send.assert_called_once_with("api callcenter_config agent list")
+    ingest_client.send.assert_not_called()
 
 
 # ── _on_callcenter_info : chemin agent-offering (enrichissement) ──────────

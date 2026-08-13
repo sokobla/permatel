@@ -716,6 +716,54 @@ def _parse_period():
     return dt_from, dt_to
 
 
+def _known_agent_stations(tenant_id) -> set:
+    """Postes agents déclarés (`User.station_extension`, statique côté
+    gestion des utilisateurs) — repli pour `_derive_business_direction`
+    quand un poste n'a encore produit aucun événement
+    `CALLCENTER_AGENT_STATE_CHANGE` (donc absent de
+    `_live_station_agent_lookup`), ex. un appel sortant direct composé par
+    un agent avant sa toute première connexion à une file. Motif requête
+    identique à `_agent_alias_lookup`."""
+    rows = (
+        db.session.query(User.station_extension)
+        .join(TenantUser, TenantUser.user_id == User.id)
+        .filter(TenantUser.tenant_id == tenant_id, User.station_extension.isnot(None))
+        .distinct()
+        .all()
+    )
+    return {r[0] for r in rows}
+
+
+def _derive_business_direction(caller, callee, raw_direction, known_stations):
+    """Direction métier (entrant/sortant) d'un appel, indépendante du tag
+    FreeSWITCH par leg (`Call-Direction`, propriété du CANAL — "inbound" si
+    FreeSWITCH a reçu ce leg, "outbound" s'il l'a originé — jamais une
+    propriété de l'appel dans son ensemble).
+
+    Bug corrigé le 13/08 : la fusion des deux legs d'un appel pontifié
+    (cf. règle juste en dessous) conserve systématiquement le leg taggé
+    "inbound" par FreeSWITCH (c'est toujours celui qui porte les numéros
+    humainement lisibles) — donc TOUT appel pontifié affichait
+    `call_direction="inbound"`, y compris les appels sortants composés par
+    un agent (dont le leg agent→PBX est lui aussi "inbound" du point de vue
+    de FreeSWITCH, qui le reçoit).
+
+    Direction réelle recalculée à partir des numéros, pas du tag de leg :
+    si l'appelant correspond à un poste agent connu (`known_stations`, union
+    de `_live_station_agent_lookup` et `_known_agent_stations` — dynamique
+    et déclaratif, pour couvrir aussi bien un poste jamais vu en file qu'un
+    poste jamais déclaré côté gestion des utilisateurs), l'appel a été
+    composé par cet agent → sortant. Si c'est l'appelé, l'appel se termine
+    sur ce poste → entrant. Repli sur le tag brut si aucun des deux numéros
+    n'est reconnu comme un poste interne (ex. appel jamais rattaché à un
+    agent)."""
+    if caller and caller in known_stations:
+        return "outbound"
+    if callee and callee in known_stations:
+        return "inbound"
+    return raw_direction
+
+
 def _resolve_active_calls(tenant_id) -> list:
     """
     Appels en cours : un appel physique peut produire plusieurs événements
@@ -845,6 +893,7 @@ def _resolve_active_calls(tenant_id) -> list:
     alias_lookup = _agent_alias_lookup(tenant_id)
     queue_alias_lookup = _queue_alias_lookup(tenant_id)
     station_agent_lookup = _live_station_agent_lookup(tenant_id)
+    known_stations = set(station_agent_lookup) | _known_agent_stations(tenant_id)
     active = []
     for m in merged.values():
         agent_uuid = m["agent_uuid"]
@@ -857,6 +906,9 @@ def _resolve_active_calls(tenant_id) -> list:
             agent_uuid = station_agent_lookup.get(m["caller"]) or station_agent_lookup.get(m["callee"])
             agent_inferred = agent_uuid is not None
         alias = alias_lookup.get(agent_uuid) if agent_uuid else None
+        m["call_direction"] = _derive_business_direction(
+            m["caller"], m["callee"], m["call_direction"], known_stations,
+        )
         active.append({
             **m,
             "agent_uuid": agent_uuid,
@@ -1179,6 +1231,26 @@ def kpis_agents():
 _AGENT_PRESENCE_ONLINE = {"available", "available (on demand)"}
 _AGENT_PRESENCE_AWAY = {"on break"}
 
+# Types d'événement portant un `agent_uuid` directement exploitable pour la
+# détection de présence (13/08 — élargi au-delà du seul statut manuel) :
+#   - CALLCENTER_AGENT_STATE_CHANGE : statut manuel explicite (online/away/offline).
+#   - CALLCENTER_MEMBER_ENRICHMENT ('agent-offering') / CALLCENTER_BRIDGE_RECORDING
+#     ('bridge-agent-start') : l'agent est vu en train de traiter un appel réel
+#     (offre ou pont), sans qu'aucun statut manuel n'ait jamais été reçu pour
+#     lui — ex. un agent jamais rafraîchi dans l'annuaire connecteur au moment
+#     de son premier appel (cf. audit du 13/08 sur l'agent invisible malgré
+#     un login FusionPBX confirmé). Sans cet élargissement, un tel agent ne
+#     peut JAMAIS apparaître tant que l'annuaire connecteur ne l'a pas
+#     retrouvé, quel que soit le nombre d'appels qu'il a réellement traités.
+# CHANNEL_* n'y figure pas : `agent_uuid` n'y est jamais peuplé par le
+# connecteur (seul le canal callcenter::info porte l'identité agent, voir
+# connector/normalizer.py) — l'inclure serait un no-op, pas une extension.
+_PRESENCE_SIGNAL_EVENT_TYPES = (
+    "CALLCENTER_AGENT_STATE_CHANGE",
+    "CALLCENTER_MEMBER_ENRICHMENT",
+    "CALLCENTER_BRIDGE_RECORDING",
+)
+
 
 def _normalize_agent_presence(raw_status):
     if not raw_status:
@@ -1191,29 +1263,51 @@ def _normalize_agent_presence(raw_status):
     return "offline"
 
 
+def _derive_agent_presence(event_type, raw_status):
+    """Statut affiché + indicateur de déduction (`inferred`), calculés à
+    partir du TYPE d'événement à l'origine de la détection quand aucun
+    statut manuel explicite n'est connu pour cet agent :
+      - CALLCENTER_AGENT_STATE_CHANGE : statut manuel explicite, jamais déduit.
+      - CALLCENTER_MEMBER_ENRICHMENT / CALLCENTER_BRIDGE_RECORDING : l'agent
+        est vu en train de traiter un appel réel — "online" par déduction
+        (jamais "offline", ce serait faux au vu de la preuve disponible ;
+        jamais deviné au-delà de ce que l'événement prouve réellement).
+    Retourne (presence, inferred)."""
+    if event_type == "CALLCENTER_AGENT_STATE_CHANGE":
+        return _normalize_agent_presence(raw_status), False
+    return "online", True
+
+
 @telephony_bp.get("/agents/status")
 @tenant_required
 def agents_status():
     """
     Présence agent (disponible/pause/hors-ligne), dérivée du dernier
-    événement `CALLCENTER_AGENT_STATE_CHANGE` connu par `agent_uuid` —
-    seuls les agents ayant émis au moins un tel événement apparaissent (pas
-    de roster fabriqué). Croisé avec le volume d'appels traités sur la
-    période (même règle que /kpis/agents) : `calls_handled` est un compte
-    d'appels, pas un taux d'occupation — aucune durée continue disponible/
-    occupée n'est suivie aujourd'hui.
+    événement pertinent connu par `agent_uuid` parmi
+    `_PRESENCE_SIGNAL_EVENT_TYPES` — seuls les agents ayant émis au moins un
+    tel événement apparaissent (pas de roster fabriqué). Élargi le 13/08
+    au-delà du seul `CALLCENTER_AGENT_STATE_CHANGE` explicite : un agent vu
+    uniquement via des événements d'appel (offre/pont) apparaît maintenant
+    aussi, avec un statut déduit plutôt qu'absent (cf.
+    `_derive_agent_presence`) — corrige un agent réellement connecté sur
+    FusionPBX mais invisible tant qu'aucun statut manuel n'avait été reçu
+    pour lui. Croisé avec le volume d'appels traités sur la période (même
+    règle que /kpis/agents) : `calls_handled` est un compte d'appels, pas un
+    taux d'occupation — aucune durée continue disponible/occupée n'est
+    suivie aujourd'hui.
 
     Jointure sur `agent_uuid` (pas `agent_login`, cf. audit du 30/07) : les
-    événements de présence live (`CALLCENTER_AGENT_STATE_CHANGE`) et les
-    événements CDR (volume d'appels) n'utilisaient pas le même vocabulaire
-    dans `agent_login` (uuid vs extension) — `calls_handled` ne recoupait
-    donc jamais rien. `agent_uuid` est peuplé sur les deux canaux.
+    événements de présence live et les événements CDR (volume d'appels)
+    n'utilisaient pas le même vocabulaire dans `agent_login` (uuid vs
+    extension) — `calls_handled` ne recoupait donc jamais rien. `agent_uuid`
+    est peuplé sur les deux canaux.
 
     `presence` peut valoir "on_call" en plus de online/away/offline (audit
     31/07) : le statut manuel mod_callcenter ne change pas pendant un appel
     (dialing/ringing/in-call), donc "on_call" est dérivé à part, à partir
     des appels réellement ouverts pour cet `agent_uuid` (voir
-    `_agents_currently_on_call`), et prioritaire sur le statut manuel.
+    `_agents_currently_on_call`), et prioritaire sur le statut manuel comme
+    sur le statut déduit.
     """
     dt_from, dt_to = _parse_period()
 
@@ -1224,7 +1318,7 @@ def agents_status():
         )
         .filter(
             TelephonyEvent.tenant_id == g.tenant_id,
-            TelephonyEvent.event_type == "CALLCENTER_AGENT_STATE_CHANGE",
+            TelephonyEvent.event_type.in_(_PRESENCE_SIGNAL_EVENT_TYPES),
             TelephonyEvent.agent_uuid.isnot(None),
         )
         .group_by(TelephonyEvent.agent_uuid)
@@ -1270,24 +1364,30 @@ def agents_status():
 
     alias_lookup = _agent_alias_lookup(g.tenant_id)
     on_call_uuids = _agents_currently_on_call(g.tenant_id)
-    agents = sorted(
-        (
-            {
-                "agent_login": e.agent_login,
-                "agent_uuid": e.agent_uuid,
-                "agent_name": alias_lookup.get(e.agent_uuid, {}).get("name", e.agent_uuid),
-                # Poste observé en direct sur ce dernier événement de
-                # présence, prioritaire sur le poste statique déclaré.
-                "agent_station": e.agent_station_extension or alias_lookup.get(e.agent_uuid, {}).get("station"),
-                "presence": "on_call" if e.agent_uuid in on_call_uuids else _normalize_agent_presence(e.agent_status),
-                "raw_status": e.agent_status,
-                "last_seen_at": _iso_utc(e.created_at),
-                "calls_handled": calls_handled.get(e.agent_uuid, 0),
-            }
-            for e in latest_events
-        ),
-        key=lambda a: a["agent_uuid"],
-    )
+    rows = []
+    for e in latest_events:
+        if e.agent_uuid in on_call_uuids:
+            presence, inferred = "on_call", False
+        else:
+            presence, inferred = _derive_agent_presence(e.event_type, e.agent_status)
+        rows.append({
+            "agent_login": e.agent_login,
+            "agent_uuid": e.agent_uuid,
+            "agent_name": alias_lookup.get(e.agent_uuid, {}).get("name", e.agent_uuid),
+            # Poste observé en direct sur ce dernier événement de
+            # présence, prioritaire sur le poste statique déclaré.
+            "agent_station": e.agent_station_extension or alias_lookup.get(e.agent_uuid, {}).get("station"),
+            "presence": presence,
+            # True si `presence` est déduit d'un événement d'appel plutôt
+            # que d'un statut manuel explicite (cf. `_derive_agent_presence`)
+            # — permet au frontend de distinguer un statut confirmé d'une
+            # estimation ("Estimé" plutôt qu'affirmé "Disponible").
+            "presence_inferred": inferred,
+            "raw_status": e.agent_status,
+            "last_seen_at": _iso_utc(e.created_at),
+            "calls_handled": calls_handled.get(e.agent_uuid, 0),
+        })
+    agents = sorted(rows, key=lambda a: a["agent_uuid"])
 
     return jsonify({
         "period": {"from": _iso_utc(dt_from), "to": _iso_utc(dt_to)},
@@ -1364,6 +1464,7 @@ def _query_calls_history(filters, *, recordings_only=False):
         by_call.setdefault(e.call_uuid, []).append(e)
 
     alias_lookup = _agent_alias_lookup(g.tenant_id)
+    known_stations = set(_live_station_agent_lookup(g.tenant_id)) | _known_agent_stations(g.tenant_id)
     rows_by_uuid = {}
     for call_uuid, call_events in by_call.items():
         call_events.sort(key=lambda e: e.created_at)
@@ -1374,7 +1475,11 @@ def _query_calls_history(filters, *, recordings_only=False):
         first = call_events[0]
         caller = next((e.caller_number for e in call_events if e.caller_number), None)
         callee = next((e.callee_number for e in call_events if e.callee_number), None)
-        direction = next((e.call_direction for e in call_events if e.call_direction), None)
+        # Tag FreeSWITCH brut (par LEG, pas par appel) — sert uniquement à la
+        # règle de fusion des legs ci-dessous, jamais à la direction affichée
+        # (cf. _derive_business_direction).
+        raw_direction = next((e.call_direction for e in call_events if e.call_direction), None)
+        direction = _derive_business_direction(caller, callee, raw_direction, known_stations)
         agent_login = next((e.agent_login for e in call_events if e.agent_login), None)
         agent_uuid = next((e.agent_uuid for e in call_events if e.agent_uuid), None)
         agent_station_extension = next(
@@ -1416,7 +1521,7 @@ def _query_calls_history(filters, *, recordings_only=False):
             "recording_url": recording_url,
             "recording_available": bool(recording_url) and urlparse(recording_url).scheme in ("http", "https"),
             "_linked_call_uuid": linked_call_uuid,
-            "_direction_raw": direction,
+            "_direction_raw": raw_direction,
         }
 
     # Fusion des legs d'un appel bridgé — même règle que /active-calls :

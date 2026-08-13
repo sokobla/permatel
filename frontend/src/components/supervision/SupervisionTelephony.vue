@@ -220,6 +220,12 @@
           <span class="stl-agent-card__name">{{ a.agent_name || a.agent_login }}</span>
           <span class="stl-agent-card__presence" :class="`stl-presence-${a.presence}`">
             <span class="stl-dot" :class="`stl-status-${a.presence}`"></span>{{ PRESENCE_LABEL[a.presence] }}
+            <v-icon
+              v-if="a.presence_inferred"
+              size="11"
+              class="stl-agent-card__inferred-icon"
+              title="Statut estimé à partir d'un appel traité — aucun statut manuel (Disponible/Pause) n'a encore été reçu pour cet agent."
+            >mdi-help-circle-outline</v-icon>
           </span>
           <span v-if="a.agent_station" class="stl-agent-card__queue">Poste {{ a.agent_station }}</span>
           <span class="stl-agent-card__queue">{{ formatLastSeen(a.last_seen_at) }}</span>
@@ -644,6 +650,7 @@ onUnmounted(() => {
 }
 .stl-agent-card__name { font-size: 15px; font-weight: 700; color: #1a1a2e; }
 .stl-agent-card__presence { font-size: 10.5px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+.stl-agent-card__inferred-icon { color: #9aa0aa; cursor: help; }
 .stl-agent-card__queue { font-size: 12px; color: #9aa0aa; margin-bottom: 4px; }
 .stl-agent-card__bar-wrap { width: 100%; display: flex; align-items: center; gap: 6px; font-size: 12px; color: #9aa0aa; }
 .stl-agent-card__bar-track { flex: 1; height: 5px; border-radius: 3px; background: #e5e7eb; overflow: hidden; }

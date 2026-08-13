@@ -350,7 +350,25 @@ class TestActiveCalls:
         """Reproduit le cas réel du 29/07 : un appel sortant direct (agent
         vers externe) produit deux call_uuid distincts, liés par
         Other-Leg-Unique-ID une fois le pont établi — seul le leg 'inbound'
-        (numéro humainement lisible) doit apparaître dans /active-calls."""
+        (numéro humainement lisible) doit apparaître dans /active-calls.
+
+        Régression du 13/08 : le leg conservé porte TOUJOURS le tag
+        FreeSWITCH 'inbound' (c'est lui qui a les numéros lisibles), y
+        compris pour ce cas où l'appel est en réalité SORTANT (agent
+        22101008 compose un numéro externe) — la direction affichée doit
+        être recalculée à partir des postes agents connus, pas recopiée du
+        tag de leg brut."""
+        from app.models.user import User, UserRole
+
+        agent = User(
+            username="agent1008", email="agent1008@permatel.ma", nom="Ba", prenom="Omar",
+            role=UserRole.PERMANENCIER, is_active=True, station_extension="22101008",
+        )
+        agent.set_password("Password123!")
+        agent.tenants.append(default_tenant)
+        db.session.add(agent)
+        db.session.commit()
+
         base = datetime.utcnow() - timedelta(seconds=5)
         db.session.add(TelephonyEvent(
             tenant_id=default_tenant.id, pbx_connector_id=pbx_connector.id,
@@ -373,6 +391,7 @@ class TestActiveCalls:
         assert data["active_calls"][0]["call_uuid"] == "leg-inbound"
         assert data["active_calls"][0]["caller"] == "22101008"
         assert data["active_calls"][0]["callee"] == "010615465411"
+        assert data["active_calls"][0]["call_direction"] == "outbound"
 
     def test_active_calls_habille_agent_login_avec_nom_et_poste_declares(
         self, client, db, auth_headers, pbx_domain, default_tenant,
@@ -812,6 +831,97 @@ class TestAgentsStatus:
         assert resp.status_code == 200
         logins = [a["agent_login"] for a in resp.get_json()["agents"]]
         assert "agent-autre-tenant" not in logins
+
+    def test_agents_status_detecte_un_agent_vu_seulement_via_un_appel(
+        self, client, db, auth_headers, default_tenant,
+    ):
+        """Correctif du 13/08 : un agent qui n'a jamais émis de
+        CALLCENTER_AGENT_STATE_CHANGE (ex. annuaire connecteur pas encore à
+        jour à son premier appel) doit quand même apparaître, dès qu'un
+        CALLCENTER_MEMBER_ENRICHMENT ou CALLCENTER_BRIDGE_RECORDING porte
+        son agent_uuid — 'online' déduit (pas absent, pas 'offline' deviné),
+        et signalé comme tel via presence_inferred."""
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CALLCENTER_MEMBER_ENRICHMENT",
+            call_uuid="call-jamais-de-statut-manuel", agent_login="agent-nouveau",
+            agent_uuid="agent-nouveau", agent_station_extension="22103003",
+            created_at=datetime.utcnow() - timedelta(minutes=2),
+        ))
+        # Appel clôturé — sinon _agents_currently_on_call le considère encore
+        # ouvert et 'on_call' masquerait la présence déduite qu'on veut tester.
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CHANNEL_HANGUP_COMPLETE", call_status="ended",
+            call_uuid="call-jamais-de-statut-manuel", agent_login="agent-nouveau",
+            agent_uuid="agent-nouveau", created_at=datetime.utcnow() - timedelta(minutes=1),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/agents/status", headers=auth_headers)
+        assert resp.status_code == 200
+        agents = {a["agent_login"]: a for a in resp.get_json()["agents"]}
+        assert "agent-nouveau" in agents
+        assert agents["agent-nouveau"]["presence"] == "online"
+        assert agents["agent-nouveau"]["presence_inferred"] is True
+        assert agents["agent-nouveau"]["raw_status"] is None
+
+    def test_agents_status_bridge_recording_detecte_aussi_l_agent(
+        self, client, db, auth_headers, default_tenant,
+    ):
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CALLCENTER_BRIDGE_RECORDING",
+            call_uuid="call-bridge", agent_login="agent-bridge", agent_uuid="agent-bridge",
+            created_at=datetime.utcnow() - timedelta(minutes=2),
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CHANNEL_HANGUP_COMPLETE", call_status="ended",
+            call_uuid="call-bridge", agent_login="agent-bridge", agent_uuid="agent-bridge",
+            created_at=datetime.utcnow() - timedelta(minutes=1),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/agents/status", headers=auth_headers)
+        agents = {a["agent_login"]: a for a in resp.get_json()["agents"]}
+        assert agents["agent-bridge"]["presence"] == "online"
+        assert agents["agent-bridge"]["presence_inferred"] is True
+
+    def test_agents_status_explicite_n_est_jamais_marque_comme_deduit(
+        self, client, db, auth_headers, default_tenant,
+    ):
+        """Non-régression : un statut manuel explicite reste
+        presence_inferred=False, même après l'élargissement du 13/08."""
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CALLCENTER_AGENT_STATE_CHANGE",
+            call_status="on_hold", agent_login="agent01", agent_uuid="agent01",
+            agent_status="Available", created_at=datetime.utcnow(),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/agents/status", headers=auth_headers)
+        agents = {a["agent_login"]: a for a in resp.get_json()["agents"]}
+        assert agents["agent01"]["presence"] == "online"
+        assert agents["agent01"]["presence_inferred"] is False
+
+    def test_agents_status_appel_ouvert_prioritaire_meme_sur_presence_deduite(
+        self, client, db, auth_headers, default_tenant,
+    ):
+        """on_call reste prioritaire sur une présence déduite, comme sur un
+        statut manuel explicite."""
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CALLCENTER_MEMBER_ENRICHMENT",
+            call_uuid="call-en-cours-2", agent_login="agent-oncall", agent_uuid="agent-oncall",
+            created_at=datetime.utcnow() - timedelta(seconds=30),
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CHANNEL_CREATE", call_status="ringing",
+            call_uuid="call-en-cours-2", agent_login="agent-oncall", agent_uuid="agent-oncall",
+            created_at=datetime.utcnow(),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/agents/status", headers=auth_headers)
+        agents = {a["agent_login"]: a for a in resp.get_json()["agents"]}
+        assert agents["agent-oncall"]["presence"] == "on_call"
+        assert agents["agent-oncall"]["presence_inferred"] is False
 
 
 class TestConnectorsCrud:
@@ -1504,7 +1614,24 @@ class TestCallsHistory:
         """Reproduit le cas réel du 29/07 : un appel sortant direct (agent
         vers externe) produit deux call_uuid distincts, liés par
         Other-Leg-Unique-ID une fois le pont établi — l'historique ne doit
-        montrer qu'une seule ligne (le leg 'inbound'), pas deux."""
+        montrer qu'une seule ligne (le leg 'inbound'), pas deux.
+
+        Régression du 13/08 : la direction affichée pour ce leg doit être
+        recalculée en 'outbound' (l'appel est réellement sortant — agent
+        22101008 compose un numéro externe), pas recopiée du tag FreeSWITCH
+        brut du leg conservé (toujours 'inbound' par construction de la
+        règle de fusion ci-dessus, cf. _derive_business_direction)."""
+        from app.models.user import User, UserRole
+
+        agent = User(
+            username="agent1008b", email="agent1008b@permatel.ma", nom="Sy", prenom="Fatou",
+            role=UserRole.PERMANENCIER, is_active=True, station_extension="22101008",
+        )
+        agent.set_password("Password123!")
+        agent.tenants.append(default_tenant)
+        db.session.add(agent)
+        db.session.commit()
+
         base = datetime.utcnow() - timedelta(minutes=10)
         db.session.add(TelephonyEvent(
             tenant_id=default_tenant.id, event_type="CHANNEL_HANGUP_COMPLETE", call_status="ended",
@@ -1527,6 +1654,38 @@ class TestCallsHistory:
         assert data["calls"][0]["call_uuid"] == "leg-inbound"
         assert data["calls"][0]["caller"] == "22101008"
         assert data["calls"][0]["callee"] == "010615465411"
+        assert data["calls"][0]["direction"] == "outbound"
+
+    def test_direction_entrante_reste_correcte_apres_correctif(
+        self, client, db, default_tenant, auth_headers,
+    ):
+        """Non-régression : un appel réellement entrant (client externe vers
+        agent en file) continue de s'afficher 'inbound' après le correctif
+        de direction — seuls les appels sortants directs étaient inversés."""
+        from app.models.user import User, UserRole
+
+        agent = User(
+            username="agent2002", email="agent2002@permatel.ma", nom="Ndiaye", prenom="Aicha",
+            role=UserRole.PERMANENCIER, is_active=True, station_extension="22102002",
+        )
+        agent.set_password("Password123!")
+        agent.tenants.append(default_tenant)
+        db.session.add(agent)
+        db.session.commit()
+
+        base = datetime.utcnow() - timedelta(minutes=10)
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, event_type="CHANNEL_HANGUP_COMPLETE", call_status="ended",
+            call_uuid="hist-inbound-ok", call_direction="inbound", caller_number="33186569392",
+            callee_number="22102002", duration=30, created_at=base,
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/telephony/calls", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["total"] == 1
+        assert data["calls"][0]["direction"] == "inbound"
 
     def test_filtre_par_statut(self, client, db, auth_headers, default_tenant):
         self._seed_completed_call(db, default_tenant.id, "hist-answered", status="ended")
