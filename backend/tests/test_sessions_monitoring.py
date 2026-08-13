@@ -95,3 +95,26 @@ class TestSessionsStatsSmoke:
     def test_sessions_stats_refuse_role_non_staff(self, client, auth_headers, sessions_echelonnees):
         resp = client.get("/api/auth/sessions/stats", headers=auth_headers)
         assert resp.status_code == 403
+
+    def test_sessions_stats_total_online_min_somme_les_sessions_terminees(
+        self, client, db, default_tenant, user_permanencier, auth_headers_manager_tenant,
+    ):
+        """total_online_min doit être la SOMME des durées des sessions
+        terminées dans la période — pas la moyenne (déjà couverte par
+        avg_duration_min) ni la médiane."""
+        base = datetime.utcnow() - timedelta(days=1)
+        db.session.add(UserSession(
+            user_id=user_permanencier.id, active_tenant_id=default_tenant.id,
+            status=SessionStatus.ENDED, session_start=base, session_end=base + timedelta(minutes=30),
+        ))
+        db.session.add(UserSession(
+            user_id=user_permanencier.id, active_tenant_id=default_tenant.id,
+            status=SessionStatus.ENDED, session_start=base, session_end=base + timedelta(minutes=45),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/auth/sessions/stats", headers=auth_headers_manager_tenant)
+        assert resp.status_code == 200
+        activity = resp.get_json()["activity"]
+        assert activity["total_online_min"] == 75.0
+        assert activity["avg_duration_min"] == 37.5

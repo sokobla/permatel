@@ -1120,6 +1120,7 @@ def sessions_stats():
     ]
     avg_duration = round(sum(durations_min) / len(durations_min), 1) if durations_min else 0
     median_duration = round(median(durations_min), 1) if durations_min else 0
+    total_online_min = round(sum(durations_min), 1) if durations_min else 0
 
     # D.14 Répartition par rôle (sessions actives)
     by_role = {}
@@ -1198,6 +1199,7 @@ def sessions_stats():
             "unique_users_per_day": unique_series,
             "avg_duration_min": avg_duration,
             "median_duration_min": median_duration,
+            "total_online_min": total_online_min,
             "peak_hours": peak_hours,
         },
         "security": {

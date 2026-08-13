@@ -626,6 +626,50 @@
         </v-col>
       </v-row>
 
+      <!-- Détail login/logout -->
+      <v-row>
+        <v-col cols="12">
+          <v-card elevation="0" class="rp-chart-card">
+            <div class="rp-chart-hdr"><span class="rp-chart-title">DÉTAIL DES SESSIONS — CONNEXIONS/DÉCONNEXIONS</span></div>
+            <v-divider />
+            <v-card-text class="pa-0">
+              <div class="rp-table-wrap">
+                <table class="rp-table">
+                  <thead>
+                    <tr>
+                      <th class="rp-th">Utilisateur</th>
+                      <th class="rp-th">Rôle</th>
+                      <th class="rp-th">IP</th>
+                      <th class="rp-th">Connexion</th>
+                      <th class="rp-th">Déconnexion</th>
+                      <th class="rp-th rp-th--r">Durée</th>
+                      <th class="rp-th">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-if="sessionRowsLoading"><td colspan="7" class="rp-td-empty">Chargement…</td></tr>
+                    <tr v-else-if="sessionRowsError"><td colspan="7" class="rp-td-empty" style="color:#e74c3c">{{ sessionRowsError }}</td></tr>
+                    <tr v-else-if="!sessionRows.length"><td colspan="7" class="rp-td-empty">Aucune session sur la période</td></tr>
+                    <tr v-for="r in sessionRows" :key="r.id" class="rp-tr">
+                      <td class="rp-td">{{ r.full_name || r.username }}</td>
+                      <td class="rp-td">{{ ROLE_LABELS[r.role] ?? r.role ?? '—' }}</td>
+                      <td class="rp-td rp-mono">{{ r.ip_address || '—' }}</td>
+                      <td class="rp-td rp-mono">{{ formatSessionDateTime(r.session_start) }}</td>
+                      <td class="rp-td rp-mono">
+                        <span v-if="!r.session_end" class="rp-role-badge">En cours</span>
+                        <template v-else>{{ formatSessionDateTime(r.session_end) }}</template>
+                      </td>
+                      <td class="rp-td rp-td--mono rp-td--r">{{ sessionRowDuration(r) }}</td>
+                      <td class="rp-td">{{ SESSION_STATUS_LABEL[r.status] ?? r.status }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
+
     </template>
 
     <!-- ══ EMAIL ═══════════════════════════════════════════════════════════ -->
@@ -945,7 +989,9 @@ async function exportCurrentTab() {
         break;
       }
       case "sessions": {
-        const sessParams = { from, to };
+        // status=all : sinon seules les sessions live sont exportées, pas
+        // l'historique complet affiché dans la table de détail.
+        const sessParams = { from, to, status: "all" };
         if (sessionUserId.value) sessParams.user_id = sessionUserId.value;
         const { data } = await sessionService.exportMonitoringCsv(sessParams);
         downloadBlob(data, `sessions_${filterPeriod.value}.csv`);
@@ -1008,6 +1054,9 @@ const sessionLoading = ref(false);
 const sessionError   = ref("");
 const sessionUserId  = ref(null);
 const sessionUsers   = ref([]);
+const sessionRows        = ref([]);
+const sessionRowsLoading = ref(false);
+const sessionRowsError   = ref("");
 
 function periodRange() {
   // Plage libre prioritaire
@@ -1049,6 +1098,27 @@ async function loadSessionStats() {
   }
 }
 
+async function loadSessionRows() {
+  sessionRowsLoading.value = true;
+  sessionRowsError.value = "";
+  try {
+    const { from, to } = periodRange();
+    // status=all explicite : le backend ne renvoie que les sessions live
+    // (ACTIVE/PAUSED) par défaut — le détail login/logout veut l'historique
+    // complet de la période, sessions déjà terminées incluses.
+    const params = { from, to, status: "all" };
+    if (sessionUserId.value) params.user_id = sessionUserId.value;
+    const { data } = await sessionService.getMonitoring(params);
+    sessionRows.value = data.sessions ?? [];
+  } catch (err) {
+    sessionRowsError.value =
+      err?.response?.data?.error || "Impossible de charger le détail des sessions.";
+    sessionRows.value = [];
+  } finally {
+    sessionRowsLoading.value = false;
+  }
+}
+
 async function loadSessionUsers() {
   if (sessionUsers.value.length) return;
   try {
@@ -1083,6 +1153,7 @@ watch(
     if (activeTab.value === "sessions") {
       loadSessionUsers();
       loadSessionStats();
+      loadSessionRows();
     }
   },
   { immediate: true },
@@ -1167,6 +1238,9 @@ const END_REASON_META = {
   active:  { label: "En cours",     color: "#22c55e" },
   paused:  { label: "En pause",     color: "#8e44ad" },
 };
+const SESSION_STATUS_LABEL = Object.fromEntries(
+  Object.entries(END_REASON_META).map(([k, v]) => [k, v.label]),
+);
 
 // Cartes KPI scalaires (chaque entrée porte une description `info`)
 const sessionKpis = computed(() => {
@@ -1187,6 +1261,9 @@ const sessionKpis = computed(() => {
       info: "Durée moyenne des sessions terminées sur la période (fin − début). Indique la durée typique d'utilisation continue." },
     { key: "med_dur", label: "Durée médiane", icon: "mdi-timer-sand", value: fmtDuration(s.activity.median_duration_min),
       info: "Durée médiane des sessions terminées : la moitié des sessions durent moins, l'autre moitié plus. Moins sensible aux valeurs extrêmes que la moyenne." },
+    { key: "total_online", label: "Temps total en ligne", icon: "mdi-timer-check-outline",
+      value: fmtDuration(s.activity.total_online_min),
+      info: "Somme des durées de toutes les sessions terminées sur la période — charge de connexion cumulée, à distinguer de la durée moyenne/médiane par session." },
     { key: "fail_rate", label: "Taux d'échec connexion", icon: "mdi-alert-circle-outline", value: s.security.failure_rate_pct + " %",
       alert: s.security.failure_rate_pct >= 30,
       info: "Part des tentatives de connexion en échec : LOGIN_FAILED / (LOGIN_SUCCESS + LOGIN_FAILED). Un taux élevé peut signaler des erreurs de mot de passe ou une attaque. (Limite : les tentatives sur des identifiants inexistants ne sont pas comptées.)" },
@@ -1246,6 +1323,21 @@ function fmtDuration(min) {
   const h = Math.floor(min / 60);
   const m = Math.round(min % 60);
   return m ? `${h} h ${m}` : `${h} h`;
+}
+
+function formatSessionDateTime(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function sessionRowDuration(row) {
+  if (!row.session_start) return "—";
+  const start = new Date(row.session_start);
+  const end = row.session_end ? new Date(row.session_end) : new Date();
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "—";
+  return fmtDuration((end - start) / 60000);
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -1826,6 +1918,7 @@ const permanenciersKpis = computed(() => {
 .rp-score-dot--red    { background: #e74c3c; }
 
 /* ── Table ─────────────────────────────────────────────────────────── */
+.rp-table-wrap { max-height: 480px; overflow-y: auto; overflow-x: auto; }
 .rp-table { width: 100%; border-collapse: collapse; font-family: "Fira Sans", sans-serif; font-size: 14px; }
 .rp-th {
   padding: 8px 12px; text-align: left;
