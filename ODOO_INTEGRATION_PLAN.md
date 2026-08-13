@@ -78,7 +78,7 @@ L'intégration Odoo requiert l'ajout de nouveaux modèles dans PERMATEL pour s'a
 * `odoo_employees` : Mapping RH (`tenant_id`, `agent_id`, `odoo_employee_id`).
 * `odoo_sync_queue` : File de retry (`flux`, `payload` JSONB, `status: pending|in_flight|done|failed`, `locked_at`/`locked_until` — cf. §2.4).
 * `odoo_factures` : Copie locale des factures Odoo — **1—N par `Devis`** (facturation partielle possible : acompte/solde), colonnes `tenant_id`, `devis_id`, `odoo_invoice_id`, `numero_facture`, `montant_ht`, `montant_ttc`, `statut` (`brouillon|validee|payee|annulee`, Pull), `date_facture`, `date_echeance`, `updated_at` — cf. Phase 8.
-* `odoo_planning_slots` : Mapping des vacations planifiées PERMATEL vers `planning.slot` Odoo (`tenant_id`, `vacation_id`, `odoo_slot_id`) — cf. §4.2.
+* `odoo_planning_slots` : Mapping des postes de vacation PERMATEL vers `planning.slot` Odoo (`tenant_id`, `vacation_poste_id`, `odoo_slot_id` — un `planning.slot` par poste, pas par vacation, cf. §4.2).
 
 Chaque modèle Odoo cible porte en complément un champ custom `x_permatel_ref` (cf. §2.4) — c'est la clé d'idempotence de la synchro, indépendante des colonnes `odoo_*_id` ci-dessus qui ne sont que le cache local du mapping une fois établi.
 
@@ -104,45 +104,68 @@ Deux briques décidées le 13/08, natives à PERMATEL (indépendantes d'Odoo pou
 
 **Suivi de validité** : `document_sweep()` calqué sur `sla_sweep()` (`backend/app/services/sla.py`) — requête les lignes `is_current=True` dont `date_expiration` approche/est dépassée, `notify()` avec flags `expiry_warning_notified`/`expiry_breach_notified` pour ne jamais alerter deux fois. Nouvelle commande CLI `flask documents-sweep`, même cadence cron que `sla-sweep`.
 
-**Blocage configurable** : `Tenant.document_blocking_expired` (bool, défaut `False`) — cf. §4.3. Le point d'application du blocage est l'**affectation d'un agent à une vacation** (§4.2), pas la prise de service : si activé et que l'agent a un document obligatoire manquant/expiré, l'affectation est refusée (409) avec le détail des documents en cause.
+**Blocage configurable** : `Tenant.document_blocking_expired` (bool, défaut `False`) — cf. §4.3. Le point d'application du blocage est l'**affectation d'un agent à un poste de vacation** (§4.2), pas la prise de service : si activé et que l'agent a un document obligatoire manquant/expiré (au regard du `profil_requis` du poste), l'affectation est refusée (409) avec le détail des documents en cause.
 
-### 4.2 Planning agents (calendrier de vacations)
+### 4.2 Planning agents (calendrier de vacations, multi-postes)
 
-Nouvelle entité, distincte de `PriseDeService` (qui reste l'unique source de vérité des heures réellement travaillées — aucun changement sur ce point).
+Nouvelle entité, distincte de `PriseDeService` (qui reste l'unique source de vérité des heures réellement travaillées — aucun changement sur ce point). Une vacation est un créneau de site pouvant nécessiter **plusieurs postes**, chacun avec son propre profil requis et son propre agent (ou vide) — ex. un même créneau peut demander 1×`agent_securite` + 1×`cynophile` simultanément.
 
-**Modèle `vacations_planifiees`** :
+**Modèle `vacations_planifiees`** (le créneau — site + horaire) :
 ```
-tenant_id, agent_id (FK composite → agents_securite, NULLABLE — créneau non affecté),
-client_id, site_id, date_debut_prevue, date_fin_prevue (nullable),
+tenant_id, site_id, client_id, date_debut_prevue, date_fin_prevue (nullable),
+planifie_par_id (manager), created_at, updated_at
+```
+
+**Modèle `vacation_postes`** (1..N postes par vacation, `profil_requis` fixé **à la création de la vacation**, avant toute affectation) :
+```
+tenant_id, vacation_id (FK),
+profil_requis (code ReferenceValue.qualification_agent — "agent_securite", "ssiap", "cynophile"…),
+agent_id (FK composite → agents_securite, NULLABLE — poste non pourvu),
 prise_de_service_id (FK nullable, posée au pointage effectif si correspondance),
-planifie_par_id (manager), no_show_notified (bool),
-created_at, updated_at
+no_show_notified (bool)
 ```
 
-**Statut affiché — dérivé, jamais stocké**, même motif que `sla_state(demande)` (déjà en place, `backend/app/routes/demandes.py`) :
+**Statut par poste — dérivé, jamais stocké**, même motif que `sla_state(demande)` (déjà en place, `backend/app/routes/demandes.py`) :
 
 ```python
-def vacation_state(v):
-    if v.prise_de_service_id:
-        retard = v.prise_de_service.date_debut - v.date_debut_prevue
+def vacation_poste_state(p):
+    if p.prise_de_service_id:
+        retard = p.prise_de_service.date_debut - p.vacation.date_debut_prevue
         return "honoree" if retard <= seuil else "honoree_retard"   # vert / orange
-    if v.agent_id is None:
+    if p.agent_id is None:
         return "non_affectee"                                       # gris
-    if utcnow() >= v.date_debut_prevue + seuil:
+    if utcnow() >= p.vacation.date_debut_prevue + seuil:
         return "non_honoree"                                        # rouge
     return "affectee"                                                # bleu
 ```
-`seuil` = `Tenant.vacation_delay_threshold_minutes` (cf. §4.3) — **un seul réglage** pour la distinction honorée/honorée-en-retard *et* pour le déclenchement de l'alerte no-show, pour n'avoir qu'une constante métier. Une alerte no-show déjà envoyée n'est jamais "retirée" si l'agent finit par pointer en retard — seul l'affichage se corrige de rouge à orange.
+`seuil` = `Tenant.vacation_delay_threshold_minutes` (cf. §4.3) — **un seul réglage** pour la distinction honorée/honorée-en-retard *et* pour le déclenchement de l'alerte no-show. Une alerte no-show déjà envoyée n'est jamais "retirée" si l'agent finit par pointer en retard — seul l'affichage se corrige de rouge à orange.
 
-**Rattachement à la prise de service** : au `POST /api/prises-de-service/start`, recherche d'une `vacation_planifiee` correspondante (même agent, fenêtre horaire proche) → si trouvée, pose `prise_de_service_id`. Comportement des prises de service non planifiées inchangé.
+**Statut agrégé par vacation — couverture globale**, calculé seulement une fois `date_debut_prevue` passée (« pourvu » = agent affecté **et** prise de service effective, pas juste affecté sur le papier) :
 
-**Droits** : création/affectation d'une vacation planifiée → `permission_required("planning")` (§2.7), pas un simple rôle MANAGER — un tenant peut réserver ce droit à certains managers seulement.
+```python
+def vacation_coverage_state(v):
+    if utcnow() < v.date_debut_prevue:
+        return None                                    # trop tôt, pas de statut agrégé
+    postes_honores = [p for p in v.postes if p.prise_de_service_id]
+    if not postes_honores:
+        return "non_couverte"                          # rouge — personne ne s'est présenté
+    if len(postes_honores) < len(v.postes):
+        return "couverture_partielle"                  # orange — au moins un poste honoré, pas tous
+    return "couverte"                                   # vert — tous les postes honorés
+```
+Ce statut agrégé est un indicateur de couverture au niveau du créneau (utile pour un coup d'œil manager), distinct des puces individuelles par poste qui gardent leur propre couleur.
 
-**Alerte no-show** : sweep calqué sur `sla_sweep()`/`notify()` — `vacations_planifiees` où `date_debut_prevue + seuil < now()`, `agent_id` non nul, `prise_de_service_id` nul, `no_show_notified=False` → notifie via `tenant_members(tenant_id, roles={MANAGER}, membership_admin=True)` (helper déjà utilisé par les alertes SLA, `backend/app/services/sla.py`), email automatique via le pipeline `notify()` → `EmailOutbox` → `dispatch_emails()` déjà opérationnel. Nouvelle commande CLI `flask vacations-no-show-sweep`.
+**Rattachement à la prise de service** : au `POST /api/prises-de-service/start`, recherche d'un `vacation_poste` correspondant (même agent, fenêtre horaire proche) → si trouvé, pose `prise_de_service_id` sur le poste. Comportement des prises de service non planifiées inchangé.
 
-**Frontend** : 3 vues (Jour / Semaine / Mois). Recommandé : grille custom légère, pas de dépendance calendrier tierce — les vacations sont des évènements ponctuels (une heure de début, pas des plages multi-jours à glisser/redimensionner), donc une lib pensée pour ces cas apporte plus de poids que de valeur ; cohérent avec le choix `xmlrpc.client` plutôt qu'une lib tierce pour Odoo (§2.2). Vue Jour/Semaine = tableau (lignes agents, colonnes heures/jours) ; vue Mois = grille de jours avec puces colorées par agent.
+**Droits** : création d'une vacation (et de ses postes), affectation d'un agent à un poste → `permission_required("planning")` (§2.7), pas un simple rôle MANAGER — un tenant peut réserver ce droit à certains managers seulement.
 
-**Push Odoo** : à la création/affectation/annulation d'une vacation, push vers `planning.slot` (app Odoo Planning, dans le périmètre du §1), même mécanique d'idempotence que le reste du plan (§2.4) — champ miroir `x_permatel_ref` sur `planning.slot`, mapping dans `odoo_planning_slots` (§3.B). Les références `agent_id` → `hr.employee` (Phase 9) et `client_id`/`site_id` → `project.project`/`project.task` (Phase 7) sont réutilisées telles quelles, aucun nouveau mapping requis à part la table de correspondance des créneaux.
+**Blocage documentaire (§4.1)** : à l'affectation d'un agent à un poste, vérification des documents de l'agent contre les exigences du **`profil_requis` du poste** (via `qualification_document_requirements`), pas seulement la qualification propre de l'agent — détecte au passage un éventuel mismatch de profil (agent SSIAP affecté par erreur à un poste Cynophile).
+
+**Alerte no-show** : sweep calqué sur `sla_sweep()`/`notify()` — `vacation_postes` où `date_debut_prevue + seuil < now()` (via la vacation parente), `agent_id` non nul, `prise_de_service_id` nul, `no_show_notified=False` → notifie via `tenant_members(tenant_id, roles={MANAGER}, membership_admin=True)` (helper déjà utilisé par les alertes SLA, `backend/app/services/sla.py`), email automatique via le pipeline `notify()` → `EmailOutbox` → `dispatch_emails()` déjà opérationnel. Nouvelle commande CLI `flask vacations-no-show-sweep`.
+
+**Frontend** : 3 vues (Jour / Semaine / Mois). Recommandé : grille custom légère, pas de dépendance calendrier tierce — les vacations sont des évènements ponctuels (une heure de début, pas des plages multi-jours à glisser/redimensionner), donc une lib pensée pour ces cas apporte plus de poids que de valeur ; cohérent avec le choix `xmlrpc.client` plutôt qu'une lib tierce pour Odoo (§2.2). Vue Jour/Semaine = tableau (lignes agents, colonnes heures/jours) ; vue Mois = grille de jours avec, par vacation, la couleur agrégée de couverture et le détail des postes au clic.
+
+**Push Odoo** : à la création/affectation/annulation d'un poste, push vers `planning.slot` (app Odoo Planning, dans le périmètre du §1) — **un `planning.slot` par poste**, pas par vacation (Odoo Planning est structuré par ressource), tous partageant le même site/horaire. Même mécanique d'idempotence que le reste du plan (§2.4) — champ miroir `x_permatel_ref` sur `planning.slot`, mapping dans `odoo_planning_slots` (§3.B). Les références `agent_id` → `hr.employee` (Phase 9) et `client_id`/`site_id` → `project.project`/`project.task` (Phase 7) sont réutilisées telles quelles, aucun nouveau mapping requis à part la table de correspondance des postes.
 
 ### 4.3 Nouveaux réglages tenant
 
