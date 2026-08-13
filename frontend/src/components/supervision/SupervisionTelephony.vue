@@ -381,6 +381,19 @@ const PRESENCE_LABEL = {
   away: "En pause",
   offline: "Déconnecté",
 };
+// Types d'événement affectant la présence agent (même liste que
+// _PRESENCE_SIGNAL_EVENT_TYPES côté backend, cf. telephony.py, + le
+// CUSTOM esl_adapter::agent_pause_code du 13/08) — ne portent jamais de
+// call_uuid, donc jamais traités par la fusion des appels ci-dessous.
+// Sans ce chemin dédié, un changement de statut agent (y compris via le
+// bouton self-service) ne se reflétait qu'au prochain sondage périodique
+// (jusqu'à 30s de retard) au lieu d'être immédiat comme les appels.
+const AGENT_PRESENCE_EVENT_TYPES = new Set([
+  "CALLCENTER_AGENT_STATE_CHANGE",
+  "CALLCENTER_MEMBER_ENRICHMENT",
+  "CALLCENTER_BRIDGE_RECORDING",
+  "CALLCENTER_AGENT_PAUSE_CODE",
+]);
 
 const periodLabel = "aujourd'hui";
 const summary = ref(null);
@@ -525,10 +538,24 @@ const telephonySocket = useTelephonySocket();
 const socketConnected = telephonySocket.connected;
 let lastProcessedIdx = 0;
 
+// Debounce court : un seul job self-service (ex. agent_login) peut
+// produire coup sur coup un CALLCENTER_AGENT_STATE_CHANGE ET un
+// CALLCENTER_AGENT_PAUSE_CODE — on ne veut qu'un seul rafraîchissement,
+// pas un par événement.
+let agentsRefreshTimer = null;
+function scheduleAgentsRefresh() {
+  if (agentsRefreshTimer) return;
+  agentsRefreshTimer = setTimeout(() => {
+    agentsRefreshTimer = null;
+    loadAgents();
+  }, 300);
+}
+
 function processIncomingEvents() {
   const evs = telephonySocket.events.value;
   for (; lastProcessedIdx < evs.length; lastProcessedIdx++) {
     const e = evs[lastProcessedIdx];
+    if (AGENT_PRESENCE_EVENT_TYPES.has(e.event_type)) scheduleAgentsRefresh();
     if (!e.call_uuid) continue;
     if (TERMINAL_STATUSES.has(e.call_status)) {
       activeCallsMap.delete(e.call_uuid);
@@ -606,6 +633,7 @@ onUnmounted(() => {
   if (refreshTimer) clearInterval(refreshTimer);
   if (eventsWatcherTimer) clearInterval(eventsWatcherTimer);
   if (durationTimer) clearInterval(durationTimer);
+  if (agentsRefreshTimer) clearTimeout(agentsRefreshTimer);
   telephonySocket.disconnect();
 });
 </script>

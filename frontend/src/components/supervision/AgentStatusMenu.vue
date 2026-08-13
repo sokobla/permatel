@@ -66,10 +66,12 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { telephonyService } from "@/services/telephonyService";
+import { useAuthStore } from "@/store/auth";
 
+const authStore = useAuthStore();
 const pauseCodes = ref([]);
 const pauseSubmenuOpen = ref(false);
-const currentStatus = ref(null); // dernier statut demandé localement — pas de confirmation temps réel (cf. plan 13/08)
+const currentStatus = ref(null); // initialisé depuis /agents/status au montage (cf. loadCurrentStatus) — sinon retombait sur "Statut" à chaque rechargement de page
 
 const statusLabel = computed(() => {
   if (currentStatus.value === "Available") return "Disponible";
@@ -94,6 +96,22 @@ async function loadPauseCodes() {
   }
 }
 
+// Statut réel côté FusionPBX (dernier CALLCENTER_AGENT_STATE_CHANGE connu),
+// pas seulement l'état local du menu — sans ça le bouton retombait sur
+// "Statut" à chaque rechargement de page au lieu de refléter l'état
+// effectif de l'agent.
+async function loadCurrentStatus() {
+  const myAgentUuid = authStore.user?.agent_login;
+  if (!myAgentUuid) return;
+  try {
+    const { data } = await telephonyService.getAgentsStatus();
+    const mine = (data.agents || []).find((a) => a.agent_uuid === myAgentUuid);
+    if (mine?.raw_status) currentStatus.value = mine.raw_status;
+  } catch {
+    // best-effort — le bouton reste sur l'état neutre "Statut"
+  }
+}
+
 async function setStatus(status, pauseCode) {
   pauseSubmenuOpen.value = false;
   try {
@@ -108,7 +126,10 @@ async function setStatus(status, pauseCode) {
   }
 }
 
-onMounted(loadPauseCodes);
+onMounted(() => {
+  loadPauseCodes();
+  loadCurrentStatus();
+});
 </script>
 
 <style scoped>
