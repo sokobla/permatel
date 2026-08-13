@@ -10,7 +10,9 @@
       </div>
       <div class="sidebar-profile__info">
         <div class="sidebar-profile__handle">{{ authUser.username }}</div>
-        <div class="sidebar-profile__name">{{ authUser.fullName || authUser.nom }}</div>
+        <div class="sidebar-profile__name">
+          {{ authUser.fullName || authUser.nom }}
+        </div>
         <div class="sidebar-profile__role">{{ formatRole(authUser.role) }}</div>
       </div>
     </div>
@@ -69,32 +71,40 @@
     <div class="sidebar-footer">
       <div class="sidebar-footer__version">v{{ appVersion }}</div>
       <div class="sidebar-footer__status">
-        <span class="status-dot" :class="{ 'status-dot--online': isOnline }"></span>
-        {{ isOnline ? 'ONLINE' : 'OFFLINE' }}
+        <span
+          class="status-dot"
+          :class="{ 'status-dot--online': isOnline }"
+        ></span>
+        {{ isOnline ? "ONLINE" : "OFFLINE" }}
       </div>
     </div>
   </aside>
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
-import { useRouter } from 'vue-router';
-import { useAuthStore } from '@/stores/authStore';
+import { computed, ref, onMounted, onBeforeUnmount } from "vue";
+import { useRouter } from "vue-router";
+import { useAuthStore } from "@/stores/authStore";
 
 const router = useRouter();
 const authStore = useAuthStore();
 const isOnline = ref(true);
-const appVersion = '1.1.0';
+const appVersion = "1.1.0";
 
-const authUser = computed(() => authStore.user || {
-  username: 'Utilisateur',
-  fullName: 'Utilisateur',
-  role: 'USER'
-});
+const authUser = computed(
+  () =>
+    authStore.user || {
+      username: "Utilisateur",
+      fullName: "Utilisateur",
+      role: "USER",
+    },
+);
 
 const profileAvatarUrl = computed(() => {
   // Générer un avatar via initiales ou un service
-  const initials = (authUser.value.username || 'U').substring(0, 2).toUpperCase();
+  const initials = (authUser.value.username || "U")
+    .substring(0, 2)
+    .toUpperCase();
   return `https://ui-avatars.com/api/?name=${initials}&background=0066ff&color=fff&size=64`;
 });
 
@@ -103,10 +113,10 @@ const profileAvatarUrl = computed(() => {
  */
 const formatRole = (role) => {
   const roleMap = {
-    PERMANENCIER: 'Permanencier',
-    MANAGER: 'Manager',
-    ADMIN: 'Administrateur',
-    USER: 'Utilisateur'
+    PERMANENCIER: "Permanencier",
+    MANAGER: "Manager",
+    ADMIN: "Administrateur",
+    USER: "Utilisateur",
   };
   return roleMap[role] || role;
 };
@@ -119,9 +129,9 @@ const handleLogout = async () => {
     // Appeler logout du store
     await authStore.logout();
     // Rediriger vers login
-    await router.push('/login');
+    await router.push("/login");
   } catch (error) {
-    console.error('Erreur déconnexion:', error);
+    console.error("Erreur déconnexion:", error);
   }
 };
 
@@ -137,13 +147,13 @@ const handleOffline = () => {
 };
 
 onMounted(() => {
-  window.addEventListener('online', handleOnline);
-  window.addEventListener('offline', handleOffline);
+  window.addEventListener("online", handleOnline);
+  window.addEventListener("offline", handleOffline);
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener('online', handleOnline);
-  window.removeEventListener('offline', handleOffline);
+  window.removeEventListener("online", handleOnline);
+  window.removeEventListener("offline", handleOffline);
 });
 </script>
 
@@ -160,8 +170,9 @@ onBeforeUnmount(() => {
   background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
   border-right: 1px solid #e9ecef;
   color: #495057;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu",
+    "Cantarell", sans-serif;
   flex-shrink: 0;
   overflow-y: auto;
   overflow-x: hidden;

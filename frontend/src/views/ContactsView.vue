@@ -134,7 +134,9 @@
                   <th class="cv-th" style="width: 32%">Contact</th>
                   <th class="cv-th" style="width: 20%">Type / Fonction</th>
                   <th class="cv-th" style="width: 28%">Liens (CL/PR)</th>
-                  <th class="cv-th" style="width: 130px; text-align: right">Actions</th>
+                  <th class="cv-th" style="width: 130px; text-align: right">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -142,21 +144,37 @@
                   <!-- Colonne Contact (icône + nom/prénom + coordonnées) -->
                   <td class="cv-td cv-td--contact">
                     <div class="cv-name-cell">
-                      <span class="cv-type-icon" :style="{ background: userAvatarColor(item.nom) }">
-                        <v-icon size="14" color="#fff">mdi-account-outline</v-icon>
+                      <span
+                        class="cv-type-icon"
+                        :style="{ background: userAvatarColor(item.nom) }"
+                      >
+                        <v-icon size="14" color="#fff"
+                          >mdi-account-outline</v-icon
+                        >
                       </span>
                       <div class="cv-name-text-block">
-                        <span class="cv-titre">{{ item.nom }} {{ item.prenom }}</span>
-                        <span v-if="item.telephone || item.email" class="cv-name-sub">
+                        <span class="cv-titre"
+                          >{{ item.nom }} {{ item.prenom }}</span
+                        >
+                        <span
+                          v-if="item.telephone || item.email"
+                          class="cv-name-sub"
+                        >
                           <template v-if="item.telephone">
-                            <v-icon size="10">mdi-phone-outline</v-icon>{{ item.telephone }}
+                            <v-icon size="10">mdi-phone-outline</v-icon
+                            >{{ item.telephone }}
                           </template>
-                          <template v-if="item.telephone && item.email"> · </template>
+                          <template v-if="item.telephone && item.email">
+                            ·
+                          </template>
                           <template v-if="item.email">
-                            <v-icon size="10">mdi-email-outline</v-icon>{{ item.email }}
+                            <v-icon size="10">mdi-email-outline</v-icon
+                            >{{ item.email }}
                           </template>
                         </span>
-                        <span v-else-if="item.ville" class="cv-name-sub">{{ item.ville }}</span>
+                        <span v-else-if="item.ville" class="cv-name-sub">{{
+                          item.ville
+                        }}</span>
                       </div>
                     </div>
                   </td>
@@ -171,16 +189,23 @@
                   <td class="cv-td">
                     <div
                       v-if="
-                        item.type === 'Client' && item.clients && item.clients.length
+                        item.type === 'Client' &&
+                        item.clients &&
+                        item.clients.length
                       "
                       class="chip-row"
                     >
-                      <span class="chip" v-for="c in item.clients" :key="c.id">{{
-                        c.nom
-                      }}</span>
+                      <span
+                        class="chip"
+                        v-for="c in item.clients"
+                        :key="c.id"
+                        >{{ c.nom }}</span
+                      >
                     </div>
                     <div
-                      v-else-if="item.type === 'Prestataire' && item.prestataire"
+                      v-else-if="
+                        item.type === 'Prestataire' && item.prestataire
+                      "
                       class="chip-row"
                     >
                       <span class="chip">{{ item.prestataire.nom }}</span>
@@ -1093,8 +1118,12 @@ onMounted(() => {
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   transition: background 0.1s;
 }
-.cv-data-row:hover { background: rgba(0, 168, 168, 0.025); }
-.cv-data-row:last-child { border-bottom: none; }
+.cv-data-row:hover {
+  background: rgba(0, 168, 168, 0.025);
+}
+.cv-data-row:last-child {
+  border-bottom: none;
+}
 
 .cv-td {
   padding: 10px 12px;
@@ -1102,23 +1131,58 @@ onMounted(() => {
   color: #333;
   vertical-align: top;
 }
-.cv-td--contact { max-width: 0; }
+.cv-td--contact {
+  max-width: 0;
+}
 
-.cv-cat-sub { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; margin-top: 4px; color: #9aa0aa; }
+.cv-cat-sub {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-top: 4px;
+  color: #9aa0aa;
+}
 
 /* Cellule "Contact" (icône + nom/prénom + coordonnées) */
-.cv-name-cell { display: flex; align-items: flex-start; gap: 10px; }
-.cv-type-icon {
-  width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center;
-  justify-content: center; flex-shrink: 0; margin-top: 1px;
+.cv-name-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
 }
-.cv-name-text-block { min-width: 0; }
+.cv-type-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.cv-name-text-block {
+  min-width: 0;
+}
 .cv-name-sub {
-  display: flex; align-items: center; gap: 4px; font-size: 13px; color: #9aa0aa;
-  margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #9aa0aa;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.cv-titre { font-weight: 600; color: #000b23; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.cv-titre {
+  font-weight: 600;
+  color: #000b23;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
 
 /* Badge "Type" */
 .cv-nature-badge {
@@ -1137,7 +1201,12 @@ onMounted(() => {
 }
 
 /* Actions de ligne */
-.cv-row-actions { display: inline-flex; align-items: center; gap: 4px; justify-content: flex-end; }
+.cv-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+}
 .cv-action-btn {
   display: inline-flex;
   align-items: center;
@@ -1149,8 +1218,16 @@ onMounted(() => {
   background: transparent;
   cursor: pointer;
   color: #ccc;
-  transition: background 0.1s, color 0.1s;
+  transition:
+    background 0.1s,
+    color 0.1s;
 }
-.cv-action-btn:hover { background: rgba(0, 0, 0, 0.06); color: #555; }
-.cv-action-btn:disabled { opacity: 0.4; cursor: default; }
+.cv-action-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #555;
+}
+.cv-action-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 </style>

@@ -55,9 +55,12 @@ export const emailService = {
 
   /** Télécharge une pièce jointe (blob) et déclenche la sauvegarde navigateur. */
   async downloadAttachment(emailId, att) {
-    const res = await apiClient.get(`/emails/${emailId}/attachments/${att.id}/download`, {
-      responseType: "blob",
-    });
+    const res = await apiClient.get(
+      `/emails/${emailId}/attachments/${att.id}/download`,
+      {
+        responseType: "blob",
+      },
+    );
     const url = URL.createObjectURL(res.data);
     const a = document.createElement("a");
     a.href = url;

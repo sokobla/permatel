@@ -1,6 +1,5 @@
 <template>
   <div class="ccb-root" ref="rootEl">
-
     <!-- Mode sélection (client existant ou recherche) -->
     <template v-if="!newMode">
       <div class="ccb-search-row">
@@ -10,7 +9,9 @@
             ref="inputEl"
             v-model="query"
             class="ccb-input"
-            :placeholder="selectedClient ? selectedClient.nom : 'Rechercher un client…'"
+            :placeholder="
+              selectedClient ? selectedClient.nom : 'Rechercher un client…'
+            "
             :class="{ 'ccb-input--filled': selectedClient }"
             autocomplete="off"
             @focus="onFocus"
@@ -32,7 +33,10 @@
         </div>
 
         <!-- Dropdown résultats -->
-        <div v-if="open && (results.length || loading || query.length >= 2)" class="ccb-dropdown">
+        <div
+          v-if="open && (results.length || loading || query.length >= 2)"
+          class="ccb-dropdown"
+        >
           <div v-if="loading" class="ccb-dropdown__loader">
             <span class="ccb-spinner"></span> Recherche…
           </div>
@@ -49,7 +53,10 @@
               <span class="ccb-item__name">{{ client.nom }}</span>
               <span class="ccb-item__code">{{ client.code_client }}</span>
             </button>
-            <div v-if="!results.length && query.length >= 2" class="ccb-dropdown__empty">
+            <div
+              v-if="!results.length && query.length >= 2"
+              class="ccb-dropdown__empty"
+            >
               <span>Aucun résultat pour « {{ query }} »</span>
               <button type="button" class="ccb-new-btn" @click="enterNewMode">
                 <v-icon size="11">mdi-plus</v-icon>
@@ -64,7 +71,9 @@
       <div v-if="selectedClient" class="ccb-selected-badge">
         <v-icon size="10" color="#27ae60">mdi-check-circle-outline</v-icon>
         <span>{{ selectedClient.nom }}</span>
-        <span class="ccb-selected-badge__code">{{ selectedClient.code_client }}</span>
+        <span class="ccb-selected-badge__code">{{
+          selectedClient.code_client
+        }}</span>
       </div>
     </template>
 
@@ -157,7 +166,6 @@
         </div>
       </div>
     </template>
-
   </div>
 </template>
 
@@ -168,7 +176,11 @@ import { searchClients, createClient } from "@/services/clientService";
 const props = defineProps({
   modelValue: { type: Number, default: null },
 });
-const emit = defineEmits(["update:modelValue", "client-selected", "client-cleared"]);
+const emit = defineEmits([
+  "update:modelValue",
+  "client-selected",
+  "client-cleared",
+]);
 
 // ─── État ────────────────────────────────────────────────────────────────────
 const rootEl = ref(null);
@@ -183,7 +195,14 @@ const selectedClient = ref(null);
 const newMode = ref(false);
 const saving = ref(false);
 const newError = ref("");
-const newClient = ref({ nom: "", code_client: "", siret: "", telephone: "", email: "", adresse: "" });
+const newClient = ref({
+  nom: "",
+  code_client: "",
+  siret: "",
+  telephone: "",
+  email: "",
+  adresse: "",
+});
 
 // ─── Debounce search ─────────────────────────────────────────────────────────
 let searchTimer = null;
@@ -202,7 +221,10 @@ function onInput() {
   loading.value = true;
   searchTimer = setTimeout(async () => {
     try {
-      const { clients } = await searchClients({ search: query.value, perPage: 8 });
+      const { clients } = await searchClients({
+        search: query.value,
+        perPage: 8,
+      });
       results.value = clients;
     } catch {
       results.value = [];
@@ -289,7 +311,8 @@ async function saveNewClient() {
     selectClient(created);
     newMode.value = false;
   } catch (err) {
-    newError.value = err?.response?.data?.error ?? "Erreur lors de la création.";
+    newError.value =
+      err?.response?.data?.error ?? "Erreur lors de la création.";
   } finally {
     saving.value = false;
   }
@@ -300,7 +323,9 @@ function onClickOutside(e) {
   if (rootEl.value && !rootEl.value.contains(e.target)) close();
 }
 onMounted(() => document.addEventListener("mousedown", onClickOutside));
-onBeforeUnmount(() => document.removeEventListener("mousedown", onClickOutside));
+onBeforeUnmount(() =>
+  document.removeEventListener("mousedown", onClickOutside),
+);
 </script>
 
 <script>
@@ -308,10 +333,14 @@ export default { name: "ClientCombobox" };
 </script>
 
 <style scoped>
-.ccb-root { position: relative; }
+.ccb-root {
+  position: relative;
+}
 
 /* ── Ligne de recherche ── */
-.ccb-search-row { position: relative; }
+.ccb-search-row {
+  position: relative;
+}
 
 .ccb-input-wrap {
   position: relative;
@@ -340,7 +369,9 @@ export default { name: "ClientCombobox" };
   transition: border-color 0.15s;
 }
 
-.ccb-input:focus { border-color: rgba(0, 168, 168, 0.45); }
+.ccb-input:focus {
+  border-color: rgba(0, 168, 168, 0.45);
+}
 
 .ccb-input--filled {
   border-color: rgba(39, 174, 96, 0.35);
@@ -357,7 +388,9 @@ export default { name: "ClientCombobox" };
   line-height: 1;
   padding: 0;
 }
-.ccb-clear-btn:hover { color: #555; }
+.ccb-clear-btn:hover {
+  color: #555;
+}
 
 /* ── Dropdown ── */
 .ccb-dropdown {
@@ -393,7 +426,11 @@ export default { name: "ClientCombobox" };
   border-radius: 50%;
   animation: ccb-spin 0.7s linear infinite;
 }
-@keyframes ccb-spin { to { transform: rotate(360deg); } }
+@keyframes ccb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 .ccb-item {
   display: flex;
@@ -408,7 +445,9 @@ export default { name: "ClientCombobox" };
   transition: background 0.1s;
 }
 .ccb-item:hover,
-.ccb-item--hi { background: rgba(0, 168, 168, 0.06); }
+.ccb-item--hi {
+  background: rgba(0, 168, 168, 0.06);
+}
 
 .ccb-item__name {
   font-family: "Fira Sans", sans-serif;
@@ -448,7 +487,9 @@ export default { name: "ClientCombobox" };
   cursor: pointer;
   align-self: flex-start;
 }
-.ccb-new-btn:hover { background: rgba(39, 174, 96, 0.1); }
+.ccb-new-btn:hover {
+  background: rgba(39, 174, 96, 0.1);
+}
 
 /* ── Badge client sélectionné ── */
 .ccb-selected-badge {
@@ -498,7 +539,9 @@ export default { name: "ClientCombobox" };
   color: #aaa;
   cursor: pointer;
 }
-.ccb-back-btn:hover { color: #555; }
+.ccb-back-btn:hover {
+  color: #555;
+}
 
 .ccb-new-error {
   font-family: "Fira Sans", sans-serif;
@@ -529,6 +572,11 @@ export default { name: "ClientCombobox" };
   cursor: pointer;
   transition: background 0.15s;
 }
-.ccb-new-save-btn:hover:not(:disabled) { background: #219a52; }
-.ccb-new-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ccb-new-save-btn:hover:not(:disabled) {
+  background: #219a52;
+}
+.ccb-new-save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 </style>

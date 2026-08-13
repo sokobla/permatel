@@ -1,8 +1,23 @@
 <template>
-  <v-menu v-model="open" location="bottom end" :close-on-content-click="false" width="380">
+  <v-menu
+    v-model="open"
+    location="bottom end"
+    :close-on-content-click="false"
+    width="380"
+  >
     <template #activator="{ props }">
-      <v-btn v-bind="props" icon variant="text" class="mr-1" title="Notifications">
-        <v-badge :model-value="unread > 0" :content="unread > 99 ? '99+' : unread" color="#e74c3c">
+      <v-btn
+        v-bind="props"
+        icon
+        variant="text"
+        class="mr-1"
+        title="Notifications"
+      >
+        <v-badge
+          :model-value="unread > 0"
+          :content="unread > 99 ? '99+' : unread"
+          color="#e74c3c"
+        >
           <v-icon color="#000b23">mdi-bell-outline</v-icon>
         </v-badge>
       </v-btn>
@@ -11,7 +26,9 @@
     <v-card class="nb-card">
       <div class="nb-head">
         <span class="nb-title">Notifications</span>
-        <button v-if="unread > 0" class="nb-readall" @click="markAll">Tout marquer lu</button>
+        <button v-if="unread > 0" class="nb-readall" @click="markAll">
+          Tout marquer lu
+        </button>
       </div>
       <v-divider />
 
@@ -27,7 +44,10 @@
           :class="['nb-item', { 'nb-item--unread': !n.is_read }]"
           @click="onClick(n)"
         >
-          <span class="nb-dot" :style="{ background: sevColor(n.severity) }"></span>
+          <span
+            class="nb-dot"
+            :style="{ background: sevColor(n.severity) }"
+          ></span>
           <div class="nb-body">
             <div class="nb-item-title">{{ n.title }}</div>
             <div v-if="n.body" class="nb-item-text">{{ n.body }}</div>
@@ -65,7 +85,9 @@ async function refreshCount() {
   try {
     const { data } = await notificationService.unreadCount();
     unread.value = data.unread_count ?? 0;
-  } catch { /* silencieux */ }
+  } catch {
+    /* silencieux */
+  }
 }
 
 async function loadList() {
@@ -74,14 +96,20 @@ async function loadList() {
     const { data } = await notificationService.list({ limit: 20 });
     items.value = data.notifications ?? [];
     unread.value = data.unread_count ?? unread.value;
-  } catch { /* silencieux */ } finally {
+  } catch {
+    /* silencieux */
+  } finally {
     loading.value = false;
   }
 }
 
 async function onClick(n) {
   if (!n.is_read) {
-    try { await notificationService.markRead(n.id); } catch { /* */ }
+    try {
+      await notificationService.markRead(n.id);
+    } catch {
+      /* */
+    }
     n.is_read = true;
     unread.value = Math.max(0, unread.value - 1);
   }
@@ -97,7 +125,9 @@ async function markAll() {
     await notificationService.markAllRead();
     items.value.forEach((n) => (n.is_read = true));
     unread.value = 0;
-  } catch { /* */ }
+  } catch {
+    /* */
+  }
 }
 
 function ago(iso) {
@@ -109,28 +139,90 @@ function ago(iso) {
   return `il y a ${Math.floor(s / 86400)} j`;
 }
 
-watch(open, (v) => { if (v) loadList(); });
+watch(open, (v) => {
+  if (v) loadList();
+});
 
 onMounted(() => {
   refreshCount();
   timer = setInterval(refreshCount, POLL_MS);
 });
-onUnmounted(() => { if (timer) clearInterval(timer); });
+onUnmounted(() => {
+  if (timer) clearInterval(timer);
+});
 </script>
 
 <style scoped>
-.nb-card { font-family: "Fira Sans", sans-serif; }
-.nb-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; }
-.nb-title { font-size: 15px; font-weight: 700; color: #000b23; }
-.nb-readall { background: none; border: none; color: #00a8a8; font-size: 11.5px; cursor: pointer; }
-.nb-state { padding: 24px; text-align: center; color: #9aa0aa; font-size: 12.5px; }
-.nb-list { list-style: none; margin: 0; padding: 0; max-height: 60vh; overflow-y: auto; }
-.nb-item { display: flex; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #f0f1f3; cursor: pointer; }
-.nb-item:hover { background: #f7fdfd; }
-.nb-item--unread { background: #f0fafa; }
-.nb-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
-.nb-body { min-width: 0; }
-.nb-item-title { font-size: 15px; font-weight: 600; color: #000b23; }
-.nb-item-text { font-size: 14px; color: #4b5563; margin-top: 1px; }
-.nb-time { font-size: 10.5px; color: #9aa0aa; margin-top: 2px; }
+.nb-card {
+  font-family: "Fira Sans", sans-serif;
+}
+.nb-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+}
+.nb-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #000b23;
+}
+.nb-readall {
+  background: none;
+  border: none;
+  color: #00a8a8;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.nb-state {
+  padding: 24px;
+  text-align: center;
+  color: #9aa0aa;
+  font-size: 12.5px;
+}
+.nb-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.nb-item {
+  display: flex;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #f0f1f3;
+  cursor: pointer;
+}
+.nb-item:hover {
+  background: #f7fdfd;
+}
+.nb-item--unread {
+  background: #f0fafa;
+}
+.nb-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+.nb-body {
+  min-width: 0;
+}
+.nb-item-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #000b23;
+}
+.nb-item-text {
+  font-size: 14px;
+  color: #4b5563;
+  margin-top: 1px;
+}
+.nb-time {
+  font-size: 10.5px;
+  color: #9aa0aa;
+  margin-top: 2px;
+}
 </style>

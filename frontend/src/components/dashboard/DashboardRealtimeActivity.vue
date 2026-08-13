@@ -59,7 +59,11 @@ const chartOptions = computed(() => ({
     },
   },
   dataLabels: { enabled: false },
-  xaxis: { labels: { show: false }, axisBorder: { show: false }, axisTicks: { show: false } },
+  xaxis: {
+    labels: { show: false },
+    axisBorder: { show: false },
+    axisTicks: { show: false },
+  },
   yaxis: { labels: { show: false } },
   grid: { show: false },
   tooltip: { enabled: false },

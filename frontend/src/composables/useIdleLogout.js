@@ -12,7 +12,14 @@ import { ref, watch, onMounted, onBeforeUnmount } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/store/auth";
 
-const ACTIVITY_EVENTS = ["mousedown", "keydown", "scroll", "touchstart", "click", "mousemove"];
+const ACTIVITY_EVENTS = [
+  "mousedown",
+  "keydown",
+  "scroll",
+  "touchstart",
+  "click",
+  "mousemove",
+];
 const PING_KEY = "permatel_idle_ping";
 
 export function useIdleLogout(options = {}) {
@@ -66,7 +73,11 @@ export function useIdleLogout(options = {}) {
       const now = Date.now();
       if (now - lastPing > 3000) {
         lastPing = now;
-        try { localStorage.setItem(PING_KEY, String(now)); } catch { /* quota */ }
+        try {
+          localStorage.setItem(PING_KEY, String(now));
+        } catch {
+          /* quota */
+        }
       }
     }
   }

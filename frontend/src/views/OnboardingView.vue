@@ -2,7 +2,9 @@
   <div class="ai-page">
     <div class="ai-card">
       <div class="ai-head">
-        <span class="ai-logo-chip"><img :src="permatelLogo" alt="PERMATEL" class="ai-logo" /></span>
+        <span class="ai-logo-chip"
+          ><img :src="permatelLogo" alt="PERMATEL" class="ai-logo"
+        /></span>
       </div>
 
       <div v-if="loading" class="ai-state">
@@ -13,7 +15,9 @@
       <div v-else-if="loadError" class="ai-state ai-state--err">
         <v-icon color="#c0392b" size="28">mdi-alert-circle-outline</v-icon>
         <p>{{ loadError }}</p>
-        <router-link to="/login" class="ai-link">Retour à la connexion</router-link>
+        <router-link to="/login" class="ai-link"
+          >Retour à la connexion</router-link
+        >
       </div>
 
       <div v-else-if="done" class="ai-state ai-state--ok">
@@ -23,10 +27,12 @@
       </div>
 
       <template v-else>
-        <h1 class="ai-title">Bienvenue{{ invite.prenom ? ", " + invite.prenom : "" }}</h1>
+        <h1 class="ai-title">
+          Bienvenue{{ invite.prenom ? ", " + invite.prenom : "" }}
+        </h1>
         <p class="ai-sub">
-          Activez votre compte <strong>{{ invite.email }}</strong> en définissant
-          votre mot de passe.
+          Activez votre compte <strong>{{ invite.email }}</strong> en
+          définissant votre mot de passe.
         </p>
 
         <v-alert
@@ -91,7 +97,8 @@ const form = reactive({ password: "", confirm: "" });
 async function submit() {
   errorMessage.value = null;
   if (form.password.length < 12) {
-    errorMessage.value = "Le mot de passe doit contenir au moins 12 caractères.";
+    errorMessage.value =
+      "Le mot de passe doit contenir au moins 12 caractères.";
     return;
   }
   if (form.password !== form.confirm) {
@@ -119,7 +126,8 @@ onMounted(async () => {
     const { data } = await onboardingService.getOnboarding(token);
     Object.assign(invite, data);
   } catch (err) {
-    loadError.value = err?.response?.data?.error || "Lien d'activation invalide ou expiré.";
+    loadError.value =
+      err?.response?.data?.error || "Lien d'activation invalide ou expiré.";
   } finally {
     loading.value = false;
   }

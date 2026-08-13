@@ -3,7 +3,9 @@
     <div class="int-head">
       <div>
         <h2 class="int-title">Intégrations</h2>
-        <p class="int-sub">Connectez PERMATEL à vos outils. D'autres intégrations arrivent.</p>
+        <p class="int-sub">
+          Connectez PERMATEL à vos outils. D'autres intégrations arrivent.
+        </p>
       </div>
     </div>
 
@@ -17,7 +19,11 @@
         <div class="int-item__body">
           <div class="int-item__name-row">
             <span class="int-item__name">{{ i.name }}</span>
-            <v-chip size="x-small" :color="isActive(i.key) ? '#22c55e' : '#9aa0aa'" variant="tonal">
+            <v-chip
+              size="x-small"
+              :color="isActive(i.key) ? '#22c55e' : '#9aa0aa'"
+              variant="tonal"
+            >
               {{ isActive(i.key) ? "Disponible" : "Canal désactivé" }}
             </v-chip>
           </div>
@@ -40,7 +46,12 @@
       <v-card rounded="lg">
         <div class="tel-dlg-head">
           <span class="tel-dlg-head__title">Configuration — Téléphonie</span>
-          <v-btn icon="mdi-close" variant="text" size="small" @click="telephonyDialog = false" />
+          <v-btn
+            icon="mdi-close"
+            variant="text"
+            size="small"
+            @click="telephonyDialog = false"
+          />
         </div>
         <v-divider />
         <v-card-text class="tel-dlg-body">
@@ -85,10 +96,23 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.int-card { font-family: "Fira Sans", sans-serif; }
-.int-head { padding: 16px 20px; }
-.int-title { font-size: 17px; font-weight: 700; color: #000b23; margin: 0; }
-.int-sub { font-size: 12.5px; color: #6b7280; margin: 2px 0 0; }
+.int-card {
+  font-family: "Fira Sans", sans-serif;
+}
+.int-head {
+  padding: 16px 20px;
+}
+.int-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #000b23;
+  margin: 0;
+}
+.int-sub {
+  font-size: 12.5px;
+  color: #6b7280;
+  margin: 2px 0 0;
+}
 
 .int-grid {
   display: grid;
@@ -107,19 +131,51 @@ onMounted(() => {
   opacity: 0.92;
 }
 .int-item__icon {
-  width: 44px; height: 44px; border-radius: 10px;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
-.int-item__body { flex: 1; min-width: 0; }
-.int-item__name-row { display: flex; align-items: center; gap: 8px; }
-.int-item__name { font-size: 16px; font-weight: 700; color: #000b23; }
-.int-item__desc { font-size: 14px; color: #6b7280; margin: 4px 0 0; line-height: 1.45; }
-.int-item__btn { flex-shrink: 0; }
+.int-item__body {
+  flex: 1;
+  min-width: 0;
+}
+.int-item__name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.int-item__name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #000b23;
+}
+.int-item__desc {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 4px 0 0;
+  line-height: 1.45;
+}
+.int-item__btn {
+  flex-shrink: 0;
+}
 
 .tel-dlg-head {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 14px 18px;
 }
-.tel-dlg-head__title { font-size: 17px; font-weight: 700; color: #000b23; }
-.tel-dlg-body { padding: 0 !important; background: #f2f2f2; }
+.tel-dlg-head__title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #000b23;
+}
+.tel-dlg-body {
+  padding: 0 !important;
+  background: #f2f2f2;
+}
 </style>

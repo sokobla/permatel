@@ -325,7 +325,8 @@ export default {
 
 /* Style pour l'item de navigation ACTIF (lien final, pas un groupe)
    On utilise la classe .v-list-item--active de Vuetify */
-.nav-item.v-list-item--active:not(.nav-group-activator), .nav-item--sub.v-list-item--active {
+.nav-item.v-list-item--active:not(.nav-group-activator),
+.nav-item--sub.v-list-item--active {
   background-color: var(--drawer-active-item-bg) !important;
   position: relative;
 }
@@ -343,7 +344,9 @@ export default {
 }
 
 .nav-item.v-list-item--active:not(.nav-group-activator) .v-list-item-title,
-.nav-item.v-list-item--active:not(.nav-group-activator) .v-list-item__prepend > .v-icon,
+.nav-item.v-list-item--active:not(.nav-group-activator)
+  .v-list-item__prepend
+  > .v-icon,
 .nav-item--sub.v-list-item--active .v-list-item-title,
 .nav-item--sub.v-list-item--active .v-list-item__prepend > .v-icon {
   color: var(--drawer-active-highlight) !important;
@@ -434,5 +437,4 @@ export default {
 .v-navigation-drawer--rail :deep(.v-list-item__prepend .v-icon) {
   margin-inline-end: 0 !important;
 }
-
 </style>

@@ -2,7 +2,6 @@
   <!-- Overlay -->
   <div class="ead-overlay" @click.self="emit('close')">
     <div class="ead-panel" role="dialog" aria-modal="true">
-
       <!-- ── Header ───────────────────────────────────────────────── -->
       <div class="ead-hdr">
         <p class="ead-ctx">
@@ -21,7 +20,11 @@
         <!-- Intitulé inline -->
         <div class="ead-titre-row">
           <span class="ead-titre-lbl">INTITULÉ</span>
-          <input v-model="form.titre" class="ead-titre-input" autocomplete="off" />
+          <input
+            v-model="form.titre"
+            class="ead-titre-input"
+            autocomplete="off"
+          />
         </div>
       </div>
 
@@ -33,21 +36,23 @@
 
       <!-- ── Corps scrollable ──────────────────────────────────────── -->
       <div class="ead-body">
-
         <!-- Contexte : client + site -->
         <div class="ead-context">
           <div class="ead-context__item">
             <span class="ead-context__lbl">CLIENT</span>
             <span class="ead-context__val">
               <v-icon size="13" color="#00a8a8">mdi-domain</v-icon>
-              {{ demande.client_nom ?? (demande.client_id ? `Client #${demande.client_id}` : '—') }}
+              {{
+                demande.client_nom ??
+                (demande.client_id ? `Client #${demande.client_id}` : "—")
+              }}
             </span>
           </div>
           <div class="ead-context__item">
             <span class="ead-context__lbl">SITE</span>
             <span class="ead-context__val">
               <v-icon size="13" color="#00a8a8">mdi-map-marker-outline</v-icon>
-              {{ demande.site_nom ?? '—' }}
+              {{ demande.site_nom ?? "—" }}
             </span>
           </div>
         </div>
@@ -86,16 +91,26 @@
                 <option value="">— Sélectionner —</option>
                 <option value="anj">Absence non justifiée (ANJ)</option>
                 <option value="absence_justifiee">Absence justifiée</option>
-                <option value="retard_prise_service">Retard prise de service</option>
+                <option value="retard_prise_service">
+                  Retard prise de service
+                </option>
                 <option value="agent_non_sur_site">Agent non sur site</option>
                 <option value="doublon_planning">Doublon planning</option>
-                <option value="remplacement_permutation">Remplacement / permutation</option>
-                <option value="modification_vacation">Modification vacation</option>
+                <option value="remplacement_permutation">
+                  Remplacement / permutation
+                </option>
+                <option value="modification_vacation">
+                  Modification vacation
+                </option>
                 <option value="probleme_technique">Problème technique</option>
-                <option value="site_prestataire_injoignable">Site / prestataire injoignable</option>
+                <option value="site_prestataire_injoignable">
+                  Site / prestataire injoignable
+                </option>
                 <option value="blocage_outil_rh">Blocage outil / RH</option>
                 <option value="demande_de_renfort">Demande de renfort</option>
-                <option value="anomalie_facturation">Anomalie facturation</option>
+                <option value="anomalie_facturation">
+                  Anomalie facturation
+                </option>
                 <option value="autre">Autre…</option>
               </select>
               <input
@@ -107,7 +122,11 @@
             </div>
             <div class="form-group">
               <label class="form-label">ÉQUIPEMENT CONCERNÉ</label>
-              <input v-model="form.equipement_concerne" class="form-input" autocomplete="off" />
+              <input
+                v-model="form.equipement_concerne"
+                class="form-input"
+                autocomplete="off"
+              />
             </div>
           </div>
         </section>
@@ -121,7 +140,11 @@
           </header>
           <div class="form-group">
             <label class="form-label">DESCRIPTION DÉTAILLÉE</label>
-            <textarea v-model="form.description" class="form-input ead-textarea" rows="4"></textarea>
+            <textarea
+              v-model="form.description"
+              class="form-input ead-textarea"
+              rows="4"
+            ></textarea>
           </div>
         </section>
 
@@ -134,15 +157,30 @@
           </header>
           <div class="form-group">
             <label class="form-label">ACTION DE PRISE EN CHARGE</label>
-            <textarea v-model="form.action_corrective" class="form-input ead-textarea" rows="3"></textarea>
+            <textarea
+              v-model="form.action_corrective"
+              class="form-input ead-textarea"
+              rows="3"
+            ></textarea>
           </div>
           <div class="form-group">
             <label class="form-label">COMMENTAIRES / LOCALISATION</label>
-            <textarea v-model="form.localisation_precise" class="form-input ead-textarea" rows="3"></textarea>
+            <textarea
+              v-model="form.localisation_precise"
+              class="form-input ead-textarea"
+              rows="3"
+            ></textarea>
           </div>
           <div class="ead-impact-row">
-            <input id="ead-impact" v-model="form.impact_securite" type="checkbox" class="ead-checkbox" />
-            <label for="ead-impact" class="ead-checkbox-lbl">Impact sécurité</label>
+            <input
+              id="ead-impact"
+              v-model="form.impact_securite"
+              type="checkbox"
+              class="ead-checkbox"
+            />
+            <label for="ead-impact" class="ead-checkbox-lbl"
+              >Impact sécurité</label
+            >
           </div>
         </section>
 
@@ -150,12 +188,21 @@
         <section class="ead-sec">
           <header class="ead-sec-hdr">
             <span class="ead-sec-mark ead-sec-mark--amber"></span>
-            <span class="ead-sec-lbl">AGENT CONCERNÉ <span class="ead-optional">optionnel</span></span>
+            <span class="ead-sec-lbl"
+              >AGENT CONCERNÉ <span class="ead-optional">optionnel</span></span
+            >
             <span class="ead-sec-rule"></span>
           </header>
-          <div v-if="demande.agent_concerne_label && !agentCleared" class="ead-agent-display">
-            <v-icon size="13" color="#00a8a8">mdi-account-hard-hat-outline</v-icon>
-            <span class="ead-agent-name">{{ demande.agent_concerne_label }}</span>
+          <div
+            v-if="demande.agent_concerne_label && !agentCleared"
+            class="ead-agent-display"
+          >
+            <v-icon size="13" color="#00a8a8"
+              >mdi-account-hard-hat-outline</v-icon
+            >
+            <span class="ead-agent-name">{{
+              demande.agent_concerne_label
+            }}</span>
             <button class="ead-agent-clear" @click="clearAgent">
               <v-icon size="11">mdi-close</v-icon>
               Retirer
@@ -170,20 +217,27 @@
 
         <!-- Section 5 : Suivi & interactions -->
         <section class="ead-sec">
-          <DemandeInteractions :demande-id="demande.id" :client-id="demande.client_id ?? null" />
+          <DemandeInteractions
+            :demande-id="demande.id"
+            :client-id="demande.client_id ?? null"
+          />
         </section>
-
       </div>
 
       <!-- ── Footer ───────────────────────────────────────────────── -->
       <div class="ead-footer">
-        <button class="ead-btn-cancel" :disabled="saving" @click="emit('close')">ANNULER</button>
+        <button
+          class="ead-btn-cancel"
+          :disabled="saving"
+          @click="emit('close')"
+        >
+          ANNULER
+        </button>
         <button class="ead-btn-save" :disabled="saving" @click="save">
           <span v-if="saving" class="ead-spinner"></span>
           ENREGISTRER
         </button>
       </div>
-
     </div>
   </div>
 </template>
@@ -195,33 +249,38 @@ import AgentSelect from "@/components/workspace/AgentSelect.vue";
 import DemandeInteractions from "@/components/workspace/DemandeInteractions.vue";
 
 const props = defineProps({ demande: { type: Object, required: true } });
-const emit  = defineEmits(["close", "updated"]);
+const emit = defineEmits(["close", "updated"]);
 
-const saving     = ref(false);
-const error      = ref("");
+const saving = ref(false);
+const error = ref("");
 const agentCleared = ref(false);
 
 // Formulaire initialisé depuis la prop
 const form = reactive({
-  titre:                props.demande.titre              ?? "",
-  statut:               props.demande.statut             ?? "nouvelle",
-  priorite:             props.demande.priorite           ?? "normale",
-  nature_anomalie:      props.demande.nature_anomalie    ?? "",
-  nature_anomalie_libre:"",
-  equipement_concerne:  props.demande.equipement_concerne ?? "",
-  description:          props.demande.description        ?? "",
-  action_corrective:    props.demande.action_corrective  ?? "",
+  titre: props.demande.titre ?? "",
+  statut: props.demande.statut ?? "nouvelle",
+  priorite: props.demande.priorite ?? "normale",
+  nature_anomalie: props.demande.nature_anomalie ?? "",
+  nature_anomalie_libre: "",
+  equipement_concerne: props.demande.equipement_concerne ?? "",
+  description: props.demande.description ?? "",
+  action_corrective: props.demande.action_corrective ?? "",
   localisation_precise: props.demande.localisation_precise ?? "",
-  impact_securite:      props.demande.impact_securite    ?? false,
-  agent_concerne_id:    props.demande.agent_concerne_id  ?? null,
+  impact_securite: props.demande.impact_securite ?? false,
+  agent_concerne_id: props.demande.agent_concerne_id ?? null,
 });
 
 function clearAgent() {
   agentCleared.value = true;
   form.agent_concerne_id = null;
 }
-function onAgentSelected(agent) { form.agent_concerne_id = agent.id; agentCleared.value = false; }
-function onAgentCleared()       { form.agent_concerne_id = null; }
+function onAgentSelected(agent) {
+  form.agent_concerne_id = agent.id;
+  agentCleared.value = false;
+}
+function onAgentCleared() {
+  form.agent_concerne_id = null;
+}
 
 async function save() {
   error.value = "";
@@ -231,7 +290,8 @@ async function save() {
     delete payload.nature_anomalie_libre;
     // Intègre le texte libre dans la description si "autre"
     if (form.nature_anomalie === "autre" && form.nature_anomalie_libre.trim()) {
-      payload.description = `[${form.nature_anomalie_libre.trim()}]\n\n${form.description}`.trim();
+      payload.description =
+        `[${form.nature_anomalie_libre.trim()}]\n\n${form.description}`.trim();
     }
     const updated = await updateDemande(props.demande.id, payload);
     emit("updated", updated);
@@ -270,8 +330,12 @@ async function save() {
 }
 
 @keyframes ead-slide {
-  from { transform: translateX(100%); }
-  to   { transform: translateX(0); }
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 
 /* ── Header ──────────────────────────────────────────────────────── */
@@ -292,8 +356,13 @@ async function save() {
   text-transform: uppercase;
   margin: 0 0 8px;
 }
-.ead-ctx__sep { color: #e0e0e0; }
-.ead-ctx__ticket { color: #00a8a8; font-weight: 600; }
+.ead-ctx__sep {
+  color: #e0e0e0;
+}
+.ead-ctx__ticket {
+  color: #00a8a8;
+  font-weight: 600;
+}
 
 .ead-title-row {
   display: flex;
@@ -320,7 +389,9 @@ async function save() {
   margin: 0;
 }
 
-.ead-hdr-spacer { flex: 1; }
+.ead-hdr-spacer {
+  flex: 1;
+}
 
 .ead-close-btn {
   display: flex;
@@ -335,7 +406,10 @@ async function save() {
   color: #aaa;
   flex-shrink: 0;
 }
-.ead-close-btn:hover { color: #e74c3c; border-color: #e74c3c; }
+.ead-close-btn:hover {
+  color: #e74c3c;
+  border-color: #e74c3c;
+}
 
 .ead-titre-row {
   display: flex;
@@ -369,7 +443,9 @@ async function save() {
   outline: none;
   transition: border-color 0.15s;
 }
-.ead-titre-input:focus { border-color: #00a8a8; }
+.ead-titre-input:focus {
+  border-color: #00a8a8;
+}
 
 /* ── Erreur ──────────────────────────────────────────────────────── */
 .ead-error-bar {
@@ -393,8 +469,13 @@ async function save() {
   flex-direction: column;
   gap: 16px;
 }
-.ead-body::-webkit-scrollbar { width: 4px; }
-.ead-body::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 2px; }
+.ead-body::-webkit-scrollbar {
+  width: 4px;
+}
+.ead-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+}
 
 /* ── Contexte client / site ──────────────────────────────────────── */
 .ead-context {
@@ -406,7 +487,12 @@ async function save() {
   border: 1px solid rgba(0, 168, 168, 0.18);
   border-radius: 6px;
 }
-.ead-context__item { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ead-context__item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
 .ead-context__lbl {
   font-family: "Fira Sans", sans-serif;
   font-size: 11px;
@@ -429,7 +515,11 @@ async function save() {
 }
 
 /* ── Sections ────────────────────────────────────────────────────── */
-.ead-sec { display: flex; flex-direction: column; gap: 10px; }
+.ead-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 
 .ead-sec-hdr {
   display: flex;
@@ -443,10 +533,18 @@ async function save() {
   border-radius: 1px;
   flex-shrink: 0;
 }
-.ead-sec-mark--red   { background: #e74c3c; }
-.ead-sec-mark--teal  { background: #00a8a8; }
-.ead-sec-mark--navy  { background: #000b23; }
-.ead-sec-mark--amber { background: #f39c12; }
+.ead-sec-mark--red {
+  background: #e74c3c;
+}
+.ead-sec-mark--teal {
+  background: #00a8a8;
+}
+.ead-sec-mark--navy {
+  background: #000b23;
+}
+.ead-sec-mark--amber {
+  background: #f39c12;
+}
 
 .ead-sec-lbl {
   font-family: "Fira Sans", sans-serif;
@@ -458,7 +556,11 @@ async function save() {
   white-space: nowrap;
 }
 
-.ead-sec-rule { flex: 1; height: 1px; background: rgba(0, 0, 0, 0.06); }
+.ead-sec-rule {
+  flex: 1;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.06);
+}
 
 .ead-optional {
   font-family: "Fira Code", monospace;
@@ -477,7 +579,11 @@ async function save() {
 }
 
 /* ── Form primitives (dupliqués depuis le design system) ─────────── */
-.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 
 .form-label {
   font-family: "Fira Sans", sans-serif;
@@ -502,7 +608,9 @@ async function save() {
   width: 100%;
   box-sizing: border-box;
 }
-.form-input:focus { border-color: #00a8a8; }
+.form-input:focus {
+  border-color: #00a8a8;
+}
 
 /* ── Textarea ────────────────────────────────────────────────────── */
 .ead-textarea {
@@ -527,7 +635,12 @@ async function save() {
   gap: 7px;
 }
 
-.ead-checkbox { width: 14px; height: 14px; accent-color: #00a8a8; cursor: pointer; }
+.ead-checkbox {
+  width: 14px;
+  height: 14px;
+  accent-color: #00a8a8;
+  cursor: pointer;
+}
 .ead-checkbox-lbl {
   font-family: "Fira Sans", sans-serif;
   font-size: 13px;
@@ -593,7 +706,9 @@ async function save() {
   color: #555;
   cursor: pointer;
 }
-.ead-btn-cancel:hover { border-color: #aaa; }
+.ead-btn-cancel:hover {
+  border-color: #aaa;
+}
 
 .ead-btn-save {
   display: flex;
@@ -612,8 +727,13 @@ async function save() {
   cursor: pointer;
   transition: background 0.15s;
 }
-.ead-btn-save:hover:not(:disabled) { background: #00a8a8; }
-.ead-btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
+.ead-btn-save:hover:not(:disabled) {
+  background: #00a8a8;
+}
+.ead-btn-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
 .ead-spinner {
   width: 12px;
@@ -624,5 +744,9 @@ async function save() {
   animation: ead-spin 0.7s linear infinite;
   flex-shrink: 0;
 }
-@keyframes ead-spin { to { transform: rotate(360deg); } }
+@keyframes ead-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 </style>

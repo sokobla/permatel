@@ -153,7 +153,8 @@
                   }}</span>
                   <div v-if="item.email" class="user-cell__meta">
                     <span class="user-cell__meta-item">
-                      <v-icon size="10">mdi-email-outline</v-icon>{{ item.email }}
+                      <v-icon size="10">mdi-email-outline</v-icon
+                      >{{ item.email }}
                     </span>
                   </div>
                 </div>
@@ -501,7 +502,9 @@
                 variant="outlined"
                 :loading="tenantsLoading"
                 :disabled="panelMode === 'reset_password'"
-                :error-messages="formErrors.tenant_ids ? [formErrors.tenant_ids] : []"
+                :error-messages="
+                  formErrors.tenant_ids ? [formErrors.tenant_ids] : []
+                "
                 placeholder="Sélectionner un ou plusieurs tenants"
                 hint="Obligatoire pour un rôle non-administrateur."
                 persistent-hint
@@ -516,7 +519,10 @@
             <!-- ONBOARDING (visible en création et édition, désactivé nulle
                  part — voir handleOpenCreatePanel/resetForm pour l'état par
                  défaut selon le mode : true en création, false en édition). -->
-            <div v-if="panelMode === 'create' || panelMode === 'edit'" class="form-group">
+            <div
+              v-if="panelMode === 'create' || panelMode === 'edit'"
+              class="form-group"
+            >
               <v-switch
                 v-model="form.send_onboarding"
                 color="#00a8a8"
@@ -585,7 +591,9 @@
                   >
                     <v-icon size="14" color="#888">
                       {{
-                        showPwdConfirm ? "mdi-eye-off-outline" : "mdi-eye-outline"
+                        showPwdConfirm
+                          ? "mdi-eye-off-outline"
+                          : "mdi-eye-outline"
                       }}
                     </v-icon>
                   </button>
@@ -988,8 +996,12 @@ function validateForm() {
       isValid = false;
     }
     // Un rôle non-administrateur doit être rattaché à ≥1 tenant (anti-lockout).
-    if (form.role !== "ADMIN" && (!form.tenant_ids || form.tenant_ids.length === 0)) {
-      formErrors.tenant_ids = "Au moins un tenant est requis (sauf administrateur global).";
+    if (
+      form.role !== "ADMIN" &&
+      (!form.tenant_ids || form.tenant_ids.length === 0)
+    ) {
+      formErrors.tenant_ids =
+        "Au moins un tenant est requis (sauf administrateur global).";
       isValid = false;
     }
   }

@@ -12,7 +12,12 @@
     <v-divider />
     <v-card-text class="ddt-body">
       <div v-if="loading" class="ddt-skeleton">
-        <div v-for="n in 5" :key="n" class="ddt-sk-bar" :style="{ height: `${30 + n * 15}%` }"></div>
+        <div
+          v-for="n in 5"
+          :key="n"
+          class="ddt-sk-bar"
+          :style="{ height: `${30 + n * 15}%` }"
+        ></div>
       </div>
       <ApexChart
         v-else
@@ -31,24 +36,26 @@ import ApexChart from "vue3-apexcharts";
 
 const props = defineProps({
   trendData: { type: Array, default: () => [] },
-  loading:   { type: Boolean, default: false },
+  loading: { type: Boolean, default: false },
 });
 
 const SERIES_META = [
-  { key: "anomalie", label: "Anomalie",      color: "#e74c3c" },
-  { key: "commande", label: "Commande",      color: "#00a8a8" },
-  { key: "planning", label: "Planning",      color: "#3498db" },
-  { key: "admin",    label: "Administratif", color: "#8e44ad" },
+  { key: "anomalie", label: "Anomalie", color: "#e74c3c" },
+  { key: "commande", label: "Commande", color: "#00a8a8" },
+  { key: "planning", label: "Planning", color: "#3498db" },
+  { key: "admin", label: "Administratif", color: "#8e44ad" },
 ];
 
 const series = computed(() =>
   SERIES_META.map((s) => ({
     name: s.label,
     data: props.trendData.map((d) => d[s.key] ?? 0),
-  }))
+  })),
 );
 
-const categories = computed(() => props.trendData.map((d) => d.label ?? d.date));
+const categories = computed(() =>
+  props.trendData.map((d) => d.label ?? d.date),
+);
 
 const chartOptions = computed(() => ({
   chart: {
@@ -75,7 +82,11 @@ const chartOptions = computed(() => ({
     categories: categories.value,
     labels: {
       rotate: 0,
-      style: { fontFamily: "Fira Code, monospace", fontSize: "9px", colors: "#aaa" },
+      style: {
+        fontFamily: "Fira Code, monospace",
+        fontSize: "9px",
+        colors: "#aaa",
+      },
       formatter: (val, idx) => (idx % 5 === 0 ? val : ""),
     },
     axisBorder: { show: false },
@@ -83,7 +94,11 @@ const chartOptions = computed(() => ({
   },
   yaxis: {
     labels: {
-      style: { fontFamily: "Fira Code, monospace", fontSize: "9px", colors: "#aaa" },
+      style: {
+        fontFamily: "Fira Code, monospace",
+        fontSize: "9px",
+        colors: "#aaa",
+      },
       formatter: (v) => Math.round(v),
     },
     min: 0,
@@ -171,8 +186,13 @@ export default { name: "DashboardDemandeTrend" };
 }
 
 @keyframes ddt-pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.35; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
 }
 
 .ddt-sk-bar {

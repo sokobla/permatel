@@ -1,18 +1,30 @@
 <template>
   <!-- Page wrapper -->
   <div class="tn-page">
-
     <!-- === BARRE D'ACTIONS === -->
     <header class="tn-toolbar">
       <div class="tn-toolbar__title">
         <h1 class="tn-title">GESTION DES TENANTS</h1>
-        <span class="tn-count">({{ tenants.length }} tenant{{ tenants.length > 1 ? 's' : '' }})</span>
+        <span class="tn-count"
+          >({{ tenants.length }} tenant{{
+            tenants.length > 1 ? "s" : ""
+          }})</span
+        >
       </div>
 
       <div class="tn-toolbar__actions">
         <div class="tn-search">
-          <svg class="tn-search__icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
-            <path fill="currentColor" d="M9.5 3a6.5 6.5 0 0 1 5.25 10.33l5.46 5.46-1.42 1.42-5.46-5.46A6.5 6.5 0 1 1 9.5 3m0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9" />
+          <svg
+            class="tn-search__icon"
+            viewBox="0 0 24 24"
+            width="15"
+            height="15"
+            aria-hidden="true"
+          >
+            <path
+              fill="currentColor"
+              d="M9.5 3a6.5 6.5 0 0 1 5.25 10.33l5.46 5.46-1.42 1.42-5.46-5.46A6.5 6.5 0 1 1 9.5 3m0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9"
+            />
           </svg>
           <input
             v-model="search"
@@ -42,12 +54,20 @@
             <th
               v-for="col in columns"
               :key="col.key"
-              :class="['tn-th', { 'tn-th--sortable': col.sortable, 'tn-th--active': sortKey === col.key }]"
+              :class="[
+                'tn-th',
+                {
+                  'tn-th--sortable': col.sortable,
+                  'tn-th--active': sortKey === col.key,
+                },
+              ]"
               @click="col.sortable && toggleSort(col.key)"
             >
               <span class="tn-th__label">{{ col.label }}</span>
               <span v-if="col.sortable" class="tn-th__arrow">
-                <template v-if="sortKey === col.key">{{ sortDir === 'asc' ? '▲' : '▼' }}</template>
+                <template v-if="sortKey === col.key">{{
+                  sortDir === "asc" ? "▲" : "▼"
+                }}</template>
                 <template v-else>⇅</template>
               </span>
             </th>
@@ -65,12 +85,19 @@
           </template>
 
           <!-- Liste vide -->
-          <tr v-else-if="displayedTenants.length === 0" class="tn-row tn-row--empty">
+          <tr
+            v-else-if="displayedTenants.length === 0"
+            class="tn-row tn-row--empty"
+          >
             <td :colspan="columns.length">
               <div class="tn-empty">
                 <p class="tn-empty__title">Aucun tenant trouvé.</p>
                 <p class="tn-empty__sub">
-                  {{ search ? 'Affinez votre recherche ou réinitialisez le filtre.' : 'Créez un premier tenant avec le bouton « + NOUVEAU TENANT ».' }}
+                  {{
+                    search
+                      ? "Affinez votre recherche ou réinitialisez le filtre."
+                      : "Créez un premier tenant avec le bouton « + NOUVEAU TENANT »."
+                  }}
                 </p>
               </div>
             </td>
@@ -80,22 +107,36 @@
           <tr v-for="t in displayedTenants" :key="t.id" class="tn-row">
             <td class="tn-td tn-td--name">
               <div class="tn-name-cell">
-                <img v-if="t.logo_url" :src="fileUrl(t.logo_url)" class="tn-logo" alt="" />
-                <span v-else class="tn-logo tn-logo--ph">{{ initials(t.nom) }}</span>
+                <img
+                  v-if="t.logo_url"
+                  :src="fileUrl(t.logo_url)"
+                  class="tn-logo"
+                  alt=""
+                />
+                <span v-else class="tn-logo tn-logo--ph">{{
+                  initials(t.nom)
+                }}</span>
                 <div class="tn-name-cell__info">
                   <span>{{ t.nom }}</span>
                   <div class="tn-name-cell__meta">
                     <span v-if="t.code">{{ t.code }}</span>
-                    <span v-if="t.created_at">créé le {{ formatDate(t.created_at) }}</span>
+                    <span v-if="t.created_at"
+                      >créé le {{ formatDate(t.created_at) }}</span
+                    >
                   </div>
                 </div>
               </div>
             </td>
             <td class="tn-td tn-mono">{{ t.slug }}</td>
             <td class="tn-td">
-              <span :class="['tn-badge', t.is_active ? 'tn-badge--on' : 'tn-badge--off']">
+              <span
+                :class="[
+                  'tn-badge',
+                  t.is_active ? 'tn-badge--on' : 'tn-badge--off',
+                ]"
+              >
                 <span class="tn-badge__dot"></span>
-                {{ t.is_active ? 'ACTIF' : 'INACTIF' }}
+                {{ t.is_active ? "ACTIF" : "INACTIF" }}
               </span>
             </td>
             <td class="tn-td tn-td--actions">
@@ -105,18 +146,46 @@
                 :disabled="togglingId === t.id"
                 @click="toggleActive(t)"
               >
-                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                  <path fill="currentColor" d="M13 3h-2v10h2zm4.83 2.17-1.42 1.42A7 7 0 1 1 7.59 6.6L6.17 5.17a9 9 0 1 0 11.66 0" />
+                <svg
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  aria-hidden="true"
+                >
+                  <path
+                    fill="currentColor"
+                    d="M13 3h-2v10h2zm4.83 2.17-1.42 1.42A7 7 0 1 1 7.59 6.6L6.17 5.17a9 9 0 1 0 11.66 0"
+                  />
                 </svg>
               </button>
               <button class="tn-icon-btn" title="Modifier" @click="openEdit(t)">
-                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                  <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z" />
+                <svg
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  aria-hidden="true"
+                >
+                  <path
+                    fill="currentColor"
+                    d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z"
+                  />
                 </svg>
               </button>
-              <button class="tn-icon-btn tn-icon-btn--danger" title="Supprimer" @click="openDelete(t)">
-                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                  <path fill="currentColor" d="M6 7h12l-1 14H7zm3-3h6l1 2H8zM4 6h16v2H4z" />
+              <button
+                class="tn-icon-btn tn-icon-btn--danger"
+                title="Supprimer"
+                @click="openDelete(t)"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  aria-hidden="true"
+                >
+                  <path
+                    fill="currentColor"
+                    d="M6 7h12l-1 14H7zm3-3h6l1 2H8zM4 6h16v2H4z"
+                  />
                 </svg>
               </button>
             </td>
@@ -131,11 +200,19 @@
         <aside class="tn-drawer" role="dialog" aria-modal="true">
           <header class="tn-drawer__head">
             <h2 class="tn-drawer__title">
-              {{ isEditMode ? 'MODIFIER LE TENANT' : 'CRÉER UN TENANT' }}
+              {{ isEditMode ? "MODIFIER LE TENANT" : "CRÉER UN TENANT" }}
             </h2>
             <button class="tn-icon-btn" title="Fermer" @click="closeDrawer">
-              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                <path fill="currentColor" d="M18.3 5.71 12 12l6.3 6.29-1.42 1.42L10.59 13.4 4.3 19.71 2.88 18.3 9.17 12 2.88 5.71 4.3 4.29l6.29 6.3 6.29-6.3z" />
+              <svg
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                aria-hidden="true"
+              >
+                <path
+                  fill="currentColor"
+                  d="M18.3 5.71 12 12l6.3 6.29-1.42 1.42L10.59 13.4 4.3 19.71 2.88 18.3 9.17 12 2.88 5.71 4.3 4.29l6.29 6.3 6.29-6.3z"
+                />
               </svg>
             </button>
           </header>
@@ -146,12 +223,22 @@
               <label class="tn-label">LOGO</label>
               <div class="tn-logo-upload">
                 <div class="tn-logo-preview">
-                  <img v-if="logoPreview" :src="logoPreview" alt="Aperçu du logo" />
-                  <span v-else class="tn-logo-preview__ph">{{ initials(form.nom) || '—' }}</span>
+                  <img
+                    v-if="logoPreview"
+                    :src="logoPreview"
+                    alt="Aperçu du logo"
+                  />
+                  <span v-else class="tn-logo-preview__ph">{{
+                    initials(form.nom) || "—"
+                  }}</span>
                 </div>
                 <div class="tn-logo-actions">
-                  <button type="button" class="tn-btn tn-btn--ghost tn-btn--sm" @click="logoInput?.click()">
-                    {{ logoPreview ? 'CHANGER' : 'CHOISIR UN FICHIER' }}
+                  <button
+                    type="button"
+                    class="tn-btn tn-btn--ghost tn-btn--sm"
+                    @click="logoInput?.click()"
+                  >
+                    {{ logoPreview ? "CHANGER" : "CHOISIR UN FICHIER" }}
                   </button>
                   <button
                     v-if="logoPreview"
@@ -185,7 +272,9 @@
                 type="text"
                 placeholder="Nom complet du tenant"
               />
-              <p v-if="fieldErrors.nom" class="tn-field-error">{{ fieldErrors.nom }}</p>
+              <p v-if="fieldErrors.nom" class="tn-field-error">
+                {{ fieldErrors.nom }}
+              </p>
             </div>
 
             <!-- CODE -->
@@ -201,7 +290,9 @@
                 @input="onCodeInput"
               />
               <p class="tn-hint">Identifiant unique, lettres majuscules.</p>
-              <p v-if="fieldErrors.code" class="tn-field-error">{{ fieldErrors.code }}</p>
+              <p v-if="fieldErrors.code" class="tn-field-error">
+                {{ fieldErrors.code }}
+              </p>
             </div>
 
             <!-- SLUG -->
@@ -217,7 +308,9 @@
                 @input="onSlugInput"
               />
               <p class="tn-hint">Lettres minuscules, chiffres, tirets.</p>
-              <p v-if="fieldErrors.slug" class="tn-field-error">{{ fieldErrors.slug }}</p>
+              <p v-if="fieldErrors.slug" class="tn-field-error">
+                {{ fieldErrors.slug }}
+              </p>
             </div>
 
             <!-- STATUT (édition uniquement) -->
@@ -230,8 +323,12 @@
                 :aria-checked="form.is_active"
                 @click="form.is_active = !form.is_active"
               >
-                <span class="tn-toggle__track"><span class="tn-toggle__thumb"></span></span>
-                <span class="tn-toggle__text">{{ form.is_active ? 'ACTIF' : 'INACTIF' }}</span>
+                <span class="tn-toggle__track"
+                  ><span class="tn-toggle__thumb"></span
+                ></span>
+                <span class="tn-toggle__text">{{
+                  form.is_active ? "ACTIF" : "INACTIF"
+                }}</span>
               </button>
             </div>
 
@@ -239,39 +336,51 @@
             <div class="tn-field">
               <label class="tn-label">CANAUX MÉTIER</label>
               <p class="tn-hint">
-                Pilotent la visibilité des onglets du workspace et des sections de configuration.
-                SMTP (emails système) reste toujours actif.
+                Pilotent la visibilité des onglets du workspace et des sections
+                de configuration. SMTP (emails système) reste toujours actif.
               </p>
-              <div
-                v-for="c in CHANNELS"
-                :key="c.key"
-                class="tn-channel-row"
-              >
+              <div v-for="c in CHANNELS" :key="c.key" class="tn-channel-row">
                 <button
                   type="button"
-                  :class="['tn-toggle', { 'tn-toggle--on': form.channels[c.key] }]"
+                  :class="[
+                    'tn-toggle',
+                    { 'tn-toggle--on': form.channels[c.key] },
+                  ]"
                   role="switch"
                   :aria-checked="form.channels[c.key]"
                   @click="form.channels[c.key] = !form.channels[c.key]"
                 >
-                  <span class="tn-toggle__track"><span class="tn-toggle__thumb"></span></span>
+                  <span class="tn-toggle__track"
+                    ><span class="tn-toggle__thumb"></span
+                  ></span>
                   <span class="tn-toggle__text">{{ c.label }}</span>
                 </button>
               </div>
             </div>
 
             <!-- Erreur de formulaire générale -->
-            <div v-if="formError" class="tn-banner tn-banner--error tn-banner--inline">
+            <div
+              v-if="formError"
+              class="tn-banner tn-banner--error tn-banner--inline"
+            >
               {{ formError }}
             </div>
           </div>
 
           <footer class="tn-drawer__foot">
-            <button class="tn-btn tn-btn--ghost" :disabled="saving" @click="closeDrawer">
+            <button
+              class="tn-btn tn-btn--ghost"
+              :disabled="saving"
+              @click="closeDrawer"
+            >
               ANNULER
             </button>
-            <button class="tn-btn tn-btn--primary" :disabled="saving" @click="submitForm">
-              {{ saving ? 'ENREGISTREMENT…' : 'ENREGISTRER' }}
+            <button
+              class="tn-btn tn-btn--primary"
+              :disabled="saving"
+              @click="submitForm"
+            >
+              {{ saving ? "ENREGISTREMENT…" : "ENREGISTRER" }}
             </button>
           </footer>
         </aside>
@@ -280,11 +389,18 @@
 
     <!-- === MODALE DE CONFIRMATION SUPPRESSION === -->
     <transition name="tn-fade">
-      <div v-if="deleteTarget" class="tn-modal-overlay" @click.self="closeDelete">
+      <div
+        v-if="deleteTarget"
+        class="tn-modal-overlay"
+        @click.self="closeDelete"
+      >
         <div class="tn-modal" role="alertdialog" aria-modal="true">
           <header class="tn-modal__head">
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-              <path fill="currentColor" d="M1 21h22L12 2zm12-3h-2v-2h2zm0-4h-2v-4h2z" />
+              <path
+                fill="currentColor"
+                d="M1 21h22L12 2zm12-3h-2v-2h2zm0-4h-2v-4h2z"
+              />
             </svg>
             <h2 class="tn-modal__title">SUPPRESSION IRRÉVERSIBLE</h2>
           </header>
@@ -293,9 +409,9 @@
             <p class="tn-modal__warn">
               Vous êtes sur le point de supprimer définitivement le tenant
               <strong>{{ deleteTarget.nom }}</strong>
-              (<span class="tn-mono">{{ deleteTarget.code }}</span>).
-              Cette opération est <strong>irréversible</strong> et déclenche une suppression
-              en cascade des données suivantes :
+              (<span class="tn-mono">{{ deleteTarget.code }}</span
+              >). Cette opération est <strong>irréversible</strong> et déclenche
+              une suppression en cascade des données suivantes :
             </p>
 
             <ul class="tn-cascade">
@@ -311,14 +427,16 @@
             </ul>
 
             <p class="tn-modal__note">
-              Si des utilisateurs sont encore rattachés à ce tenant, la suppression sera
-              refusée (409).
+              Si des utilisateurs sont encore rattachés à ce tenant, la
+              suppression sera refusée (409).
             </p>
 
             <div class="tn-field">
               <label class="tn-label" for="tn-confirm">
                 Saisissez le code du tenant pour confirmer :
-                <span class="tn-mono tn-modal__code">{{ deleteTarget.code }}</span>
+                <span class="tn-mono tn-modal__code">{{
+                  deleteTarget.code
+                }}</span>
               </label>
               <input
                 id="tn-confirm"
@@ -330,13 +448,20 @@
               />
             </div>
 
-            <div v-if="deleteError" class="tn-banner tn-banner--error tn-banner--inline">
+            <div
+              v-if="deleteError"
+              class="tn-banner tn-banner--error tn-banner--inline"
+            >
               {{ deleteError }}
             </div>
           </div>
 
           <footer class="tn-modal__foot">
-            <button class="tn-btn tn-btn--ghost" :disabled="deleting" @click="closeDelete">
+            <button
+              class="tn-btn tn-btn--ghost"
+              :disabled="deleting"
+              @click="closeDelete"
+            >
               ANNULER
             </button>
             <button
@@ -344,13 +469,12 @@
               :disabled="!canConfirmDelete || deleting"
               @click="confirmDelete"
             >
-              {{ deleting ? 'SUPPRESSION…' : 'SUPPRIMER DÉFINITIVEMENT' }}
+              {{ deleting ? "SUPPRESSION…" : "SUPPRIMER DÉFINITIVEMENT" }}
             </button>
           </footer>
         </div>
       </div>
     </transition>
-
   </div>
 </template>
 
@@ -379,7 +503,10 @@ const CHANNELS = [
   { key: "chat", label: "Chat" },
 ];
 const form = reactive({
-  nom: "", code: "", slug: "", is_active: true,
+  nom: "",
+  code: "",
+  slug: "",
+  is_active: true,
   channels: { telephonie: false, email: false, chat: false },
 });
 const fieldErrors = reactive({ nom: "", code: "", slug: "" });
@@ -814,7 +941,10 @@ onMounted(fetchTenants);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: filter 0.15s, background 0.15s, border-color 0.15s;
+  transition:
+    filter 0.15s,
+    background 0.15s,
+    border-color 0.15s;
 }
 .tn-btn:disabled {
   opacity: 0.55;
@@ -981,7 +1111,10 @@ onMounted(fetchTenants);
   background: transparent;
   color: var(--color-muted);
   cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s;
 }
 .tn-icon-btn:not(:disabled):hover {
   background: #eef0f3;
@@ -1088,8 +1221,12 @@ onMounted(fetchTenants);
   animation: tn-shimmer 1.3s ease infinite;
 }
 @keyframes tn-shimmer {
-  0% { background-position: 100% 0; }
-  100% { background-position: -100% 0; }
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
 }
 
 /* === ÉTAT VIDE === */

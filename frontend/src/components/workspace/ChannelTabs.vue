@@ -18,7 +18,8 @@
           size="11"
           class="ch-state ch-state--locked"
           title="Indisponible — intégration requise"
-        >mdi-lock-outline</v-icon>
+          >mdi-lock-outline</v-icon
+        >
         <span
           v-else-if="states[tab.key] === 'warn'"
           class="ch-state ch-state--warn"
@@ -36,25 +37,33 @@
 
 <script setup>
 defineProps({
-  selectedChannel: { type: String, default: 'workspace' },
+  selectedChannel: { type: String, default: "workspace" },
   // Onglets visibles : [{ key, label, icon }] (dérivés des canaux du tenant)
   tabs: { type: Array, default: () => [] },
   // map clé canal -> 'locked' | 'warn' | 'ok' (optionnel)
   states: { type: Object, default: () => ({}) },
-})
+});
 
-const emit = defineEmits(['change'])
+const emit = defineEmits(["change"]);
 </script>
 
 <script>
-export default { name: 'ChannelTabs' }
+export default { name: "ChannelTabs" };
 </script>
 
 <style scoped>
-.ch-state { margin-left: 2px; }
-.ch-state--locked { color: #9aa0aa; }
+.ch-state {
+  margin-left: 2px;
+}
+.ch-state--locked {
+  color: #9aa0aa;
+}
 .ch-state--warn {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: #f39c12; display: inline-block; margin-left: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f39c12;
+  display: inline-block;
+  margin-left: 4px;
 }
 </style>

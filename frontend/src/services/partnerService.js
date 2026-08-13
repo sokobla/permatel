@@ -42,6 +42,8 @@ export const partnerService = {
    * @param {string} id - L'UUID du prestataire.
    */
   deactivatePartner(id) {
-    return apiClient.patch(`${PARTNERS_PREFIX}/${id}/status`, { is_active: false });
+    return apiClient.patch(`${PARTNERS_PREFIX}/${id}/status`, {
+      is_active: false,
+    });
   },
 };

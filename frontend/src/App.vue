@@ -14,8 +14,12 @@
         <v-menu v-if="canSwitchTenant" location="bottom start">
           <template #activator="{ props }">
             <button v-bind="props" class="tenant-switch" type="button">
-              <span class="app-bar-title">{{ tenantName || "Choisir un espace" }}</span>
-              <v-icon size="16" color="#6b7280">mdi-unfold-more-horizontal</v-icon>
+              <span class="app-bar-title">{{
+                tenantName || "Choisir un espace"
+              }}</span>
+              <v-icon size="16" color="#6b7280"
+                >mdi-unfold-more-horizontal</v-icon
+              >
             </button>
           </template>
           <v-list density="compact" class="tenant-switch__list">
@@ -31,17 +35,29 @@
               <template #prepend>
                 <v-icon
                   size="16"
-                  :color="t.id === authStore.activeTenantId ? '#00a8a8' : '#cbd0d6'"
+                  :color="
+                    t.id === authStore.activeTenantId ? '#00a8a8' : '#cbd0d6'
+                  "
                 >
-                  {{ t.id === authStore.activeTenantId ? "mdi-check-circle" : "mdi-circle-outline" }}
+                  {{
+                    t.id === authStore.activeTenantId
+                      ? "mdi-check-circle"
+                      : "mdi-circle-outline"
+                  }}
                 </v-icon>
               </template>
-              <v-list-item-title class="tenant-switch__name">{{ t.nom }}</v-list-item-title>
-              <v-list-item-subtitle class="tenant-switch__code">{{ t.code }}</v-list-item-subtitle>
+              <v-list-item-title class="tenant-switch__name">{{
+                t.nom
+              }}</v-list-item-title>
+              <v-list-item-subtitle class="tenant-switch__code">{{
+                t.code
+              }}</v-list-item-subtitle>
             </v-list-item>
           </v-list>
         </v-menu>
-        <v-toolbar-title v-else class="app-bar-title">{{ tenantName }}</v-toolbar-title>
+        <v-toolbar-title v-else class="app-bar-title">{{
+          tenantName
+        }}</v-toolbar-title>
 
         <v-spacer></v-spacer>
         <div class="app-bar-actions">

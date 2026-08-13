@@ -56,7 +56,10 @@
 
       <!-- Liste -->
       <div class="mc-list">
-        <div v-if="loadingList && !inbox.length && !sent.length" class="mc-state">
+        <div
+          v-if="loadingList && !inbox.length && !sent.length"
+          class="mc-state"
+        >
           <v-progress-circular indeterminate size="20" color="#00a8a8" />
         </div>
         <div v-else-if="!filtered.length" class="mc-state mc-state--empty">
@@ -70,7 +73,10 @@
           :class="[
             'mc-item',
             { 'mc-item--active': selectedEmail && selectedEmail.id === m.id },
-            { 'mc-item--unread': m.direction === 'inbound' && m.status === 'non_lu' },
+            {
+              'mc-item--unread':
+                m.direction === 'inbound' && m.status === 'non_lu',
+            },
           ]"
           @click="selectEmail(m)"
         >
@@ -136,7 +142,9 @@
             </div>
             <div class="mc-read__meta">
               <span :class="['mc-pill', `mc-pill--${selectedEmail.status}`]">
-                {{ STATUS_LABELS[selectedEmail.status] ?? selectedEmail.status }}
+                {{
+                  STATUS_LABELS[selectedEmail.status] ?? selectedEmail.status
+                }}
               </span>
               <span class="mc-read__date">{{
                 longDate(
@@ -167,7 +175,9 @@
               class="mc-read__body mc-read__body--html"
               v-html="renderedHtml"
             ></div>
-            <div v-else class="mc-read__body">{{ selectedEmail.body_text }}</div>
+            <div v-else class="mc-read__body">
+              {{ selectedEmail.body_text }}
+            </div>
 
             <!-- Pièces jointes -->
             <div
@@ -213,7 +223,11 @@
               prepend-icon="mdi-clipboard-plus-outline"
               @click="convertOpen = true"
             >
-              {{ selectedEmail.demande_id ? "Rattacher à une autre" : "Convertir en demande" }}
+              {{
+                selectedEmail.demande_id
+                  ? "Rattacher à une autre"
+                  : "Convertir en demande"
+              }}
             </v-btn>
             <v-btn
               v-if="
@@ -229,7 +243,9 @@
             </v-btn>
             <v-spacer />
             <span v-if="selectedEmail.demande_id" class="mc-linked">
-              <v-icon size="14" color="#15803d">mdi-check-circle-outline</v-icon>
+              <v-icon size="14" color="#15803d"
+                >mdi-check-circle-outline</v-icon
+              >
               Rattaché à la demande #{{ selectedEmail.demande_id }}
             </span>
           </footer>
@@ -375,7 +391,12 @@
       @converted="onConverted"
     />
 
-    <v-snackbar v-model="syncSnack.show" :color="syncSnack.color" timeout="3000" location="bottom right">
+    <v-snackbar
+      v-model="syncSnack.show"
+      :color="syncSnack.color"
+      timeout="3000"
+      location="bottom right"
+    >
       {{ syncSnack.text }}
     </v-snackbar>
   </div>
@@ -454,14 +475,18 @@ function peerAddress(m) {
 
 // Corps HTML assaini (rendu sûr anti-XSS)
 const renderedHtml = computed(() =>
-  selectedEmail.value?.body_html ? sanitizeEmailHtml(selectedEmail.value.body_html) : "",
+  selectedEmail.value?.body_html
+    ? sanitizeEmailHtml(selectedEmail.value.body_html)
+    : "",
 );
 
 const filtered = computed(() => {
   let list;
   if (tab.value === "sent") list = sent.value;
-  else if (tab.value === "unread") list = inbox.value.filter((m) => m.status === "non_lu");
-  else if (tab.value === "archived") list = inbox.value.filter((m) => m.status === "archive");
+  else if (tab.value === "unread")
+    list = inbox.value.filter((m) => m.status === "non_lu");
+  else if (tab.value === "archived")
+    list = inbox.value.filter((m) => m.status === "archive");
   else list = inbox.value.filter((m) => m.status !== "archive"); // inbox
 
   const q = search.value.trim().toLowerCase();
@@ -580,7 +605,8 @@ async function archive(m) {
   try {
     await emailService.updateStatus(m.id, { status: "archive" });
     m.status = "archive";
-    if (selectedEmail.value?.id === m.id) selectedEmail.value.status = "archive";
+    if (selectedEmail.value?.id === m.id)
+      selectedEmail.value.status = "archive";
   } catch {
     /* non bloquant */
   }
@@ -672,14 +698,14 @@ async function syncNow() {
     await loadEmails();
     const n = res.fetched ?? 0;
     syncSnack.color = "#00a8a8";
-    syncSnack.text = n > 0
-      ? `${n} nouvel(s) email(s) collecté(s).`
-      : "Aucun nouvel email.";
+    syncSnack.text =
+      n > 0 ? `${n} nouvel(s) email(s) collecté(s).` : "Aucun nouvel email.";
     syncSnack.show = true;
     if (!tab.value || tab.value === "sent") tab.value = "inbox";
   } catch (err) {
     syncSnack.color = "#e74c3c";
-    syncSnack.text = err?.response?.data?.error || "Échec de la synchronisation.";
+    syncSnack.text =
+      err?.response?.data?.error || "Échec de la synchronisation.";
     syncSnack.show = true;
   } finally {
     syncing.value = false;

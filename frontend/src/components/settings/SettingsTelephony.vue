@@ -184,11 +184,14 @@
             <v-divider class="my-3" />
 
             <div class="tel-domains-head">
-              <span class="tel-domains-head__title">WEBHOOK CDR (FusionPBX mod_json_cdr)</span>
+              <span class="tel-domains-head__title"
+                >WEBHOOK CDR (FusionPBX mod_json_cdr)</span
+              >
             </div>
             <p class="tel-cdr-hint">
-              Canal complémentaire à l'ESL live : un résumé arrive à la fin de chaque appel (pas
-              d'événement "en cours"). Collez l'URL ci-dessous dans la configuration CDR de FusionPBX.
+              Canal complémentaire à l'ESL live : un résumé arrive à la fin de
+              chaque appel (pas d'événement "en cours"). Collez l'URL ci-dessous
+              dans la configuration CDR de FusionPBX.
             </p>
             <div class="tel-cdr-row">
               <v-text-field
@@ -401,8 +404,8 @@
         <div>
           <span class="tel-domains-head__title">CODES DE PAUSE</span>
           <p class="tel-cdr-hint">
-            Sous-statut transmis à FusionPBX au passage en « En pause »,
-            choisi par l'agent depuis le menu de statut self-service.
+            Sous-statut transmis à FusionPBX au passage en « En pause », choisi
+            par l'agent depuis le menu de statut self-service.
           </p>
         </div>
         <v-btn
@@ -432,7 +435,12 @@
             <td class="tel-mono">{{ c.digit }}</td>
             <td>
               {{ c.label }}
-              <v-chip v-if="c.is_protected" size="x-small" variant="tonal" class="ml-1">
+              <v-chip
+                v-if="c.is_protected"
+                size="x-small"
+                variant="tonal"
+                class="ml-1"
+              >
                 Protégé
               </v-chip>
             </td>
@@ -464,7 +472,11 @@
     <v-dialog v-model="pauseCodeDialog" max-width="420">
       <v-card rounded="lg">
         <v-card-title class="tel-dlg-title">
-          {{ editingPauseCode ? "Modifier le code de pause" : "Nouveau code de pause" }}
+          {{
+            editingPauseCode
+              ? "Modifier le code de pause"
+              : "Nouveau code de pause"
+          }}
         </v-card-title>
         <v-divider />
         <v-card-text>
@@ -493,7 +505,10 @@
         </v-card-text>
         <v-divider />
         <v-card-actions>
-          <v-btn variant="text" class="text-none" @click="pauseCodeDialog = false"
+          <v-btn
+            variant="text"
+            class="text-none"
+            @click="pauseCodeDialog = false"
             >Annuler</v-btn
           >
           <v-spacer />
@@ -630,7 +645,9 @@
             density="comfortable"
           />
           <div class="tel-queue-head mt-3">
-            <span class="tel-domains-head__title">FILES D'ATTENTE SUPERVISÉES</span>
+            <span class="tel-domains-head__title"
+              >FILES D'ATTENTE SUPERVISÉES</span
+            >
           </div>
           <div v-if="!domainForm.queue_ids.length" class="tel-muted mb-2">
             Aucune file — utilisez "Ajouter une file" ci-dessous.
@@ -761,15 +778,20 @@ async function saveAuthorizedIp(connector) {
   const value = (ipDrafts[connector.id] || "").trim() || null;
   if (value === (connector.authorized_ip || null)) return;
   try {
-    const { data } = await apiClient.put(`/telephony/connectors/${connector.id}`, {
-      authorized_ip: value,
-    });
+    const { data } = await apiClient.put(
+      `/telephony/connectors/${connector.id}`,
+      {
+        authorized_ip: value,
+      },
+    );
     const idx = connectors.value.findIndex((c) => c.id === connector.id);
     if (idx !== -1) connectors.value[idx] = data;
     ipDrafts[connector.id] = data.authorized_ip || "";
   } catch (err) {
     feedback.type = "error";
-    feedback.text = err?.response?.data?.error || "L'enregistrement de l'IP autorisée a échoué.";
+    feedback.text =
+      err?.response?.data?.error ||
+      "L'enregistrement de l'IP autorisée a échoué.";
   }
 }
 
@@ -1058,7 +1080,9 @@ function queueAlias(q) {
 }
 function toQueueFormRows(queueIds) {
   return (queueIds || []).map((q) =>
-    typeof q === "string" ? { id: q, alias: "" } : { id: q.id || "", alias: q.alias || "" },
+    typeof q === "string"
+      ? { id: q, alias: "" }
+      : { id: q.id || "", alias: q.alias || "" },
   );
 }
 
@@ -1156,7 +1180,8 @@ async function fetchPauseCodes() {
     pauseCodes.value = Array.isArray(data) ? data : [];
   } catch (err) {
     feedback.type = "error";
-    feedback.text = err?.response?.data?.error || "Impossible de charger les codes de pause.";
+    feedback.text =
+      err?.response?.data?.error || "Impossible de charger les codes de pause.";
   }
 }
 
@@ -1185,8 +1210,13 @@ async function savePauseCode() {
   savingPauseCode.value = true;
   try {
     if (editingPauseCode.value) {
-      const { data } = await telephonyService.updatePauseCode(editingPauseCode.value.id, { digit, label });
-      const idx = pauseCodes.value.findIndex((c) => c.id === editingPauseCode.value.id);
+      const { data } = await telephonyService.updatePauseCode(
+        editingPauseCode.value.id,
+        { digit, label },
+      );
+      const idx = pauseCodes.value.findIndex(
+        (c) => c.id === editingPauseCode.value.id,
+      );
       if (idx !== -1) pauseCodes.value[idx] = data;
     } else {
       const { data } = await telephonyService.createPauseCode({ digit, label });
@@ -1194,7 +1224,8 @@ async function savePauseCode() {
     }
     pauseCodeDialog.value = false;
   } catch (err) {
-    pauseCodeFormError.value = err?.response?.data?.error || "Une erreur est survenue.";
+    pauseCodeFormError.value =
+      err?.response?.data?.error || "Une erreur est survenue.";
   } finally {
     savingPauseCode.value = false;
   }

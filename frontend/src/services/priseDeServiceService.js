@@ -5,7 +5,7 @@ const BASE = "/prises-de-service";
 // ── Prises de service ────────────────────────────────────────────────────────
 export async function listPrisesDeService(params = {}) {
   const { data } = await apiClient.get(BASE, { params });
-  return Array.isArray(data) ? data : data.items ?? [];
+  return Array.isArray(data) ? data : (data.items ?? []);
 }
 
 export async function startPriseDeService(payload) {
@@ -37,16 +37,25 @@ export function exportPrisesDeServiceCsv(params = {}) {
 
 // ── Référentiels pour les autocomplete (réutilise les endpoints existants) ────
 export async function fetchAgents() {
-  const { data } = await apiClient.get("/agents", { params: { per_page: 500 } });
+  const { data } = await apiClient.get("/agents", {
+    params: { per_page: 500 },
+  });
   return (data.agents ?? data.items ?? []).map((a) => ({
     id: a.id,
-    label: `${a.prenom ?? ""} ${a.nom ?? ""}`.trim() + (a.matricule ? ` (${a.matricule})` : ""),
+    label:
+      `${a.prenom ?? ""} ${a.nom ?? ""}`.trim() +
+      (a.matricule ? ` (${a.matricule})` : ""),
   }));
 }
 
 export async function fetchClients() {
-  const { data } = await apiClient.get("/clients", { params: { per_page: 500 } });
-  return (data.clients ?? data.items ?? []).map((c) => ({ id: c.id, label: c.nom }));
+  const { data } = await apiClient.get("/clients", {
+    params: { per_page: 500 },
+  });
+  return (data.clients ?? data.items ?? []).map((c) => ({
+    id: c.id,
+    label: c.nom,
+  }));
 }
 
 export async function fetchSites(clientId) {

@@ -5,50 +5,75 @@
         <!-- Bandeau replié — toujours visible tant qu'un appel est actif -->
         <div class="ccb-collapsed" @click="expanded = !expanded">
           <span class="ccb-pulse"></span>
-          <span class="ccb-avatar">{{ initials(activeCall.agent_name || activeCall.agent_login) }}</span>
+          <span class="ccb-avatar">{{
+            initials(activeCall.agent_name || activeCall.agent_login)
+          }}</span>
           <span class="ccb-name">{{ activeCall.caller || "—" }}</span>
           <span class="ccb-num">{{ activeCall.callee || "" }}</span>
-          <span class="ccb-dur">{{ formatDuration(activeCall.started_at) }}</span>
+          <span class="ccb-dur">{{
+            formatDuration(activeCall.started_at)
+          }}</span>
           <button class="ccb-cta" @click.stop="goToCreateDemande">
             <v-icon size="12" color="#fff">mdi-plus</v-icon>
             Créer une demande
           </button>
-          <v-icon size="16" class="ccb-chevron" :class="{ 'ccb-chevron--open': expanded }">
+          <v-icon
+            size="16"
+            class="ccb-chevron"
+            :class="{ 'ccb-chevron--open': expanded }"
+          >
             mdi-chevron-down
           </v-icon>
         </div>
 
         <!-- Détails dépliés — animés en hauteur (grid-template-rows), jamais démontés -->
-        <div class="ccb-details-wrap" :class="{ 'ccb-details-wrap--open': expanded }">
+        <div
+          class="ccb-details-wrap"
+          :class="{ 'ccb-details-wrap--open': expanded }"
+        >
           <div class="ccb-details-inner">
             <div class="ccb-card">
               <div class="ccb-card__head">
-                <span class="ccb-card__avatar">{{ initials(activeCall.agent_name || activeCall.agent_login) }}</span>
+                <span class="ccb-card__avatar">{{
+                  initials(activeCall.agent_name || activeCall.agent_login)
+                }}</span>
                 <div class="ccb-card__id">
-                  <span class="ccb-card__name">{{ activeCall.caller || "—" }}</span>
+                  <span class="ccb-card__name">{{
+                    activeCall.caller || "—"
+                  }}</span>
                   <div class="ccb-card__contactline">
                     <span class="item" v-if="activeCall.agent_name">
-                      <v-icon size="12">mdi-account-outline</v-icon>{{ activeCall.agent_name }}
+                      <v-icon size="12">mdi-account-outline</v-icon
+                      >{{ activeCall.agent_name }}
                     </span>
                     <span class="item" v-if="activeCall.callee">
-                      <v-icon size="12">mdi-phone-outline</v-icon>{{ activeCall.callee }}
+                      <v-icon size="12">mdi-phone-outline</v-icon
+                      >{{ activeCall.callee }}
                     </span>
                   </div>
                 </div>
                 <span class="ccb-card__spacer"></span>
                 <span class="ccb-card__status-pill">
-                  <span class="ccb-dot"></span>{{ CALL_STATUS_LABEL[activeCall.call_status] || "Appel en cours" }}
+                  <span class="ccb-dot"></span
+                  >{{
+                    CALL_STATUS_LABEL[activeCall.call_status] ||
+                    "Appel en cours"
+                  }}
                 </span>
               </div>
 
               <div class="ccb-card__stats">
                 <div class="ccb-card__stat">
                   <div class="ccb-card__stat-label">Poste</div>
-                  <div class="ccb-card__stat-value">{{ activeCall.agent_station || "—" }}</div>
+                  <div class="ccb-card__stat-value">
+                    {{ activeCall.agent_station || "—" }}
+                  </div>
                 </div>
                 <div class="ccb-card__stat">
                   <div class="ccb-card__stat-label">File</div>
-                  <div class="ccb-card__stat-value">{{ activeCall.queue_label || "—" }}</div>
+                  <div class="ccb-card__stat-value">
+                    {{ activeCall.queue_label || "—" }}
+                  </div>
                 </div>
                 <div class="ccb-card__stat">
                   <div class="ccb-card__stat-label">Durée</div>
@@ -63,7 +88,9 @@
                   <v-icon size="14" color="#fff">mdi-plus</v-icon>
                   Créer une nouvelle demande
                 </button>
-                <button class="ccb-btn-secondary" @click="expanded = false">Réduire</button>
+                <button class="ccb-btn-secondary" @click="expanded = false">
+                  Réduire
+                </button>
               </div>
             </div>
           </div>
@@ -90,7 +117,12 @@ const CALL_STATUS_LABEL = {
   answered: "Appel en cours",
   on_hold: "En attente",
 };
-const TERMINAL_STATUSES = new Set(["ended", "missed", "abandoned", "technical_failure"]);
+const TERMINAL_STATUSES = new Set([
+  "ended",
+  "missed",
+  "abandoned",
+  "technical_failure",
+]);
 
 // Un seul appel actif suivi à la fois — celui de l'agent connecté (agent_login
 // == User.agent_login). Si plusieurs call_uuid concurrents portaient le même
@@ -158,7 +190,8 @@ function processIncomingEvents() {
     }
     if (!e.call_status) continue; // enrichissement sans statut, pas assez pour (dé)clencher la carte
 
-    const isNewCall = !activeCall.value || activeCall.value.call_uuid !== e.call_uuid;
+    const isNewCall =
+      !activeCall.value || activeCall.value.call_uuid !== e.call_uuid;
     activeCall.value = {
       call_uuid: e.call_uuid,
       caller: e.caller || activeCall.value?.caller || null,
@@ -168,7 +201,10 @@ function processIncomingEvents() {
       agent_name: activeCall.value?.agent_name || null,
       agent_station: activeCall.value?.agent_station || null,
       queue_label: activeCall.value?.queue_label || null,
-      started_at: activeCall.value?.started_at || e.created_at || new Date().toISOString(),
+      started_at:
+        activeCall.value?.started_at ||
+        e.created_at ||
+        new Date().toISOString(),
     };
     if (isNewCall) expanded.value = true; // nouvel appel = notification dépliée
   }

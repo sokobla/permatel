@@ -1,6 +1,5 @@
 <template>
   <div class="dlp-root">
-
     <!-- ══ PANNEAU DÉTAIL LATÉRAL ════════════════════════════════════════════ -->
     <DemandeDetailDrawer
       v-if="detailDemande"
@@ -34,8 +33,15 @@
           <option value="cloturee">Clôturée</option>
           <option value="annulee">Annulée</option>
         </select>
-        <button class="dlp-refresh-btn" :disabled="loading" title="Actualiser" @click="load">
-          <v-icon size="13" :class="{ 'dlp-spin': loading }">mdi-refresh</v-icon>
+        <button
+          class="dlp-refresh-btn"
+          :disabled="loading"
+          title="Actualiser"
+          @click="load"
+        >
+          <v-icon size="13" :class="{ 'dlp-spin': loading }"
+            >mdi-refresh</v-icon
+          >
         </button>
       </div>
     </div>
@@ -47,10 +53,15 @@
     </div>
 
     <!-- ══ EMPTY ════════════════════════════════════════════════════════════ -->
-    <div v-if="!loading && !loadError && filtered.length === 0" class="dlp-empty">
+    <div
+      v-if="!loading && !loadError && filtered.length === 0"
+      class="dlp-empty"
+    >
       <v-icon size="32" color="#ddd">mdi-text-box-check-outline</v-icon>
       <p class="dlp-empty__text">Aucune demande trouvée</p>
-      <p class="dlp-empty__sub">Utilisez <strong>NOUVELLE DEMANDE</strong> pour en créer une.</p>
+      <p class="dlp-empty__sub">
+        Utilisez <strong>NOUVELLE DEMANDE</strong> pour en créer une.
+      </p>
     </div>
 
     <!-- ══ SKELETON ══════════════════════════════════════════════════════════ -->
@@ -73,7 +84,6 @@
         >
           <!-- ─ Ligne principale ─ -->
           <div class="dlp-row-main" @click="toggleExpand(d.id)">
-
             <!-- Type badge -->
             <span :class="['dlp-badge', `dlp-badge--${d.type_demande}`]">
               {{ TYPE_LABELS[d.type_demande] ?? d.type_demande }}
@@ -100,43 +110,63 @@
 
             <!-- Chevron -->
             <v-icon size="13" class="dlp-chevron">
-              {{ expanded === d.id ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
+              {{ expanded === d.id ? "mdi-chevron-up" : "mdi-chevron-down" }}
             </v-icon>
           </div>
 
           <!-- ─ Panneau détail / actions ─ -->
           <div v-if="expanded === d.id" class="dlp-detail">
-
             <!-- Méta-infos : demandeur, site, client, prise en charge -->
             <div class="dlp-meta-grid">
               <div class="dlp-meta-item">
                 <span class="dlp-detail-lbl">Demandeur</span>
                 <span class="dlp-meta-val">
-                  <img :src="resolveAvatar(d.contact_avatar_url, d.contact_nom)" class="dlp-avatar-sm" />
-                  {{ d.contact_nom || '—' }}
+                  <img
+                    :src="resolveAvatar(d.contact_avatar_url, d.contact_nom)"
+                    class="dlp-avatar-sm"
+                  />
+                  {{ d.contact_nom || "—" }}
                 </span>
               </div>
               <div class="dlp-meta-item">
                 <span class="dlp-detail-lbl">Client</span>
                 <span class="dlp-meta-val">
-                  <img v-if="d.client_logo_url" :src="fileUrl(d.client_logo_url)" class="dlp-logo-sm" />
+                  <img
+                    v-if="d.client_logo_url"
+                    :src="fileUrl(d.client_logo_url)"
+                    class="dlp-logo-sm"
+                  />
                   <v-icon v-else size="11" color="#00a8a8">mdi-domain</v-icon>
-                  {{ d.client_nom || '—' }}
+                  {{ d.client_nom || "—" }}
                 </span>
               </div>
               <div class="dlp-meta-item">
                 <span class="dlp-detail-lbl">Site</span>
                 <span class="dlp-meta-val">
-                  <img v-if="d.site_logo_url" :src="fileUrl(d.site_logo_url)" class="dlp-logo-sm" />
-                  <v-icon v-else size="11" color="#00a8a8">mdi-map-marker-outline</v-icon>
-                  {{ d.site_nom || '—' }}
+                  <img
+                    v-if="d.site_logo_url"
+                    :src="fileUrl(d.site_logo_url)"
+                    class="dlp-logo-sm"
+                  />
+                  <v-icon v-else size="11" color="#00a8a8"
+                    >mdi-map-marker-outline</v-icon
+                  >
+                  {{ d.site_nom || "—" }}
                 </span>
               </div>
               <div class="dlp-meta-item">
                 <span class="dlp-detail-lbl">Prise en charge</span>
                 <span class="dlp-meta-val">
-                  <img :src="resolveAvatar(d.permanencier_avatar_url, d.permanencier_nom)" class="dlp-avatar-sm" />
-                  {{ d.permanencier_nom || '—' }}
+                  <img
+                    :src="
+                      resolveAvatar(
+                        d.permanencier_avatar_url,
+                        d.permanencier_nom,
+                      )
+                    "
+                    class="dlp-avatar-sm"
+                  />
+                  {{ d.permanencier_nom || "—" }}
                 </span>
               </div>
               <!-- Agent concerné (anomalie / planning uniquement) -->
@@ -146,7 +176,15 @@
               >
                 <span class="dlp-detail-lbl">Agent concerné</span>
                 <span class="dlp-meta-val dlp-meta-val--agent">
-                  <img :src="resolveAvatar(d.agent_concerne_avatar_url, d.agent_concerne_label)" class="dlp-avatar-sm dlp-avatar-sm--amber" />
+                  <img
+                    :src="
+                      resolveAvatar(
+                        d.agent_concerne_avatar_url,
+                        d.agent_concerne_label,
+                      )
+                    "
+                    class="dlp-avatar-sm dlp-avatar-sm--amber"
+                  />
                   {{ d.agent_concerne_label }}
                 </span>
               </div>
@@ -172,7 +210,12 @@
                   <option value="cloturee">Clôturée</option>
                   <option value="annulee">Annulée</option>
                 </select>
-                <v-icon v-if="patchingId === d.id" size="13" class="dlp-spin" color="#00a8a8">
+                <v-icon
+                  v-if="patchingId === d.id"
+                  size="13"
+                  class="dlp-spin"
+                  color="#00a8a8"
+                >
                   mdi-loading
                 </v-icon>
               </div>
@@ -185,7 +228,9 @@
                   :disabled="pecingId === d.id"
                   @click.stop="onPEC(d)"
                 >
-                  <v-icon v-if="pecingId === d.id" size="12" class="dlp-spin">mdi-loading</v-icon>
+                  <v-icon v-if="pecingId === d.id" size="12" class="dlp-spin"
+                    >mdi-loading</v-icon
+                  >
                   <v-icon v-else size="12">mdi-play-circle-outline</v-icon>
                   PEC
                 </button>
@@ -200,7 +245,12 @@
                 </button>
 
                 <button
-                  :class="['dlp-btn', suiviOpenId === d.id ? 'dlp-btn--suivi-active' : 'dlp-btn--suivi']"
+                  :class="[
+                    'dlp-btn',
+                    suiviOpenId === d.id
+                      ? 'dlp-btn--suivi-active'
+                      : 'dlp-btn--suivi',
+                  ]"
                   @click.stop="toggleSuivi(d.id)"
                 >
                   <v-icon size="12">mdi-pencil-plus-outline</v-icon>
@@ -218,10 +268,16 @@
                 </button>
                 <template v-else-if="canDelete">
                   <span class="dlp-confirm-txt">Confirmer ?</span>
-                  <button class="dlp-btn dlp-btn--danger-confirm" @click.stop="onDelete(d.id)">
+                  <button
+                    class="dlp-btn dlp-btn--danger-confirm"
+                    @click.stop="onDelete(d.id)"
+                  >
                     OUI
                   </button>
-                  <button class="dlp-btn dlp-btn--cancel" @click.stop="confirmDeleteId = null">
+                  <button
+                    class="dlp-btn dlp-btn--cancel"
+                    @click.stop="confirmDeleteId = null"
+                  >
                     NON
                   </button>
                 </template>
@@ -235,18 +291,25 @@
             <!-- ─ Formulaire de suivi ─ -->
             <div v-if="suiviOpenId === d.id" class="dlp-suivi" @click.stop>
               <div class="dlp-suivi-header">
-                <v-icon size="12" color="#00a8a8">mdi-pencil-plus-outline</v-icon>
+                <v-icon size="12" color="#00a8a8"
+                  >mdi-pencil-plus-outline</v-icon
+                >
                 NOUVELLE INTERACTION
               </div>
               <div class="dlp-suivi-fields">
                 <div class="dlp-suivi-field">
                   <!-- Contact verrouillé (contexte workspace) -->
                   <div v-if="props.contactId" class="dlp-suivi-contact">
-                    <v-icon size="10" color="#00a8a8">mdi-account-outline</v-icon>
+                    <v-icon size="10" color="#00a8a8"
+                      >mdi-account-outline</v-icon
+                    >
                     {{ props.contactNom ?? `Contact #${props.contactId}` }}
                   </div>
                   <label class="dlp-detail-lbl">TYPE</label>
-                  <select v-model="suiviForm.type_interaction" class="dlp-status-sel">
+                  <select
+                    v-model="suiviForm.type_interaction"
+                    class="dlp-status-sel"
+                  >
                     <option value="appel">Appel téléphonique</option>
                     <option value="email">Email</option>
                     <option value="whatsapp">WhatsApp</option>
@@ -260,16 +323,20 @@
                   rows="3"
                   :disabled="suiviSubmitting"
                 ></textarea>
-                <p v-if="suiviError" class="dlp-action-error">{{ suiviError }}</p>
+                <p v-if="suiviError" class="dlp-action-error">
+                  {{ suiviError }}
+                </p>
                 <div class="dlp-suivi-actions">
                   <button
                     class="dlp-btn dlp-btn--suivi-submit"
                     :disabled="suiviSubmitting || !suiviForm.contenu.trim()"
                     @click.stop="onSuiviSubmit(d.id)"
                   >
-                    <v-icon v-if="suiviSubmitting" size="12" class="dlp-spin">mdi-loading</v-icon>
+                    <v-icon v-if="suiviSubmitting" size="12" class="dlp-spin"
+                      >mdi-loading</v-icon
+                    >
                     <v-icon v-else size="12">mdi-check</v-icon>
-                    {{ suiviSubmitting ? 'ENREGISTREMENT…' : 'ENREGISTRER' }}
+                    {{ suiviSubmitting ? "ENREGISTREMENT…" : "ENREGISTRER" }}
                   </button>
                   <button
                     class="dlp-btn dlp-btn--cancel"
@@ -281,13 +348,10 @@
                 </div>
               </div>
             </div>
-
           </div>
-
         </div>
       </transition-group>
     </div>
-
   </div>
 </template>
 
@@ -308,9 +372,9 @@ const authStore = useAuthStore();
 const canDelete = computed(() => authStore.canDelete);
 
 const props = defineProps({
-  contactId:  { type: Number, default: null },
+  contactId: { type: Number, default: null },
   contactNom: { type: String, default: null },
-  clientId:   { type: Number, default: null },
+  clientId: { type: Number, default: null },
 });
 
 const emit = defineEmits(["refresh"]);
@@ -319,48 +383,50 @@ const TYPE_LABELS = {
   anomalie: "ANO",
   commande: "CMD",
   planning: "PLN",
-  admin:    "ADM",
+  admin: "ADM",
 };
 
 const STATUT_LABELS = {
-  nouvelle:   "Nouvelle",
-  en_cours:   "En cours",
+  nouvelle: "Nouvelle",
+  en_cours: "En cours",
   en_attente: "En attente",
-  resolue:    "Résolue",
-  cloturee:   "Clôturée",
-  annulee:    "Annulée",
+  resolue: "Résolue",
+  cloturee: "Clôturée",
+  annulee: "Annulée",
 };
 
 const PRIO_LABELS = {
-  basse:   "↓",
+  basse: "↓",
   normale: "→",
-  haute:   "↑",
+  haute: "↑",
   urgente: "⚡",
 };
 
-const demandes      = ref([]);
-const loading       = ref(false);
-const loadError     = ref("");
-const filterType    = ref("");
-const filterStatut  = ref("");
-const expanded      = ref(null);
-const patchingId    = ref(null);
-const deletingId    = ref(null);
+const demandes = ref([]);
+const loading = ref(false);
+const loadError = ref("");
+const filterType = ref("");
+const filterStatut = ref("");
+const expanded = ref(null);
+const patchingId = ref(null);
+const deletingId = ref(null);
 const confirmDeleteId = ref(null);
-const actionError   = ref(null);
+const actionError = ref(null);
 
-const detailDemande  = ref(null);
-const pecingId       = ref(null);
+const detailDemande = ref(null);
+const pecingId = ref(null);
 
-const suiviOpenId    = ref(null);
-const suiviForm      = reactive({ type_interaction: "note", contenu: "" });
+const suiviOpenId = ref(null);
+const suiviForm = reactive({ type_interaction: "note", contenu: "" });
 const suiviSubmitting = ref(false);
-const suiviError     = ref("");
+const suiviError = ref("");
 
 const filtered = computed(() => {
   let list = demandes.value;
-  if (filterType.value)   list = list.filter((d) => d.type_demande === filterType.value);
-  if (filterStatut.value) list = list.filter((d) => d.statut === filterStatut.value);
+  if (filterType.value)
+    list = list.filter((d) => d.type_demande === filterType.value);
+  if (filterStatut.value)
+    list = list.filter((d) => d.statut === filterStatut.value);
   return list;
 });
 
@@ -370,7 +436,7 @@ async function load() {
   try {
     const params = {};
     if (props.contactId) params.contact_id = props.contactId;
-    if (props.clientId)  params.client_id  = props.clientId;
+    if (props.clientId) params.client_id = props.clientId;
     demandes.value = await listDemandes(params);
   } catch {
     loadError.value = "Impossible de charger les demandes.";
@@ -466,7 +532,9 @@ async function onDelete(id) {
   }
 }
 
-const BACKEND_ORIGIN = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "");
+const BACKEND_ORIGIN = (
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api"
+).replace(/\/api\/?$/, "");
 
 function fileUrl(path) {
   if (!path) return null;
@@ -484,7 +552,11 @@ function resolveAvatar(url, name) {
 function formatDate(iso) {
   if (!iso) return "—";
   const d = new Date(iso);
-  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  return d.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  });
 }
 
 watch(() => props.contactId, load);
@@ -567,7 +639,9 @@ export default { name: "DemandesListPanel" };
   cursor: pointer;
   outline: none;
 }
-.dlp-filter-sel:focus { border-color: rgba(0, 168, 168, 0.4); }
+.dlp-filter-sel:focus {
+  border-color: rgba(0, 168, 168, 0.4);
+}
 
 .dlp-refresh-btn {
   display: inline-flex;
@@ -582,8 +656,13 @@ export default { name: "DemandesListPanel" };
   color: #666;
   transition: background 0.15s;
 }
-.dlp-refresh-btn:hover:not(:disabled) { background: rgba(0, 168, 168, 0.08); }
-.dlp-refresh-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.dlp-refresh-btn:hover:not(:disabled) {
+  background: rgba(0, 168, 168, 0.08);
+}
+.dlp-refresh-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 /* ══ ERROR / EMPTY ══════════════════════════════════════════════════════════ */
 
@@ -638,8 +717,13 @@ export default { name: "DemandesListPanel" };
   gap: 4px;
 }
 
-.dlp-list::-webkit-scrollbar { width: 4px; }
-.dlp-list::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 2px; }
+.dlp-list::-webkit-scrollbar {
+  width: 4px;
+}
+.dlp-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+}
 
 /* ══ LIGNE ══════════════════════════════════════════════════════════════════ */
 
@@ -651,8 +735,12 @@ export default { name: "DemandesListPanel" };
   overflow: hidden;
 }
 
-.dlp-row:hover { border-color: rgba(0, 168, 168, 0.25); }
-.dlp-row--expanded { border-color: rgba(0, 168, 168, 0.4); }
+.dlp-row:hover {
+  border-color: rgba(0, 168, 168, 0.25);
+}
+.dlp-row--expanded {
+  border-color: rgba(0, 168, 168, 0.4);
+}
 
 .dlp-row-main {
   display: flex;
@@ -682,10 +770,22 @@ export default { name: "DemandesListPanel" };
   flex-shrink: 0;
 }
 
-.dlp-badge--anomalie { background: rgba(231, 76, 60, 0.1);  color: #c0392b; }
-.dlp-badge--commande { background: rgba(0, 168, 168, 0.1); color: #007a7a; }
-.dlp-badge--planning { background: rgba(52, 152, 219, 0.1); color: #1a73c1; }
-.dlp-badge--admin    { background: rgba(142, 68, 173, 0.1); color: #7d3c98; }
+.dlp-badge--anomalie {
+  background: rgba(231, 76, 60, 0.1);
+  color: #c0392b;
+}
+.dlp-badge--commande {
+  background: rgba(0, 168, 168, 0.1);
+  color: #007a7a;
+}
+.dlp-badge--planning {
+  background: rgba(52, 152, 219, 0.1);
+  color: #1a73c1;
+}
+.dlp-badge--admin {
+  background: rgba(142, 68, 173, 0.1);
+  color: #7d3c98;
+}
 
 /* ══ INFO ═══════════════════════════════════════════════════════════════════ */
 
@@ -722,10 +822,18 @@ export default { name: "DemandesListPanel" };
   flex-shrink: 0;
 }
 
-.dlp-prio--basse   { color: #aaa; }
-.dlp-prio--normale { color: #3498db; }
-.dlp-prio--haute   { color: #e67e22; }
-.dlp-prio--urgente { color: #e74c3c; }
+.dlp-prio--basse {
+  color: #aaa;
+}
+.dlp-prio--normale {
+  color: #3498db;
+}
+.dlp-prio--haute {
+  color: #e67e22;
+}
+.dlp-prio--urgente {
+  color: #e74c3c;
+}
 
 /* ══ STATUT ══════════════════════════════════════════════════════════════════ */
 
@@ -740,12 +848,30 @@ export default { name: "DemandesListPanel" };
   flex-shrink: 0;
 }
 
-.dlp-statut--nouvelle   { background: #eaf4fb; color: #1a73c1; }
-.dlp-statut--en_cours   { background: rgba(0, 168, 168, 0.1); color: #007a7a; }
-.dlp-statut--en_attente { background: #fef9e7; color: #b7770d; }
-.dlp-statut--resolue    { background: #eafaf1; color: #1e8449; }
-.dlp-statut--cloturee   { background: #f4f6f7; color: #707b7c; }
-.dlp-statut--annulee    { background: rgba(231, 76, 60, 0.07); color: #c0392b; }
+.dlp-statut--nouvelle {
+  background: #eaf4fb;
+  color: #1a73c1;
+}
+.dlp-statut--en_cours {
+  background: rgba(0, 168, 168, 0.1);
+  color: #007a7a;
+}
+.dlp-statut--en_attente {
+  background: #fef9e7;
+  color: #b7770d;
+}
+.dlp-statut--resolue {
+  background: #eafaf1;
+  color: #1e8449;
+}
+.dlp-statut--cloturee {
+  background: #f4f6f7;
+  color: #707b7c;
+}
+.dlp-statut--annulee {
+  background: rgba(231, 76, 60, 0.07);
+  color: #c0392b;
+}
 
 /* ══ DATE ════════════════════════════════════════════════════════════════════ */
 
@@ -798,7 +924,9 @@ export default { name: "DemandesListPanel" };
   object-fit: cover;
   border: 1.5px solid rgba(0, 11, 35, 0.12);
 }
-.dlp-avatar-sm--amber { border-color: rgba(243, 156, 18, 0.4); }
+.dlp-avatar-sm--amber {
+  border-color: rgba(243, 156, 18, 0.4);
+}
 
 .dlp-logo-sm {
   height: 16px;
@@ -876,8 +1004,13 @@ export default { name: "DemandesListPanel" };
   cursor: pointer;
   outline: none;
 }
-.dlp-status-sel:focus { border-color: rgba(0, 168, 168, 0.4); }
-.dlp-status-sel:disabled { opacity: 0.5; cursor: not-allowed; }
+.dlp-status-sel:focus {
+  border-color: rgba(0, 168, 168, 0.4);
+}
+.dlp-status-sel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 .dlp-detail-actions {
   display: flex;
@@ -910,27 +1043,36 @@ export default { name: "DemandesListPanel" };
   border: 1px solid transparent;
 }
 
-.dlp-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.dlp-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 .dlp-btn--danger {
   background: rgba(231, 76, 60, 0.07);
   border-color: rgba(231, 76, 60, 0.2);
   color: #c0392b;
 }
-.dlp-btn--danger:hover:not(:disabled) { background: rgba(231, 76, 60, 0.14); }
+.dlp-btn--danger:hover:not(:disabled) {
+  background: rgba(231, 76, 60, 0.14);
+}
 
 .dlp-btn--danger-confirm {
   background: #e74c3c;
   color: #fff;
 }
-.dlp-btn--danger-confirm:hover { background: #c0392b; }
+.dlp-btn--danger-confirm:hover {
+  background: #c0392b;
+}
 
 .dlp-btn--cancel {
   background: #f5f5f5;
   border-color: rgba(0, 0, 0, 0.1);
   color: #555;
 }
-.dlp-btn--cancel:hover { background: #ebebeb; }
+.dlp-btn--cancel:hover {
+  background: #ebebeb;
+}
 
 .dlp-btn--pec {
   background: rgba(0, 168, 168, 0.12);
@@ -938,14 +1080,18 @@ export default { name: "DemandesListPanel" };
   color: #005f5f;
   font-weight: 800;
 }
-.dlp-btn--pec:hover:not(:disabled) { background: rgba(0, 168, 168, 0.22); }
+.dlp-btn--pec:hover:not(:disabled) {
+  background: rgba(0, 168, 168, 0.22);
+}
 
 .dlp-btn--detail {
   background: rgba(0, 11, 35, 0.05);
   border-color: rgba(0, 11, 35, 0.15);
   color: #000b23;
 }
-.dlp-btn--detail:hover { background: rgba(0, 11, 35, 0.1); }
+.dlp-btn--detail:hover {
+  background: rgba(0, 11, 35, 0.1);
+}
 
 .dlp-btn--suivi {
   background: rgba(0, 168, 168, 0.07);
@@ -968,8 +1114,13 @@ export default { name: "DemandesListPanel" };
   border-color: transparent;
   color: #fff;
 }
-.dlp-btn--suivi-submit:hover:not(:disabled) { background: #008585; }
-.dlp-btn--suivi-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+.dlp-btn--suivi-submit:hover:not(:disabled) {
+  background: #008585;
+}
+.dlp-btn--suivi-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 .dlp-action-error {
   font-family: "Fira Sans", sans-serif;
@@ -1027,9 +1178,15 @@ export default { name: "DemandesListPanel" };
   transition: border-color 0.15s;
   box-sizing: border-box;
 }
-.dlp-suivi-textarea:focus { border-color: rgba(0, 168, 168, 0.45); }
-.dlp-suivi-textarea:disabled { opacity: 0.5; }
-.dlp-suivi-textarea::placeholder { color: #bbb; }
+.dlp-suivi-textarea:focus {
+  border-color: rgba(0, 168, 168, 0.45);
+}
+.dlp-suivi-textarea:disabled {
+  opacity: 0.5;
+}
+.dlp-suivi-textarea::placeholder {
+  color: #bbb;
+}
 
 .dlp-suivi-actions {
   display: flex;
@@ -1065,8 +1222,13 @@ export default { name: "DemandesListPanel" };
 }
 
 @keyframes dlp-pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.4; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 
 .dlp-sk {
@@ -1074,19 +1236,42 @@ export default { name: "DemandesListPanel" };
   background: #e8e8e8;
 }
 
-.dlp-sk--badge  { width: 36px; height: 18px; flex-shrink: 0; }
-.dlp-sk--title  { flex: 1; height: 12px; }
-.dlp-sk--status { width: 60px; height: 18px; flex-shrink: 0; }
-.dlp-sk--date   { width: 45px; height: 10px; flex-shrink: 0; }
+.dlp-sk--badge {
+  width: 36px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.dlp-sk--title {
+  flex: 1;
+  height: 12px;
+}
+.dlp-sk--status {
+  width: 60px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.dlp-sk--date {
+  width: 45px;
+  height: 10px;
+  flex-shrink: 0;
+}
 
 /* ══ TRANSITIONS ═════════════════════════════════════════════════════════════ */
 
 .dlp-fade-enter-active,
 .dlp-fade-leave-active {
-  transition: opacity 0.2s, transform 0.2s;
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
 }
-.dlp-fade-enter-from { opacity: 0; transform: translateY(-4px); }
-.dlp-fade-leave-to   { opacity: 0; transform: translateY(4px); }
+.dlp-fade-enter-from {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+.dlp-fade-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
 
 /* ══ SPIN ════════════════════════════════════════════════════════════════════ */
 
@@ -1095,6 +1280,8 @@ export default { name: "DemandesListPanel" };
 }
 
 @keyframes dlp-rotate {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

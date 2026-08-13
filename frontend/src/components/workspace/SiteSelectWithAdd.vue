@@ -1,6 +1,5 @@
 <template>
   <div class="ssa-root">
-
     <!-- ── Sélecteur de mode (existant / nouveau permanent / ponctuel) ── -->
     <template v-if="!addMode">
       <div class="ssa-select-row">
@@ -11,7 +10,13 @@
           @change="onSelectChange"
         >
           <option value="">
-            {{ loading ? "Chargement…" : clientId ? "— Sélectionner un site —" : "— Sélectionner d'abord un client —" }}
+            {{
+              loading
+                ? "Chargement…"
+                : clientId
+                  ? "— Sélectionner un site —"
+                  : "— Sélectionner d'abord un client —"
+            }}
           </option>
           <option v-for="s in sites" :key="s.id" :value="String(s.id)">
             {{ s.nom }}{{ s.ville ? ` — ${s.ville}` : "" }}
@@ -26,7 +31,15 @@
         <div class="form-group bc-full">
           <label class="form-label">ADRESSE DU SITE</label>
           <input
-            :value="[selectedSite.adresse, selectedSite.code_postal, selectedSite.ville].filter(Boolean).join(', ')"
+            :value="
+              [
+                selectedSite.adresse,
+                selectedSite.code_postal,
+                selectedSite.ville,
+              ]
+                .filter(Boolean)
+                .join(', ')
+            "
             class="form-input ssa-readonly"
             readonly
           />
@@ -34,7 +47,11 @@
         <div class="form-group">
           <label class="form-label">TYPE DE SITE</label>
           <input
-            :value="TYPE_SITE_LABELS[selectedSite.type_site] ?? selectedSite.type_site ?? '—'"
+            :value="
+              TYPE_SITE_LABELS[selectedSite.type_site] ??
+              selectedSite.type_site ??
+              '—'
+            "
             class="form-input ssa-readonly"
             readonly
           />
@@ -62,9 +79,20 @@
         </div>
         <div class="form-group">
           <label class="form-label" for="ssa-type-p">TYPE DE SITE</label>
-          <select id="ssa-type-p" v-model="poncuelType" class="form-input" @change="emitResolved">
+          <select
+            id="ssa-type-p"
+            v-model="poncuelType"
+            class="form-input"
+            @change="emitResolved"
+          >
             <option value="">— Sélectionner —</option>
-            <option v-for="(lbl, val) in TYPE_SITE_LABELS" :key="val" :value="val">{{ lbl }}</option>
+            <option
+              v-for="(lbl, val) in TYPE_SITE_LABELS"
+              :key="val"
+              :value="val"
+            >
+              {{ lbl }}
+            </option>
           </select>
         </div>
       </div>
@@ -137,9 +165,19 @@
         </div>
         <div class="form-group bc-full">
           <label class="form-label" for="ssa-type-n">TYPE DE SITE</label>
-          <select id="ssa-type-n" v-model="newSite.type_site" class="form-input">
+          <select
+            id="ssa-type-n"
+            v-model="newSite.type_site"
+            class="form-input"
+          >
             <option value="">— Sélectionner —</option>
-            <option v-for="(lbl, val) in TYPE_SITE_LABELS" :key="val" :value="val">{{ lbl }}</option>
+            <option
+              v-for="(lbl, val) in TYPE_SITE_LABELS"
+              :key="val"
+              :value="val"
+            >
+              {{ lbl }}
+            </option>
           </select>
         </div>
         <div v-if="addError" class="ssa-error bc-full">{{ addError }}</div>
@@ -156,7 +194,6 @@
         </div>
       </div>
     </template>
-
   </div>
 </template>
 
@@ -192,7 +229,14 @@ const poncuelType = ref("");
 const addMode = ref(false);
 const saving = ref(false);
 const addError = ref("");
-const newSite = ref({ nom: "", code_site: "", adresse: "", ville: "", code_postal: "", type_site: "" });
+const newSite = ref({
+  nom: "",
+  code_site: "",
+  adresse: "",
+  ville: "",
+  code_postal: "",
+  type_site: "",
+});
 
 // Charger les sites quand le client change
 watch(
@@ -221,7 +265,11 @@ function reset() {
   poncuelAddr.value = "";
   poncuelType.value = "";
   emit("update:modelValue", null);
-  emit("site-resolved", { site_id: null, adresse_intervention: null, mode: null });
+  emit("site-resolved", {
+    site_id: null,
+    adresse_intervention: null,
+    mode: null,
+  });
 }
 
 function onSelectChange() {
@@ -230,7 +278,14 @@ function onSelectChange() {
   addMode.value = false;
 
   if (internalValue.value === "__new__") {
-    newSite.value = { nom: "", code_site: "", adresse: "", ville: "", code_postal: "", type_site: "" };
+    newSite.value = {
+      nom: "",
+      code_site: "",
+      adresse: "",
+      ville: "",
+      code_postal: "",
+      type_site: "",
+    };
     addError.value = "";
     addMode.value = true;
     internalValue.value = "";
@@ -242,7 +297,11 @@ function onSelectChange() {
     poncuelAddr.value = "";
     poncuelType.value = "";
     emit("update:modelValue", null);
-    emit("site-resolved", { site_id: null, adresse_intervention: "", mode: "ponctuel" });
+    emit("site-resolved", {
+      site_id: null,
+      adresse_intervention: "",
+      mode: "ponctuel",
+    });
     return;
   }
 
@@ -276,12 +335,24 @@ function closeAddMode() {
 
 async function saveSite() {
   addError.value = "";
-  if (!newSite.value.nom.trim()) { addError.value = "Le nom du site est requis."; return; }
-  if (!newSite.value.code_site.trim()) { addError.value = "Le code site est requis."; return; }
-  if (!newSite.value.adresse.trim()) { addError.value = "L'adresse est requise."; return; }
+  if (!newSite.value.nom.trim()) {
+    addError.value = "Le nom du site est requis.";
+    return;
+  }
+  if (!newSite.value.code_site.trim()) {
+    addError.value = "Le code site est requis.";
+    return;
+  }
+  if (!newSite.value.adresse.trim()) {
+    addError.value = "L'adresse est requise.";
+    return;
+  }
   saving.value = true;
   try {
-    const created = await createSite({ ...newSite.value, client_id: props.clientId });
+    const created = await createSite({
+      ...newSite.value,
+      client_id: props.clientId,
+    });
     sites.value.push(created);
     internalValue.value = String(created.id);
     selectedSite.value = created;
@@ -294,7 +365,8 @@ async function saveSite() {
       siteData: created,
     });
   } catch (err) {
-    addError.value = err?.response?.data?.error ?? "Erreur lors de la création.";
+    addError.value =
+      err?.response?.data?.error ?? "Erreur lors de la création.";
   } finally {
     saving.value = false;
   }
@@ -306,13 +378,26 @@ export default { name: "SiteSelectWithAdd" };
 </script>
 
 <style scoped>
-.ssa-root { display: flex; flex-direction: column; gap: 8px; }
+.ssa-root {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
-.ssa-select-row { display: flex; gap: 6px; }
-.ssa-select { flex: 1; }
+.ssa-select-row {
+  display: flex;
+  gap: 6px;
+}
+.ssa-select {
+  flex: 1;
+}
 
 /* Site existant readonly */
-.ssa-autofill { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+.ssa-autofill {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+}
 
 .ssa-readonly {
   background: rgba(0, 0, 0, 0.02) !important;
@@ -321,7 +406,11 @@ export default { name: "SiteSelectWithAdd" };
 }
 
 /* Ponctuel */
-.ssa-ponctuel { display: flex; flex-direction: column; gap: 8px; }
+.ssa-ponctuel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
 .ssa-badge {
   display: inline-flex;
@@ -365,7 +454,9 @@ export default { name: "SiteSelectWithAdd" };
   color: #aaa;
   cursor: pointer;
 }
-.ssa-back-btn:hover { color: #555; }
+.ssa-back-btn:hover {
+  color: #555;
+}
 
 .ssa-error {
   font-family: "Fira Sans", sans-serif;
@@ -373,7 +464,10 @@ export default { name: "SiteSelectWithAdd" };
   color: #e74c3c;
 }
 
-.ssa-add-actions { display: flex; justify-content: flex-end; }
+.ssa-add-actions {
+  display: flex;
+  justify-content: flex-end;
+}
 
 .ssa-save-btn {
   display: inline-flex;
@@ -392,6 +486,11 @@ export default { name: "SiteSelectWithAdd" };
   cursor: pointer;
   transition: background 0.15s;
 }
-.ssa-save-btn:hover:not(:disabled) { background: #2a82c4; }
-.ssa-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ssa-save-btn:hover:not(:disabled) {
+  background: #2a82c4;
+}
+.ssa-save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 </style>

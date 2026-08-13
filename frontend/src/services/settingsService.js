@@ -49,11 +49,17 @@ export const settingsService = {
     return data;
   },
   async createReferenceValue(family, label) {
-    const { data } = await apiClient.post("/settings/reference-values", { family, label });
+    const { data } = await apiClient.post("/settings/reference-values", {
+      family,
+      label,
+    });
     return data;
   },
   async updateReferenceValue(family, id, patch) {
-    const { data } = await apiClient.put(`/settings/reference-values/${id}`, patch);
+    const { data } = await apiClient.put(
+      `/settings/reference-values/${id}`,
+      patch,
+    );
     return data;
   },
   async deleteReferenceValue(family, id) {

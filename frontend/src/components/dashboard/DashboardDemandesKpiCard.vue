@@ -1,17 +1,30 @@
 <template>
-  <v-card elevation="0" :class="['ddkc-card', isAlert ? 'ddkc-card--alert' : '']">
+  <v-card
+    elevation="0"
+    :class="['ddkc-card', isAlert ? 'ddkc-card--alert' : '']"
+  >
     <v-card-text class="ddkc-body">
       <div class="ddkc-top">
-        <span class="ddkc-icon-bubble" :class="isAlert ? 'ddkc-icon-bubble--alert' : ''">
-          <v-icon :color="isAlert ? '#e74c3c' : '#00a8a8'" size="15">{{ kpi.icon }}</v-icon>
+        <span
+          class="ddkc-icon-bubble"
+          :class="isAlert ? 'ddkc-icon-bubble--alert' : ''"
+        >
+          <v-icon :color="isAlert ? '#e74c3c' : '#00a8a8'" size="15">{{
+            kpi.icon
+          }}</v-icon>
         </span>
         <span class="ddkc-label">{{ kpi.label }}</span>
       </div>
 
       <div class="ddkc-main">
         <div class="ddkc-value-block">
-          <div :class="['ddkc-value', isAlert ? 'ddkc-value--alert' : '']">{{ kpi.value }}</div>
-          <div v-if="kpi.subtitle" :class="['ddkc-subtitle', isAlert ? 'ddkc-subtitle--alert' : '']">
+          <div :class="['ddkc-value', isAlert ? 'ddkc-value--alert' : '']">
+            {{ kpi.value }}
+          </div>
+          <div
+            v-if="kpi.subtitle"
+            :class="['ddkc-subtitle', isAlert ? 'ddkc-subtitle--alert' : '']"
+          >
             {{ kpi.subtitle }}
           </div>
         </div>
@@ -21,11 +34,23 @@
             <div class="ddkc-week__track">
               <div
                 class="ddkc-week__fill"
-                :class="d.isToday ? 'ddkc-week__fill--today' : (isAlert ? 'ddkc-week__fill--alert' : '')"
+                :class="
+                  d.isToday
+                    ? 'ddkc-week__fill--today'
+                    : isAlert
+                      ? 'ddkc-week__fill--alert'
+                      : ''
+                "
                 :style="{ height: barHeight(d.count) + '%' }"
               ></div>
             </div>
-            <span :class="['ddkc-week__day', d.isToday ? 'ddkc-week__day--today' : '']">{{ d.dayLabel }}</span>
+            <span
+              :class="[
+                'ddkc-week__day',
+                d.isToday ? 'ddkc-week__day--today' : '',
+              ]"
+              >{{ d.dayLabel }}</span
+            >
           </div>
         </div>
       </div>
@@ -43,7 +68,7 @@ const props = defineProps({
 const isAlert = computed(() => {
   if (!props.kpi.threshold) return false;
   const { value, threshold } = props.kpi;
-  if (threshold.direction === "up"   && value > threshold.value) return true;
+  if (threshold.direction === "up" && value > threshold.value) return true;
   if (threshold.direction === "down" && value < threshold.value) return true;
   return false;
 });
@@ -117,7 +142,9 @@ export default { name: "DashboardDemandesKpiCard" };
   gap: 10px;
 }
 
-.ddkc-value-block { min-width: 0; }
+.ddkc-value-block {
+  min-width: 0;
+}
 
 .ddkc-value {
   font-family: "Fira Code", monospace;

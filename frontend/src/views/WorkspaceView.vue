@@ -4,7 +4,6 @@
   <!-- ║  Zone de travail : identification contact + canal + interaction     ║ -->
   <!-- ╚══════════════════════════════════════════════════════════════════════╝ -->
   <div class="workspace-root">
-
     <!-- Panneau de détail d'une demande cliquée depuis "Demandes en cours" —
          volontairement indépendant de selectedContact/DemandesListPanel :
          doit s'ouvrir immédiatement au clic, sans exiger qu'un contact soit
@@ -21,7 +20,6 @@
          COLONNE GAUCHE — Recherche contact + Historique
          ══════════════════════════════════════════════════════════════════════ -->
     <aside class="ws-left-col">
-
       <ContactSearchPanel
         :contacts="contacts"
         :is-searching="isSearching"
@@ -33,14 +31,12 @@
       />
 
       <WorkspaceOpenDemandes ref="openDemandesRef" @select="onSelectDemande" />
-
     </aside>
 
     <!-- ══════════════════════════════════════════════════════════════════════
          COLONNE DROITE — Onglets canal + Panneau principal
          ══════════════════════════════════════════════════════════════════════ -->
     <main class="ws-right-col">
-
       <!-- Sélecteur de canal (onglets pilotés par les canaux du tenant) -->
       <ChannelTabs
         :selected-channel="selectedChannel"
@@ -50,7 +46,6 @@
 
       <!-- Panneau principal -->
       <div class="ws-main-panel">
-
         <!-- ── Canal MAIL (visible seulement si canal email + SMTP/IMAP configurés) ── -->
         <template v-if="selectedChannel === 'mail'">
           <MailChannel :initial-contact="composeContact" />
@@ -64,15 +59,23 @@
         <!-- ── Canal WORKSPACE (par défaut) ─────────────────────────────── -->
         <template v-else>
           <!-- Création d'une demande (avec OU sans contact) -->
-          <div v-if="activeDemandeType" class="ws-form-area ws-form-area--filled">
+          <div
+            v-if="activeDemandeType"
+            class="ws-form-area ws-form-area--filled"
+          >
             <v-slide-y-transition>
               <component
                 :is="FORM_COMPONENTS[activeDemandeType]"
                 :key="activeDemandeType"
                 :contact-id="selectedContact?.id ?? null"
-                v-bind="activeDemandeType === 'prise_de_service'
-                  ? { agentId: selectedContact?.agentId ?? null, agentNom: selectedContact?.fullName ?? '' }
-                  : {}"
+                v-bind="
+                  activeDemandeType === 'prise_de_service'
+                    ? {
+                        agentId: selectedContact?.agentId ?? null,
+                        agentNom: selectedContact?.fullName ?? '',
+                      }
+                    : {}
+                "
                 @submitted="onDemandeSubmitted"
                 @cancel="activeDemandeType = null"
               />
@@ -80,7 +83,10 @@
           </div>
 
           <!-- État vide — aucun contact + bouton nouvelle demande -->
-          <WorkspaceEmptyState v-else-if="!selectedContact" @new-demande="onNewDemande" />
+          <WorkspaceEmptyState
+            v-else-if="!selectedContact"
+            @new-demande="onNewDemande"
+          />
 
           <!-- Panneau actif — contact identifié -->
           <div v-else class="ws-active-content">
@@ -103,138 +109,136 @@
             </div>
           </div>
         </template>
-
       </div>
-
     </main>
-
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
-import { useAuthStore }           from '@/store/auth'
-import ContactSearchPanel        from '@/components/workspace/ContactSearchPanel.vue'
-import WorkspaceOpenDemandes     from '@/components/workspace/WorkspaceOpenDemandes.vue'
-import ChannelTabs               from '@/components/workspace/ChannelTabs.vue'
-import WorkspaceEmptyState       from '@/components/workspace/WorkspaceEmptyState.vue'
-import SelectedContactBanner     from '@/components/workspace/SelectedContactBanner.vue'
-import { searchContacts }        from '@/services/contactService'
-import apiClient                  from '@/services/http/axios'
-import DemandeAnomalieForm        from '@/components/workspace/forms/DemandeAnomalieForm.vue'
-import DemandeCommandeForm        from '@/components/workspace/forms/DemandeCommandeForm.vue'
-import DemandeAdminForm           from '@/components/workspace/forms/DemandeAdminForm.vue'
-import DemandePlanningForm        from '@/components/workspace/forms/DemandePlanningForm.vue'
-import DemandePriseDeServiceForm  from '@/components/workspace/forms/DemandePriseDeServiceForm.vue'
-import DemandesListPanel          from '@/components/workspace/DemandesListPanel.vue'
-import DemandeDetailDrawer        from '@/components/workspace/DemandeDetailDrawer.vue'
-import ChatBox                    from '@/components/workspace/ChatBox.vue'
-import MailChannel               from '@/components/workspace/MailChannel.vue'
-import '@/assets/styles/crud-view.css'
-import '@/assets/styles/workspace.css'
+import { ref, computed, watch, onMounted } from "vue";
+import { useAuthStore } from "@/store/auth";
+import ContactSearchPanel from "@/components/workspace/ContactSearchPanel.vue";
+import WorkspaceOpenDemandes from "@/components/workspace/WorkspaceOpenDemandes.vue";
+import ChannelTabs from "@/components/workspace/ChannelTabs.vue";
+import WorkspaceEmptyState from "@/components/workspace/WorkspaceEmptyState.vue";
+import SelectedContactBanner from "@/components/workspace/SelectedContactBanner.vue";
+import { searchContacts } from "@/services/contactService";
+import apiClient from "@/services/http/axios";
+import DemandeAnomalieForm from "@/components/workspace/forms/DemandeAnomalieForm.vue";
+import DemandeCommandeForm from "@/components/workspace/forms/DemandeCommandeForm.vue";
+import DemandeAdminForm from "@/components/workspace/forms/DemandeAdminForm.vue";
+import DemandePlanningForm from "@/components/workspace/forms/DemandePlanningForm.vue";
+import DemandePriseDeServiceForm from "@/components/workspace/forms/DemandePriseDeServiceForm.vue";
+import DemandesListPanel from "@/components/workspace/DemandesListPanel.vue";
+import DemandeDetailDrawer from "@/components/workspace/DemandeDetailDrawer.vue";
+import ChatBox from "@/components/workspace/ChatBox.vue";
+import MailChannel from "@/components/workspace/MailChannel.vue";
+import "@/assets/styles/crud-view.css";
+import "@/assets/styles/workspace.css";
 
 const FORM_COMPONENTS = {
   anomalie: DemandeAnomalieForm,
   commande: DemandeCommandeForm,
-  admin:    DemandeAdminForm,
+  admin: DemandeAdminForm,
   planning: DemandePlanningForm,
   prise_de_service: DemandePriseDeServiceForm,
-}
+};
 
 function resolveAvatarUrl(relativeUrl) {
-  if (!relativeUrl) return ''
+  if (!relativeUrl) return "";
   try {
-    const backendUrl = new URL(apiClient.defaults.baseURL)
-    return `${backendUrl.protocol}//${backendUrl.host}${relativeUrl}`
+    const backendUrl = new URL(apiClient.defaults.baseURL);
+    return `${backendUrl.protocol}//${backendUrl.host}${relativeUrl}`;
   } catch {
-    return relativeUrl
+    return relativeUrl;
   }
 }
 
 function normalizeContact(c) {
-  const fullName = [c.prenom, c.nom].filter(Boolean).join(' ')
+  const fullName = [c.prenom, c.nom].filter(Boolean).join(" ");
   return {
-    id:          c.id,
-    name:        fullName || c.email || `#${c.id}`,
-    phone:       c.telephone ?? '',
-    status:      'active',
-    fullName:    fullName || '—',
-    jobTitle:    c.fonction ?? '—',
-    contactId:   `ID-${c.id}`,
-    avatarUrl:   resolveAvatarUrl(c.avatar_url),
-    statusColor: 'teal',
-    email:       c.email ?? null,
-    type:        c.type ?? null,
-    agentId:     c.agent_securite_id ?? null,
-    isAgent:     c.agent_securite_id != null || c.type === 'Agent de sécurité',
-  }
+    id: c.id,
+    name: fullName || c.email || `#${c.id}`,
+    phone: c.telephone ?? "",
+    status: "active",
+    fullName: fullName || "—",
+    jobTitle: c.fonction ?? "—",
+    contactId: `ID-${c.id}`,
+    avatarUrl: resolveAvatarUrl(c.avatar_url),
+    statusColor: "teal",
+    email: c.email ?? null,
+    type: c.type ?? null,
+    agentId: c.agent_securite_id ?? null,
+    isAgent: c.agent_securite_id != null || c.type === "Agent de sécurité",
+  };
 }
 
 const MOCK_HISTORY = [
   {
     id: 1,
-    role: 'client',
+    role: "client",
     text: "Bonjour, j'ai une coupure totale d'internet depuis ce matin. Ma box clignote en rouge.",
-    time: '10:45:14',
-    type: 'TRANSCRIPTION',
+    time: "10:45:14",
+    type: "TRANSCRIPTION",
   },
   {
     id: 2,
-    role: 'agent',
+    role: "agent",
     text: "Bien reçu. Je détecte effectivement une alerte sur votre secteur. Je lance un diagnostic à distance.",
-    time: '10:45:38',
-    type: 'AUDIO',
+    time: "10:45:38",
+    type: "AUDIO",
   },
   {
     id: 3,
-    role: 'client',
+    role: "client",
     text: "D'accord. Ça fait combien de temps en moyenne pour que ça revienne ?",
-    time: '10:46:02',
-    type: 'TRANSCRIPTION',
+    time: "10:46:02",
+    type: "TRANSCRIPTION",
   },
   {
     id: 4,
-    role: 'agent',
+    role: "agent",
     text: "Selon le diagnostic, l'incident devrait être résolu sous 30 à 45 minutes. Je vous envoie un SMS de confirmation dès la restauration.",
-    time: '10:46:21',
-    type: 'AUDIO',
+    time: "10:46:21",
+    type: "AUDIO",
   },
-]
+];
 
 // ─── État local ────────────────────────────────────────────────────────────
-const contacts             = ref([])
-const isSearching          = ref(false)
-const searchError          = ref('')
-const hasSearched          = ref(false)
-const selectedContact      = ref(null)
+const contacts = ref([]);
+const isSearching = ref(false);
+const searchError = ref("");
+const hasSearched = ref(false);
+const selectedContact = ref(null);
 // Demande actuellement ouverte dans le tiroir de détail (rendu au niveau
 // racine ci-dessus) — volontairement indépendante de selectedContact, voir
 // onSelectDemande().
-const openDemande          = ref(null)
+const openDemande = ref(null);
 
-const activeDemandeType    = ref(null)
-const demandeListKey       = ref(0)
+const activeDemandeType = ref(null);
+const demandeListKey = ref(0);
 
-const selectedChannel      = ref('workspace')
-const composeContact       = ref(null)  // contact pré-rempli pour le composer email
-const openDemandesRef      = ref(null)  // réf du panneau "demandes en cours" (gauche)
+const selectedChannel = ref("workspace");
+const composeContact = ref(null); // contact pré-rempli pour le composer email
+const openDemandesRef = ref(null); // réf du panneau "demandes en cours" (gauche)
 
 // ─── Onglets pilotés par les canaux du tenant (source : backend, store) ──────
-const authStore = useAuthStore()
+const authStore = useAuthStore();
 const ALL_TABS = [
-  { key: 'workspace', label: 'WORKSPACE', icon: 'mdi-headset' },
-  { key: 'mail', label: 'MAIL', icon: 'mdi-email-outline' },
-  { key: 'chat', label: 'CHAT', icon: 'mdi-message-text-outline' },
-]
+  { key: "workspace", label: "WORKSPACE", icon: "mdi-headset" },
+  { key: "mail", label: "MAIL", icon: "mdi-email-outline" },
+  { key: "chat", label: "CHAT", icon: "mdi-message-text-outline" },
+];
 const visibleTabs = computed(() => {
-  const wt = authStore.featureMap.workspace_tabs || {}
-  return ALL_TABS.filter((t) => t.key === 'workspace' || wt[t.key] === true)
-})
+  const wt = authStore.featureMap.workspace_tabs || {};
+  return ALL_TABS.filter((t) => t.key === "workspace" || wt[t.key] === true);
+});
 
 // Si le canal courant devient invisible (toggle off / changement de tenant), retomber sur Workspace.
 watch(visibleTabs, (tabs) => {
-  if (!tabs.some((t) => t.key === selectedChannel.value)) selectedChannel.value = 'workspace'
-})
+  if (!tabs.some((t) => t.key === selectedChannel.value))
+    selectedChannel.value = "workspace";
+});
 
 onMounted(() => {
   // Toujours recharger (pas seulement si absent) : `features` est mis en
@@ -243,48 +247,50 @@ onMounted(() => {
   // pendant qu'un utilisateur de ce tenant est déjà connecté — sinon les
   // onglets MAIL/CHAT restent cachés indéfiniment malgré un canal activé
   // côté serveur (même bug que SettingsView.vue).
-  authStore.fetchFeatures()
-})
+  authStore.fetchFeatures();
+});
 
-const communicationHistory = ref([])
-const historyLoading       = ref(false)
+const communicationHistory = ref([]);
+const historyLoading = ref(false);
 
 const channelMeta = computed(() => ({
-  channel:   selectedContact.value ? 'WORKSPACE' : '',
-  sessionId: selectedContact.value ? 'A1'        : '',
-}))
+  channel: selectedContact.value ? "WORKSPACE" : "",
+  sessionId: selectedContact.value ? "A1" : "",
+}));
 
 // ─── Recherche ─────────────────────────────────────────────────────────────
 async function onSearch({ name, phone }) {
-  isSearching.value = true
-  searchError.value = ''
-  hasSearched.value = true
-  contacts.value    = []
+  isSearching.value = true;
+  searchError.value = "";
+  hasSearched.value = true;
+  contacts.value = [];
 
   try {
-    const { contacts: raw } = await searchContacts({ name, phone })
-    contacts.value = raw.map(normalizeContact)
+    const { contacts: raw } = await searchContacts({ name, phone });
+    contacts.value = raw.map(normalizeContact);
   } catch (err) {
-    const status = err?.response?.status
+    const status = err?.response?.status;
     searchError.value =
-      status === 401 ? 'Session expirée, veuillez vous reconnecter.'
-      : status === 403 ? 'Accès non autorisé.'
-      : 'Une erreur est survenue lors de la recherche.'
+      status === 401
+        ? "Session expirée, veuillez vous reconnecter."
+        : status === 403
+          ? "Accès non autorisé."
+          : "Une erreur est survenue lors de la recherche.";
   } finally {
-    isSearching.value = false
+    isSearching.value = false;
   }
 }
 
 // ─── Sélection contact ─────────────────────────────────────────────────────
 function onNewDemande(type) {
-  activeDemandeType.value = type
+  activeDemandeType.value = type;
 }
 
 function onDemandeSubmitted(demande) {
-  activeDemandeType.value = null
-  demandeListKey.value++
-  openDemandesRef.value?.reload?.()   // rafraîchit la liste des demandes en cours
-  console.log('[Workspace] demande créée →', demande.numero_ticket)
+  activeDemandeType.value = null;
+  demandeListKey.value++;
+  openDemandesRef.value?.reload?.(); // rafraîchit la liste des demandes en cours
+  console.log("[Workspace] demande créée →", demande.numero_ticket);
 }
 
 // Sélection d'une demande dans la liste de gauche → ouvre immédiatement son
@@ -292,64 +298,64 @@ function onDemandeSubmitted(demande) {
 // charge le contact rattaché s'il y en a un (effet secondaire cosmétique,
 // pas une condition pour l'ouverture du tiroir).
 function onSelectDemande(d) {
-  activeDemandeType.value = null
-  openDemande.value = d
+  activeDemandeType.value = null;
+  openDemande.value = d;
   if (d.contact_id) {
     selectedContact.value = {
       id: d.contact_id,
       contactId: `ID-${d.contact_id}`,
       name: d.contact_nom || `#${d.contact_id}`,
-      fullName: d.contact_nom || '—',
-      status: 'active',
-    }
+      fullName: d.contact_nom || "—",
+      status: "active",
+    };
   }
 }
 
 function onContactSelected(contact) {
-  selectedContact.value      = contact
-  activeDemandeType.value    = null
-  communicationHistory.value = []
-  historyLoading.value       = true
+  selectedContact.value = contact;
+  activeDemandeType.value = null;
+  communicationHistory.value = [];
+  historyLoading.value = true;
 
   setTimeout(() => {
-    communicationHistory.value = MOCK_HISTORY
-    historyLoading.value       = false
-  }, 800)
+    communicationHistory.value = MOCK_HISTORY;
+    historyLoading.value = false;
+  }, 800);
 }
 
 // ─── Changement de canal ────────────────────────────────────────────────────
 function onChannelChange(channel) {
-  selectedChannel.value = channel
+  selectedChannel.value = channel;
 }
 
 // ─── Contact formaté pour le banner ───────────────────────────────────────
 const bannerContact = computed(() => {
-  const c = selectedContact.value
-  if (!c) return null
+  const c = selectedContact.value;
+  if (!c) return null;
   return {
-    id:          c.contactId ?? `ID-${c.id}`,
-    fullName:    c.fullName  ?? c.name,
-    jobTitle:    c.jobTitle  ?? '—',
-    avatarUrl:   c.avatarUrl ?? '',
-    statusColor: c.statusColor ?? (c.status === 'active' ? 'teal' : 'gray'),
-    statusLabel: c.status === 'active' ? 'En ligne' : 'Hors ligne',
-  }
-})
+    id: c.contactId ?? `ID-${c.id}`,
+    fullName: c.fullName ?? c.name,
+    jobTitle: c.jobTitle ?? "—",
+    avatarUrl: c.avatarUrl ?? "",
+    statusColor: c.statusColor ?? (c.status === "active" ? "teal" : "gray"),
+    statusLabel: c.status === "active" ? "En ligne" : "Hors ligne",
+  };
+});
 
 // ─── Actions rapides du banner ─────────────────────────────────────────────
 function onAction(type) {
-  if (type === 'email') {
-    const c = selectedContact.value
+  if (type === "email") {
+    const c = selectedContact.value;
     composeContact.value = c
       ? { id: c.id, fullName: c.fullName, email: c.email }
-      : null
-    selectedChannel.value = 'mail'
-    return
+      : null;
+    selectedChannel.value = "mail";
+    return;
   }
-  console.log(`[Workspace] action → ${type}`, selectedContact.value)
+  console.log(`[Workspace] action → ${type}`, selectedContact.value);
 }
 </script>
 
 <script>
-export default { name: 'WorkspaceView' }
+export default { name: "WorkspaceView" };
 </script>

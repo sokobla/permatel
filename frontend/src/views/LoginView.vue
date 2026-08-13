@@ -15,7 +15,11 @@
         <div class="banner-body">
           <!-- Logo / marque en haut -->
           <div class="banner-brand">
-            <img :src="permatelLogo" alt="PERMATEL" class="banner-brand__logo" />
+            <img
+              :src="permatelLogo"
+              alt="PERMATEL"
+              class="banner-brand__logo"
+            />
           </div>
 
           <!-- Texte principal au centre -->
@@ -135,24 +139,36 @@
           </v-card-text>
 
           <v-card-text class="text-center login-footer">
-            <a href="#" @click.prevent="forgotOpen = true">Mot de passe oublié ?</a>
+            <a href="#" @click.prevent="forgotOpen = true"
+              >Mot de passe oublié ?</a
+            >
           </v-card-text>
 
           <v-card-text class="text-center login-footer">
             Problème de connexion ?
-            <a href="#" @click.prevent="supportOpen = true">Contacter le support</a>.
+            <a href="#" @click.prevent="supportOpen = true"
+              >Contacter le support</a
+            >.
           </v-card-text>
         </v-card>
       </v-col>
     </v-row>
 
     <!-- Dialog : contacter le support -->
-    <v-dialog v-model="supportOpen" max-width="600" transition="dialog-bottom-transition">
+    <v-dialog
+      v-model="supportOpen"
+      max-width="600"
+      transition="dialog-bottom-transition"
+    >
       <ContactSupportView @close="supportOpen = false" />
     </v-dialog>
 
     <!-- Dialog : mot de passe oublié -->
-    <v-dialog v-model="forgotOpen" max-width="480" transition="dialog-bottom-transition">
+    <v-dialog
+      v-model="forgotOpen"
+      max-width="480"
+      transition="dialog-bottom-transition"
+    >
       <ForgotPasswordDialog @close="forgotOpen = false" />
     </v-dialog>
   </div>

@@ -1,7 +1,9 @@
 <template>
   <div class="cg-root">
     <div class="cg-card">
-      <div class="cg-icon"><v-icon size="30" :color="iconColor">{{ icon }}</v-icon></div>
+      <div class="cg-icon">
+        <v-icon size="30" :color="iconColor">{{ icon }}</v-icon>
+      </div>
       <h3 class="cg-title">{{ title }}</h3>
       <p class="cg-text">{{ message }}</p>
 
@@ -43,11 +45,18 @@ const authStore = useAuthStore();
 
 // Seul un ADMIN peut atteindre la page Paramètres (route /parameters).
 const canConfigure = computed(() => authStore.isAdmin);
-const iconColor = computed(() => (props.variant === "locked" ? "#9aa0aa" : "#f39c12"));
-const ctaColor = computed(() => (props.variant === "locked" ? "#15223a" : "#00a8a8"));
+const iconColor = computed(() =>
+  props.variant === "locked" ? "#9aa0aa" : "#f39c12",
+);
+const ctaColor = computed(() =>
+  props.variant === "locked" ? "#15223a" : "#00a8a8",
+);
 
 function goConfigure() {
-  router.push({ path: "/parameters", query: props.settingsTab ? { tab: props.settingsTab } : {} });
+  router.push({
+    path: "/parameters",
+    query: props.settingsTab ? { tab: props.settingsTab } : {},
+  });
 }
 </script>
 
@@ -70,12 +79,34 @@ function goConfigure() {
   gap: 10px;
 }
 .cg-icon {
-  width: 64px; height: 64px; border-radius: 16px;
-  display: flex; align-items: center; justify-content: center;
-  background: #f2f4f6; margin-bottom: 4px;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f2f4f6;
+  margin-bottom: 4px;
 }
-.cg-title { font-size: 18px; font-weight: 700; color: #000b23; margin: 0; }
-.cg-text { font-size: 15px; color: #6b7280; line-height: 1.55; margin: 0 0 8px; }
-.cg-cta { min-width: 200px; }
-.cg-note { font-size: 14px; color: #9aa0aa; font-style: italic; margin: 0; }
+.cg-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #000b23;
+  margin: 0;
+}
+.cg-text {
+  font-size: 15px;
+  color: #6b7280;
+  line-height: 1.55;
+  margin: 0 0 8px;
+}
+.cg-cta {
+  min-width: 200px;
+}
+.cg-note {
+  font-size: 14px;
+  color: #9aa0aa;
+  font-style: italic;
+  margin: 0;
+}
 </style>

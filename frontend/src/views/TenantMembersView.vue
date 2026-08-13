@@ -5,18 +5,33 @@
         <h1 class="tm-title">Membres de l'espace</h1>
         <p class="tm-sub">Gérez les accès et les invitations de ce tenant.</p>
       </div>
-      <v-btn color="#00a8a8" class="text-none" prepend-icon="mdi-account-plus" @click="openInvite">
+      <v-btn
+        color="#00a8a8"
+        class="text-none"
+        prepend-icon="mdi-account-plus"
+        @click="openInvite"
+      >
         Inviter
       </v-btn>
     </div>
 
-    <v-alert v-if="feedback.text" :type="feedback.type" variant="tonal" density="compact" class="mb-4" closable @click:close="feedback.text = ''">
+    <v-alert
+      v-if="feedback.text"
+      :type="feedback.type"
+      variant="tonal"
+      density="compact"
+      class="mb-4"
+      closable
+      @click:close="feedback.text = ''"
+    >
       {{ feedback.text }}
     </v-alert>
 
     <!-- Membres -->
     <v-card variant="flat" border class="mb-6">
-      <v-card-title class="tm-card-title">Membres actifs & inactifs</v-card-title>
+      <v-card-title class="tm-card-title"
+        >Membres actifs & inactifs</v-card-title
+      >
       <v-data-table
         :headers="memberHeaders"
         :items="members"
@@ -26,36 +41,61 @@
       >
         <template #[`item.name`]="{ item }">
           <div class="tm-member-cell">
-            <span class="tm-avatar" :style="{ background: avatarColor(item.nom) }">{{ initials(item.prenom, item.nom) }}</span>
+            <span
+              class="tm-avatar"
+              :style="{ background: avatarColor(item.nom) }"
+              >{{ initials(item.prenom, item.nom) }}</span
+            >
             <span>{{ item.prenom }} {{ item.nom }}</span>
           </div>
         </template>
         <template #[`item.membership_role`]="{ item }">
-          <v-chip size="small" :color="item.membership_role === 'admin' ? '#00a8a8' : undefined" variant="tonal">
+          <v-chip
+            size="small"
+            :color="item.membership_role === 'admin' ? '#00a8a8' : undefined"
+            variant="tonal"
+          >
             {{ item.membership_role === "admin" ? "Admin tenant" : "Membre" }}
           </v-chip>
         </template>
         <template #[`item.is_active`]="{ item }">
-          <v-chip size="small" :color="item.is_active ? 'green' : 'grey'" variant="tonal">
+          <v-chip
+            size="small"
+            :color="item.is_active ? 'green' : 'grey'"
+            variant="tonal"
+          >
             {{ item.is_active ? "Actif" : "Inactif" }}
           </v-chip>
         </template>
         <template #[`item.actions`]="{ item }">
           <v-menu>
             <template #activator="{ props }">
-              <v-btn v-bind="props" icon="mdi-dots-vertical" variant="text" size="small" />
+              <v-btn
+                v-bind="props"
+                icon="mdi-dots-vertical"
+                variant="text"
+                size="small"
+              />
             </template>
             <v-list density="compact">
               <v-list-item @click="toggleRole(item)">
                 <v-list-item-title>
-                  {{ item.membership_role === "admin" ? "Rétrograder en membre" : "Promouvoir admin tenant" }}
+                  {{
+                    item.membership_role === "admin"
+                      ? "Rétrograder en membre"
+                      : "Promouvoir admin tenant"
+                  }}
                 </v-list-item-title>
               </v-list-item>
               <v-list-item @click="toggleActive(item)">
-                <v-list-item-title>{{ item.is_active ? "Désactiver l'accès" : "Réactiver l'accès" }}</v-list-item-title>
+                <v-list-item-title>{{
+                  item.is_active ? "Désactiver l'accès" : "Réactiver l'accès"
+                }}</v-list-item-title>
               </v-list-item>
               <v-list-item @click="removeMember(item)">
-                <v-list-item-title class="text-error">Retirer du tenant</v-list-item-title>
+                <v-list-item-title class="text-error"
+                  >Retirer du tenant</v-list-item-title
+                >
               </v-list-item>
             </v-list>
           </v-menu>
@@ -74,7 +114,11 @@
         items-per-page="10"
       >
         <template #[`item.status`]="{ item }">
-          <v-chip size="small" :color="STATUS_COLOR[item.status]" variant="tonal">
+          <v-chip
+            size="small"
+            :color="STATUS_COLOR[item.status]"
+            variant="tonal"
+          >
             {{ STATUS_LABEL[item.status] || item.status }}
           </v-chip>
         </template>
@@ -83,8 +127,21 @@
         </template>
         <template #[`item.actions`]="{ item }">
           <template v-if="item.status === 'pending'">
-            <v-btn variant="text" size="small" class="text-none" @click="resend(item)">Relancer</v-btn>
-            <v-btn variant="text" size="small" color="error" class="text-none" @click="revoke(item)">Révoquer</v-btn>
+            <v-btn
+              variant="text"
+              size="small"
+              class="text-none"
+              @click="resend(item)"
+              >Relancer</v-btn
+            >
+            <v-btn
+              variant="text"
+              size="small"
+              color="error"
+              class="text-none"
+              @click="revoke(item)"
+              >Révoquer</v-btn
+            >
           </template>
         </template>
       </v-data-table>
@@ -93,19 +150,53 @@
     <!-- Dialog inviter -->
     <v-dialog v-model="inviteOpen" max-width="460">
       <v-card>
-        <v-card-title class="tm-card-title">Inviter un utilisateur</v-card-title>
+        <v-card-title class="tm-card-title"
+          >Inviter un utilisateur</v-card-title
+        >
         <v-card-text>
-          <v-alert v-if="inviteError" type="error" variant="tonal" density="compact" class="mb-3">
+          <v-alert
+            v-if="inviteError"
+            type="error"
+            variant="tonal"
+            density="compact"
+            class="mb-3"
+          >
             {{ inviteError }}
           </v-alert>
-          <v-text-field v-model="inviteForm.email" label="Email" type="email" variant="outlined" density="comfortable" />
-          <v-select v-model="inviteForm.role" :items="roleItems" label="Rôle fonctionnel" variant="outlined" density="comfortable" />
-          <v-select v-model="inviteForm.membership_role" :items="membershipItems" label="Capacité dans le tenant" variant="outlined" density="comfortable" />
+          <v-text-field
+            v-model="inviteForm.email"
+            label="Email"
+            type="email"
+            variant="outlined"
+            density="comfortable"
+          />
+          <v-select
+            v-model="inviteForm.role"
+            :items="roleItems"
+            label="Rôle fonctionnel"
+            variant="outlined"
+            density="comfortable"
+          />
+          <v-select
+            v-model="inviteForm.membership_role"
+            :items="membershipItems"
+            label="Capacité dans le tenant"
+            variant="outlined"
+            density="comfortable"
+          />
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="text" class="text-none" @click="inviteOpen = false">Annuler</v-btn>
-          <v-btn :loading="inviting" color="#00a8a8" class="text-none" @click="sendInvite">Envoyer l'invitation</v-btn>
+          <v-btn variant="text" class="text-none" @click="inviteOpen = false"
+            >Annuler</v-btn
+          >
+          <v-btn
+            :loading="inviting"
+            color="#00a8a8"
+            class="text-none"
+            @click="sendInvite"
+            >Envoyer l'invitation</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -116,8 +207,18 @@
 import { ref, reactive, onMounted } from "vue";
 import { tenantMemberService } from "@/services/tenantMemberService";
 
-const STATUS_LABEL = { pending: "En attente", accepted: "Acceptée", revoked: "Révoquée", expired: "Expirée" };
-const STATUS_COLOR = { pending: "orange", accepted: "green", revoked: "grey", expired: "red" };
+const STATUS_LABEL = {
+  pending: "En attente",
+  accepted: "Acceptée",
+  revoked: "Révoquée",
+  expired: "Expirée",
+};
+const STATUS_COLOR = {
+  pending: "orange",
+  accepted: "green",
+  revoked: "grey",
+  expired: "red",
+};
 
 const memberHeaders = [
   { title: "Nom", key: "name" },
@@ -152,7 +253,11 @@ const feedback = reactive({ text: "", type: "success" });
 const inviteOpen = ref(false);
 const inviting = ref(false);
 const inviteError = ref("");
-const inviteForm = reactive({ email: "", role: "PERMANENCIER", membership_role: "member" });
+const inviteForm = reactive({
+  email: "",
+  role: "PERMANENCIER",
+  membership_role: "member",
+});
 
 function initials(prenom, nom) {
   const p = (prenom || "")[0] || "";
@@ -161,12 +266,16 @@ function initials(prenom, nom) {
 }
 function avatarColor(name) {
   let hash = 0;
-  for (let i = 0; i < (name || "").length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  for (let i = 0; i < (name || "").length; i++)
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return `hsl(${hash % 360}, 40%, 45%)`;
 }
 function formatDate(iso) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+  return new Date(iso).toLocaleString("fr-FR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
 }
 function notify(text, type = "success") {
   feedback.text = text;
@@ -195,7 +304,9 @@ async function loadInvitations() {
 async function toggleRole(item) {
   const next = item.membership_role === "admin" ? "member" : "admin";
   try {
-    await tenantMemberService.updateMember(item.user_id, { membership_role: next });
+    await tenantMemberService.updateMember(item.user_id, {
+      membership_role: next,
+    });
     notify("Capacité mise à jour.");
     loadMembers();
   } catch (e) {
@@ -204,7 +315,9 @@ async function toggleRole(item) {
 }
 async function toggleActive(item) {
   try {
-    await tenantMemberService.updateMember(item.user_id, { is_active: !item.is_active });
+    await tenantMemberService.updateMember(item.user_id, {
+      is_active: !item.is_active,
+    });
     notify("Accès mis à jour.");
     loadMembers();
   } catch (e) {

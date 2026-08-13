@@ -1,6 +1,5 @@
 <template>
   <v-container fluid class="dashboard-container">
-
     <!-- ── Barre de filtres ─────────────────────────────────────────────── -->
     <v-row>
       <v-col>
@@ -15,7 +14,12 @@
             mandatory
             selected-class="text-teal-accent-3"
           >
-            <v-chip v-for="p in periods" :key="p.value" :value="p.value" size="small">
+            <v-chip
+              v-for="p in periods"
+              :key="p.value"
+              :value="p.value"
+              size="small"
+            >
               {{ p.label }}
             </v-chip>
           </v-chip-group>
@@ -27,7 +31,12 @@
             v-model="filters.type"
             selected-class="text-teal-accent-3"
           >
-            <v-chip v-for="t in typeOptions" :key="t.value" :value="t.value" size="small">
+            <v-chip
+              v-for="t in typeOptions"
+              :key="t.value"
+              :value="t.value"
+              size="small"
+            >
               {{ t.label }}
             </v-chip>
           </v-chip-group>
@@ -35,9 +44,22 @@
           <v-spacer />
 
           <div class="filter-status">
-            <span :class="['filter-status__dot', (demandeLoading || demandeRefreshing) ? 'filter-status__dot--loading' : 'filter-status__dot--ok']"></span>
+            <span
+              :class="[
+                'filter-status__dot',
+                demandeLoading || demandeRefreshing
+                  ? 'filter-status__dot--loading'
+                  : 'filter-status__dot--ok',
+              ]"
+            ></span>
             <span class="filter-status__label">
-              {{ demandeLoading ? 'CHARGEMENT…' : demandeRefreshing ? 'ACTUALISATION…' : 'OPÉRATIONNEL' }}
+              {{
+                demandeLoading
+                  ? "CHARGEMENT…"
+                  : demandeRefreshing
+                    ? "ACTUALISATION…"
+                    : "OPÉRATIONNEL"
+              }}
             </span>
           </div>
         </v-sheet>
@@ -83,17 +105,16 @@
         />
       </v-col>
     </v-row>
-
   </v-container>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from "vue";
 import { useDashboardDemandesData } from "@/composables/useDashboardDemandesData";
-import DashboardDemandesKpiCard  from "@/components/dashboard/DashboardDemandesKpiCard.vue";
-import DashboardDemandeTrend     from "@/components/dashboard/DashboardDemandeTrend.vue";
+import DashboardDemandesKpiCard from "@/components/dashboard/DashboardDemandesKpiCard.vue";
+import DashboardDemandeTrend from "@/components/dashboard/DashboardDemandeTrend.vue";
 import DashboardDemandesBreakdown from "@/components/dashboard/DashboardDemandesBreakdown.vue";
-import DashboardUrgentDemandes   from "@/components/dashboard/DashboardUrgentDemandes.vue";
+import DashboardUrgentDemandes from "@/components/dashboard/DashboardUrgentDemandes.vue";
 
 const {
   loading: demandeLoading,
@@ -107,17 +128,17 @@ const {
 } = useDashboardDemandesData();
 
 const periods = [
-  { value: "today",  label: "Aujourd'hui" },
-  { value: "7j",     label: "7 Jours" },
-  { value: "30j",    label: "30 Jours" },
-  { value: "all",    label: "Tout" },
+  { value: "today", label: "Aujourd'hui" },
+  { value: "7j", label: "7 Jours" },
+  { value: "30j", label: "30 Jours" },
+  { value: "all", label: "Tout" },
 ];
 
 const typeOptions = [
   { value: "anomalie", label: "Anomalie" },
   { value: "commande", label: "Commande" },
   { value: "planning", label: "Planning" },
-  { value: "admin",    label: "Administratif" },
+  { value: "admin", label: "Administratif" },
 ];
 
 const filters = reactive({
@@ -174,8 +195,13 @@ onMounted(() => {
 }
 
 @keyframes dot-pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.3; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
 .filter-status__label {

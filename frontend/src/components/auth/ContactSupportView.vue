@@ -9,7 +9,12 @@
             Décrivez votre problème, notre équipe vous répond rapidement.
           </v-card-subtitle>
         </div>
-        <v-btn icon="mdi-close" variant="text" size="small" @click="emit('close')" />
+        <v-btn
+          icon="mdi-close"
+          variant="text"
+          size="small"
+          @click="emit('close')"
+        />
       </div>
     </v-card-item>
 
@@ -21,9 +26,15 @@
       <h3 class="cs-success__title">Demande envoyée</h3>
       <p class="cs-success__text">
         Merci, votre demande a bien été transmise. Vous recevrez une réponse à
-        l'adresse <strong>{{ form.email }}</strong>.
+        l'adresse <strong>{{ form.email }}</strong
+        >.
       </p>
-      <v-btn color="#00a8a8" variant="flat" class="text-none" @click="emit('close')">
+      <v-btn
+        color="#00a8a8"
+        variant="flat"
+        class="text-none"
+        @click="emit('close')"
+      >
         Fermer
       </v-btn>
     </v-card-text>
@@ -58,7 +69,9 @@
               />
             </v-col>
             <v-col cols="12" sm="6">
-              <label class="cs-label">Prénom <span class="cs-req">*</span></label>
+              <label class="cs-label"
+                >Prénom <span class="cs-req">*</span></label
+              >
               <v-text-field
                 v-model="form.prenom"
                 placeholder="Jean"
@@ -70,7 +83,9 @@
             </v-col>
 
             <v-col cols="12">
-              <label class="cs-label">Email <span class="cs-req">*</span></label>
+              <label class="cs-label"
+                >Email <span class="cs-req">*</span></label
+              >
               <v-text-field
                 v-model="form.email"
                 placeholder="vous@entreprise.com"
@@ -96,7 +111,9 @@
 
             <!-- Objet : radio-chips (choix exclusif) -->
             <v-col cols="12">
-              <label class="cs-label">Objet de la demande <span class="cs-req">*</span></label>
+              <label class="cs-label"
+                >Objet de la demande <span class="cs-req">*</span></label
+              >
               <v-chip-group
                 v-model="form.objet"
                 mandatory
@@ -118,7 +135,9 @@
             </v-col>
 
             <v-col cols="12">
-              <label class="cs-label">Message <span class="cs-req">*</span></label>
+              <label class="cs-label"
+                >Message <span class="cs-req">*</span></label
+              >
               <v-textarea
                 v-model="form.message"
                 placeholder="Décrivez votre problème ou votre demande…"
@@ -137,7 +156,12 @@
       <v-divider />
 
       <v-card-actions class="cs-actions">
-        <v-btn variant="text" class="text-none" :disabled="loading" @click="emit('close')">
+        <v-btn
+          variant="text"
+          class="text-none"
+          :disabled="loading"
+          @click="emit('close')"
+        >
           Annuler
         </v-btn>
         <v-spacer />
@@ -207,10 +231,19 @@ async function submit() {
 </script>
 
 <style scoped>
-.cs-card { font-family: "Fira Sans", sans-serif; }
+.cs-card {
+  font-family: "Fira Sans", sans-serif;
+}
 
-.cs-head { padding: 18px 20px 12px; }
-.cs-head__row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.cs-head {
+  padding: 18px 20px 12px;
+}
+.cs-head__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
 .cs-title {
   font-family: "Fira Code", monospace;
   font-size: 20px;
@@ -225,7 +258,9 @@ async function submit() {
   margin-top: 2px;
 }
 
-.cs-body { padding: 18px 20px; }
+.cs-body {
+  padding: 18px 20px;
+}
 
 .cs-label {
   display: block;
@@ -234,10 +269,14 @@ async function submit() {
   color: #15223a;
   margin-bottom: 4px;
 }
-.cs-req { color: #e74c3c; }
+.cs-req {
+  color: #e74c3c;
+}
 
 /* Radio-chips */
-.cs-chips { margin-top: 2px; }
+.cs-chips {
+  margin-top: 2px;
+}
 .cs-chip {
   font-size: 12.5px;
   font-weight: 600;
@@ -249,8 +288,12 @@ async function submit() {
   color: #007a7a !important;
 }
 
-.cs-actions { padding: 12px 16px; }
-.cs-submit { min-width: 170px; }
+.cs-actions {
+  padding: 12px 16px;
+}
+.cs-submit {
+  min-width: 170px;
+}
 
 /* Succès */
 .cs-success {
@@ -261,6 +304,16 @@ async function submit() {
   gap: 10px;
   padding: 32px 24px 28px;
 }
-.cs-success__title { font-size: 18px; font-weight: 700; color: #000b23; margin: 4px 0 0; }
-.cs-success__text { font-size: 15px; color: #6b7280; max-width: 340px; margin: 0 0 8px; }
+.cs-success__title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #000b23;
+  margin: 4px 0 0;
+}
+.cs-success__text {
+  font-size: 15px;
+  color: #6b7280;
+  max-width: 340px;
+  margin: 0 0 8px;
+}
 </style>

@@ -1,20 +1,23 @@
 <template>
   <div class="ddd-overlay" @click.self="emit('close')">
     <div class="ddd-panel" role="dialog" aria-modal="true">
-
       <!-- ── Header ──────────────────────────────────────────────────────── -->
       <div class="ddd-hdr">
         <p class="ddd-ctx">
           <span>DEMANDES</span>
           <span class="ddd-ctx__sep">›</span>
-          <span :class="['ddd-ctx__type', `ddd-ctx__type--${demande.type_demande}`]">
+          <span
+            :class="['ddd-ctx__type', `ddd-ctx__type--${demande.type_demande}`]"
+          >
             {{ TYPE_LABELS[demande.type_demande] ?? demande.type_demande }}
           </span>
           <span class="ddd-ctx__sep">›</span>
           <span class="ddd-ctx__ticket">{{ demande.numero_ticket }}</span>
         </p>
         <div class="ddd-title-row">
-          <span :class="['ddd-marker', `ddd-marker--${demande.type_demande}`]"></span>
+          <span
+            :class="['ddd-marker', `ddd-marker--${demande.type_demande}`]"
+          ></span>
           <h2 class="ddd-title">{{ demande.titre }}</h2>
           <span class="ddd-hdr-spacer"></span>
           <button class="ddd-close-btn" @click="emit('close')">
@@ -34,7 +37,6 @@
 
       <!-- ── Corps scrollable ────────────────────────────────────────────── -->
       <div class="ddd-body">
-
         <!-- CONTEXTE ─────────────────────────────────────────────────────── -->
         <section class="ddd-sec">
           <header class="ddd-sec-hdr">
@@ -46,31 +48,57 @@
             <div class="ddd-field">
               <span class="ddd-lbl">Client</span>
               <span class="ddd-val">
-                <img v-if="demande.client_logo_url" :src="fileUrl(demande.client_logo_url)" class="ddd-logo-sm" />
+                <img
+                  v-if="demande.client_logo_url"
+                  :src="fileUrl(demande.client_logo_url)"
+                  class="ddd-logo-sm"
+                />
                 <v-icon v-else size="11" color="#00a8a8">mdi-domain</v-icon>
-                {{ demande.client_nom || '—' }}
+                {{ demande.client_nom || "—" }}
               </span>
             </div>
             <div class="ddd-field">
               <span class="ddd-lbl">Site</span>
               <span class="ddd-val">
-                <img v-if="demande.site_logo_url" :src="fileUrl(demande.site_logo_url)" class="ddd-logo-sm" />
-                <v-icon v-else size="11" color="#00a8a8">mdi-map-marker-outline</v-icon>
-                {{ demande.site_nom || '—' }}
+                <img
+                  v-if="demande.site_logo_url"
+                  :src="fileUrl(demande.site_logo_url)"
+                  class="ddd-logo-sm"
+                />
+                <v-icon v-else size="11" color="#00a8a8"
+                  >mdi-map-marker-outline</v-icon
+                >
+                {{ demande.site_nom || "—" }}
               </span>
             </div>
             <div class="ddd-field">
               <span class="ddd-lbl">Demandeur</span>
               <span class="ddd-val">
-                <img :src="resolveAvatar(demande.contact_avatar_url, demande.contact_nom)" class="ddd-avatar-sm" />
-                {{ demande.contact_nom || '—' }}
+                <img
+                  :src="
+                    resolveAvatar(
+                      demande.contact_avatar_url,
+                      demande.contact_nom,
+                    )
+                  "
+                  class="ddd-avatar-sm"
+                />
+                {{ demande.contact_nom || "—" }}
               </span>
             </div>
             <div class="ddd-field">
               <span class="ddd-lbl">Prise en charge</span>
               <span class="ddd-val">
-                <img :src="resolveAvatar(demande.permanencier_avatar_url, demande.permanencier_nom)" class="ddd-avatar-sm" />
-                {{ demande.permanencier_nom || '—' }}
+                <img
+                  :src="
+                    resolveAvatar(
+                      demande.permanencier_avatar_url,
+                      demande.permanencier_nom,
+                    )
+                  "
+                  class="ddd-avatar-sm"
+                />
+                {{ demande.permanencier_nom || "—" }}
               </span>
             </div>
           </div>
@@ -95,9 +123,15 @@
           </header>
           <div class="ddd-chips-row">
             <span v-if="demande.nature_anomalie" class="ddd-chip">
-              {{ NATURE_LABELS[demande.nature_anomalie] ?? demande.nature_anomalie }}
+              {{
+                NATURE_LABELS[demande.nature_anomalie] ??
+                demande.nature_anomalie
+              }}
             </span>
-            <span v-if="demande.impact_securite" class="ddd-chip ddd-chip--danger">
+            <span
+              v-if="demande.impact_securite"
+              class="ddd-chip ddd-chip--danger"
+            >
               <v-icon size="10">mdi-alert</v-icon> Impact sécurité
             </span>
           </div>
@@ -107,16 +141,28 @@
           </div>
           <!-- Agent concerné -->
           <div v-if="demande.agent_concerne_label" class="ddd-agent-row">
-            <img :src="resolveAvatar(demande.agent_concerne_avatar_url, demande.agent_concerne_label)" class="ddd-avatar-lg" />
+            <img
+              :src="
+                resolveAvatar(
+                  demande.agent_concerne_avatar_url,
+                  demande.agent_concerne_label,
+                )
+              "
+              class="ddd-avatar-lg"
+            />
             <div class="ddd-agent-content">
               <span class="ddd-lbl">Agent concerné</span>
-              <span class="ddd-agent-name">{{ demande.agent_concerne_label }}</span>
+              <span class="ddd-agent-name">{{
+                demande.agent_concerne_label
+              }}</span>
             </div>
           </div>
           <!-- Action PEC -->
           <div v-if="demande.action_corrective" class="ddd-pec-block">
             <div class="ddd-pec-header">
-              <v-icon size="12" color="#00a8a8">mdi-clipboard-check-outline</v-icon>
+              <v-icon size="12" color="#00a8a8"
+                >mdi-clipboard-check-outline</v-icon
+              >
               ACTION DE PRISE EN CHARGE (PEC)
             </div>
             <p class="ddd-pec-text">{{ demande.action_corrective }}</p>
@@ -133,7 +179,9 @@
           <div class="ddd-meta-grid">
             <div v-if="demande.type_commande" class="ddd-field">
               <span class="ddd-lbl">Type de prestation</span>
-              <span class="ddd-kv-val">{{ COMMANDE_LABELS[demande.type_commande] ?? demande.type_commande }}</span>
+              <span class="ddd-kv-val">{{
+                COMMANDE_LABELS[demande.type_commande] ?? demande.type_commande
+              }}</span>
             </div>
             <div v-if="demande.quantite" class="ddd-field">
               <span class="ddd-lbl">Quantité</span>
@@ -149,7 +197,9 @@
             </div>
             <div v-if="demande.date_livraison_souhaitee" class="ddd-field">
               <span class="ddd-lbl">Livraison souhaitée</span>
-              <span class="ddd-kv-val">{{ formatDate(demande.date_livraison_souhaitee) }}</span>
+              <span class="ddd-kv-val">{{
+                formatDate(demande.date_livraison_souhaitee)
+              }}</span>
             </div>
             <div v-if="demande.bon_commande" class="ddd-field">
               <span class="ddd-lbl">Bon de commande</span>
@@ -171,27 +221,48 @@
           </header>
           <div v-if="demande.type_modification" class="ddd-chips-row">
             <span class="ddd-chip ddd-chip--blue">
-              {{ PLANNING_LABELS[demande.type_modification] ?? demande.type_modification }}
+              {{
+                PLANNING_LABELS[demande.type_modification] ??
+                demande.type_modification
+              }}
             </span>
           </div>
           <div class="ddd-meta-grid">
             <div v-if="demande.agent_concerne_label" class="ddd-field">
               <span class="ddd-lbl">Agent concerné</span>
               <span class="ddd-val">
-                <img :src="resolveAvatar(demande.agent_concerne_avatar_url, demande.agent_concerne_label)" class="ddd-avatar-sm ddd-avatar-sm--amber" />
+                <img
+                  :src="
+                    resolveAvatar(
+                      demande.agent_concerne_avatar_url,
+                      demande.agent_concerne_label,
+                    )
+                  "
+                  class="ddd-avatar-sm ddd-avatar-sm--amber"
+                />
                 {{ demande.agent_concerne_label }}
               </span>
             </div>
             <div v-if="demande.agent_remplacant_label" class="ddd-field">
               <span class="ddd-lbl">Agent remplaçant</span>
               <span class="ddd-val">
-                <img :src="resolveAvatar(demande.agent_remplacant_avatar_url, demande.agent_remplacant_label)" class="ddd-avatar-sm ddd-avatar-sm--blue" />
+                <img
+                  :src="
+                    resolveAvatar(
+                      demande.agent_remplacant_avatar_url,
+                      demande.agent_remplacant_label,
+                    )
+                  "
+                  class="ddd-avatar-sm ddd-avatar-sm--blue"
+                />
                 {{ demande.agent_remplacant_label }}
               </span>
             </div>
             <div v-if="demande.date_debut" class="ddd-field">
               <span class="ddd-lbl">Début</span>
-              <span class="ddd-kv-val">{{ formatDate(demande.date_debut) }}</span>
+              <span class="ddd-kv-val">{{
+                formatDate(demande.date_debut)
+              }}</span>
             </div>
             <div v-if="demande.date_fin" class="ddd-field">
               <span class="ddd-lbl">Fin</span>
@@ -214,20 +285,31 @@
           <div class="ddd-meta-grid">
             <div v-if="demande.categorie" class="ddd-field">
               <span class="ddd-lbl">Catégorie</span>
-              <span class="ddd-kv-val">{{ ADMIN_CAT_LABELS[demande.categorie] ?? demande.categorie }}</span>
+              <span class="ddd-kv-val">{{
+                ADMIN_CAT_LABELS[demande.categorie] ?? demande.categorie
+              }}</span>
             </div>
             <div v-if="demande.document_type" class="ddd-field">
               <span class="ddd-lbl">Type de document</span>
-              <span class="ddd-kv-val">{{ ADMIN_DOC_LABELS[demande.document_type] ?? demande.document_type }}</span>
+              <span class="ddd-kv-val">{{
+                ADMIN_DOC_LABELS[demande.document_type] ?? demande.document_type
+              }}</span>
             </div>
             <div v-if="demande.date_echeance" class="ddd-field">
               <span class="ddd-lbl">Échéance</span>
-              <span class="ddd-kv-val">{{ formatDate(demande.date_echeance) }}</span>
+              <span class="ddd-kv-val">{{
+                formatDate(demande.date_echeance)
+              }}</span>
             </div>
             <div class="ddd-field">
               <span class="ddd-lbl">Validation requise</span>
-              <span :class="['ddd-kv-val', demande.validation_requise ? 'ddd-kv-val--yes' : '']">
-                {{ demande.validation_requise ? 'Oui' : 'Non' }}
+              <span
+                :class="[
+                  'ddd-kv-val',
+                  demande.validation_requise ? 'ddd-kv-val--yes' : '',
+                ]"
+              >
+                {{ demande.validation_requise ? "Oui" : "Non" }}
               </span>
             </div>
           </div>
@@ -241,7 +323,6 @@
           :prefilled-contact-id="props.prefilledContactId"
           :prefilled-contact-nom="props.prefilledContactNom"
         />
-
       </div>
 
       <!-- ── Footer ──────────────────────────────────────────────────────── -->
@@ -252,7 +333,6 @@
           SUIVI
         </button>
       </div>
-
     </div>
   </div>
 </template>
@@ -262,75 +342,91 @@ import { ref } from "vue";
 import DemandeInteractions from "@/components/workspace/DemandeInteractions.vue";
 
 const props = defineProps({
-  demande:             { type: Object, required: true },
-  prefilledContactId:  { type: Number, default: null },
+  demande: { type: Object, required: true },
+  prefilledContactId: { type: Number, default: null },
   prefilledContactNom: { type: String, default: null },
 });
 const emit = defineEmits(["close"]);
 
 const interactionsRef = ref(null);
 
-const TYPE_LABELS   = { anomalie: "ANO", commande: "CMD", planning: "PLN", admin: "ADM" };
-const STATUT_LABELS = {
-  nouvelle: "Nouvelle", en_cours: "En cours", en_attente: "En attente",
-  resolue: "Résolue", cloturee: "Clôturée", annulee: "Annulée",
+const TYPE_LABELS = {
+  anomalie: "ANO",
+  commande: "CMD",
+  planning: "PLN",
+  admin: "ADM",
 };
-const PRIO_LABELS = { basse: "↓ Basse", normale: "→ Normale", haute: "↑ Haute", urgente: "⚡ Urgente" };
+const STATUT_LABELS = {
+  nouvelle: "Nouvelle",
+  en_cours: "En cours",
+  en_attente: "En attente",
+  resolue: "Résolue",
+  cloturee: "Clôturée",
+  annulee: "Annulée",
+};
+const PRIO_LABELS = {
+  basse: "↓ Basse",
+  normale: "→ Normale",
+  haute: "↑ Haute",
+  urgente: "⚡ Urgente",
+};
 
 const NATURE_LABELS = {
-  anj:                         "Absence non justifiée (ANJ)",
-  absence_justifiee:           "Absence justifiée",
-  retard_prise_service:        "Retard prise de service",
-  agent_non_sur_site:          "Agent non sur site",
-  doublon_planning:            "Doublon planning",
-  remplacement_permutation:    "Remplacement / permutation",
-  modification_vacation:       "Modification vacation",
-  probleme_technique:          "Problème technique",
-  site_prestataire_injoignable:"Site / prestataire injoignable",
-  blocage_outil_rh:            "Blocage outil / RH",
-  demande_de_renfort:          "Demande de renfort",
-  anomalie_facturation:        "Anomalie facturation",
-  autre:                       "Autre",
+  anj: "Absence non justifiée (ANJ)",
+  absence_justifiee: "Absence justifiée",
+  retard_prise_service: "Retard prise de service",
+  agent_non_sur_site: "Agent non sur site",
+  doublon_planning: "Doublon planning",
+  remplacement_permutation: "Remplacement / permutation",
+  modification_vacation: "Modification vacation",
+  probleme_technique: "Problème technique",
+  site_prestataire_injoignable: "Site / prestataire injoignable",
+  blocage_outil_rh: "Blocage outil / RH",
+  demande_de_renfort: "Demande de renfort",
+  anomalie_facturation: "Anomalie facturation",
+  autre: "Autre",
 };
 
 const COMMANDE_LABELS = {
-  gardiennage:           "Gardiennage",
-  surveillance_mobile:   "Surveillance mobile",
-  rondes:                "Rondes",
-  intervention:          "Intervention",
-  filtrage:              "Filtrage",
+  gardiennage: "Gardiennage",
+  surveillance_mobile: "Surveillance mobile",
+  rondes: "Rondes",
+  intervention: "Intervention",
+  filtrage: "Filtrage",
   protection_rapprochee: "Protection rapprochée",
-  accueil_securite:      "Accueil sécurité",
-  autre:                 "Autre",
+  accueil_securite: "Accueil sécurité",
+  autre: "Autre",
 };
 
 const PLANNING_LABELS = {
-  absence:     "Absence",
-  conge:       "Congé",
-  formation:   "Formation",
-  reunion:     "Réunion",
-  remplacement:"Remplacement",
-  autre:       "Autre",
+  absence: "Absence",
+  conge: "Congé",
+  formation: "Formation",
+  reunion: "Réunion",
+  remplacement: "Remplacement",
+  autre: "Autre",
 };
 
 const ADMIN_CAT_LABELS = {
   ressources_humaines: "Ressources humaines",
-  comptabilite:        "Comptabilité",
-  contrat:             "Contrat",
-  politique:           "Politique",
-  autre:               "Autre",
+  comptabilite: "Comptabilité",
+  contrat: "Contrat",
+  politique: "Politique",
+  autre: "Autre",
 };
 
 const ADMIN_DOC_LABELS = {
-  contrat:            "Contrat",
-  facture:            "Facture",
-  rapport:            "Rapport",
+  contrat: "Contrat",
+  facture: "Facture",
+  rapport: "Rapport",
   demande_officielle: "Demande officielle",
-  approbation:        "Approbation",
-  autre:              "Autre",
+  approbation: "Approbation",
+  autre: "Autre",
 };
 
-const BACKEND_ORIGIN = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "");
+const BACKEND_ORIGIN = (
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api"
+).replace(/\/api\/?$/, "");
 
 function fileUrl(path) {
   if (!path) return null;
@@ -348,7 +444,11 @@ function resolveAvatar(url, name) {
 function formatDate(iso) {
   if (!iso) return "—";
   const d = new Date(iso);
-  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  return d.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  });
 }
 </script>
 
@@ -383,8 +483,12 @@ export default { name: "DemandeDetailDrawer" };
 }
 
 @keyframes ddd-slide {
-  from { transform: translateX(100%); }
-  to   { transform: translateX(0); }
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 
 /* ── Header ──────────────────────────────────────────────────────────────── */
@@ -405,13 +509,30 @@ export default { name: "DemandeDetailDrawer" };
   text-transform: uppercase;
   margin: 0 0 8px;
 }
-.ddd-ctx__sep    { color: #e0e0e0; }
-.ddd-ctx__ticket { color: #00a8a8; font-weight: 600; }
+.ddd-ctx__sep {
+  color: #e0e0e0;
+}
+.ddd-ctx__ticket {
+  color: #00a8a8;
+  font-weight: 600;
+}
 
-.ddd-ctx__type--anomalie { color: #e74c3c; font-weight: 700; }
-.ddd-ctx__type--commande { color: #007a7a; font-weight: 700; }
-.ddd-ctx__type--planning { color: #1a73c1; font-weight: 700; }
-.ddd-ctx__type--admin    { color: #7d3c98; font-weight: 700; }
+.ddd-ctx__type--anomalie {
+  color: #e74c3c;
+  font-weight: 700;
+}
+.ddd-ctx__type--commande {
+  color: #007a7a;
+  font-weight: 700;
+}
+.ddd-ctx__type--planning {
+  color: #1a73c1;
+  font-weight: 700;
+}
+.ddd-ctx__type--admin {
+  color: #7d3c98;
+  font-weight: 700;
+}
 
 .ddd-title-row {
   display: flex;
@@ -427,10 +548,18 @@ export default { name: "DemandeDetailDrawer" };
   flex-shrink: 0;
   margin-top: 2px;
 }
-.ddd-marker--anomalie { background: #e74c3c; }
-.ddd-marker--commande { background: #00a8a8; }
-.ddd-marker--planning { background: #3498db; }
-.ddd-marker--admin    { background: #8e44ad; }
+.ddd-marker--anomalie {
+  background: #e74c3c;
+}
+.ddd-marker--commande {
+  background: #00a8a8;
+}
+.ddd-marker--planning {
+  background: #3498db;
+}
+.ddd-marker--admin {
+  background: #8e44ad;
+}
 
 .ddd-title {
   font-family: "Fira Sans", sans-serif;
@@ -443,7 +572,10 @@ export default { name: "DemandeDetailDrawer" };
   word-break: break-word;
 }
 
-.ddd-hdr-spacer { flex-shrink: 0; width: 4px; }
+.ddd-hdr-spacer {
+  flex-shrink: 0;
+  width: 4px;
+}
 
 .ddd-close-btn {
   display: flex;
@@ -458,7 +590,10 @@ export default { name: "DemandeDetailDrawer" };
   color: #aaa;
   flex-shrink: 0;
 }
-.ddd-close-btn:hover { color: #e74c3c; border-color: rgba(231, 76, 60, 0.4); }
+.ddd-close-btn:hover {
+  color: #e74c3c;
+  border-color: rgba(231, 76, 60, 0.4);
+}
 
 .ddd-status-row {
   display: flex;
@@ -475,12 +610,30 @@ export default { name: "DemandeDetailDrawer" };
   padding: 2px 8px;
   border-radius: 10px;
 }
-.ddd-statut--nouvelle   { background: #eaf4fb; color: #1a73c1; }
-.ddd-statut--en_cours   { background: rgba(0, 168, 168, 0.1); color: #007a7a; }
-.ddd-statut--en_attente { background: #fef9e7; color: #b7770d; }
-.ddd-statut--resolue    { background: #eafaf1; color: #1e8449; }
-.ddd-statut--cloturee   { background: #f4f6f7; color: #707b7c; }
-.ddd-statut--annulee    { background: rgba(231, 76, 60, 0.07); color: #c0392b; }
+.ddd-statut--nouvelle {
+  background: #eaf4fb;
+  color: #1a73c1;
+}
+.ddd-statut--en_cours {
+  background: rgba(0, 168, 168, 0.1);
+  color: #007a7a;
+}
+.ddd-statut--en_attente {
+  background: #fef9e7;
+  color: #b7770d;
+}
+.ddd-statut--resolue {
+  background: #eafaf1;
+  color: #1e8449;
+}
+.ddd-statut--cloturee {
+  background: #f4f6f7;
+  color: #707b7c;
+}
+.ddd-statut--annulee {
+  background: rgba(231, 76, 60, 0.07);
+  color: #c0392b;
+}
 
 .ddd-prio {
   font-family: "Fira Sans", sans-serif;
@@ -489,10 +642,18 @@ export default { name: "DemandeDetailDrawer" };
   letter-spacing: 0.06em;
   color: #777;
 }
-.ddd-prio--haute   { color: #e67e22; }
-.ddd-prio--urgente { color: #e74c3c; }
-.ddd-prio--normale { color: #3498db; }
-.ddd-prio--basse   { color: #aaa; }
+.ddd-prio--haute {
+  color: #e67e22;
+}
+.ddd-prio--urgente {
+  color: #e74c3c;
+}
+.ddd-prio--normale {
+  color: #3498db;
+}
+.ddd-prio--basse {
+  color: #aaa;
+}
 
 .ddd-date {
   font-family: "Fira Code", monospace;
@@ -510,11 +671,20 @@ export default { name: "DemandeDetailDrawer" };
   flex-direction: column;
   gap: 18px;
 }
-.ddd-body::-webkit-scrollbar { width: 4px; }
-.ddd-body::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 2px; }
+.ddd-body::-webkit-scrollbar {
+  width: 4px;
+}
+.ddd-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+}
 
 /* ── Sections ────────────────────────────────────────────────────────────── */
-.ddd-sec { display: flex; flex-direction: column; gap: 10px; }
+.ddd-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 
 .ddd-sec-hdr {
   display: flex;
@@ -528,11 +698,21 @@ export default { name: "DemandeDetailDrawer" };
   border-radius: 1px;
   flex-shrink: 0;
 }
-.ddd-sec-mark--navy   { background: #000b23; }
-.ddd-sec-mark--teal   { background: #00a8a8; }
-.ddd-sec-mark--red    { background: #e74c3c; }
-.ddd-sec-mark--blue   { background: #3498db; }
-.ddd-sec-mark--purple { background: #8e44ad; }
+.ddd-sec-mark--navy {
+  background: #000b23;
+}
+.ddd-sec-mark--teal {
+  background: #00a8a8;
+}
+.ddd-sec-mark--red {
+  background: #e74c3c;
+}
+.ddd-sec-mark--blue {
+  background: #3498db;
+}
+.ddd-sec-mark--purple {
+  background: #8e44ad;
+}
 
 .ddd-sec-lbl {
   font-family: "Fira Sans", sans-serif;
@@ -544,7 +724,11 @@ export default { name: "DemandeDetailDrawer" };
   white-space: nowrap;
 }
 
-.ddd-sec-rule { flex: 1; height: 1px; background: rgba(0, 0, 0, 0.06); }
+.ddd-sec-rule {
+  flex: 1;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.06);
+}
 
 /* ── Grille méta 2 colonnes ──────────────────────────────────────────────── */
 .ddd-meta-grid {
@@ -589,7 +773,9 @@ export default { name: "DemandeDetailDrawer" };
   font-weight: 600;
   color: #222;
 }
-.ddd-kv-val--yes { color: #1e8449; }
+.ddd-kv-val--yes {
+  color: #1e8449;
+}
 
 .ddd-kv {
   display: flex;
@@ -629,8 +815,14 @@ export default { name: "DemandeDetailDrawer" };
   background: rgba(0, 0, 0, 0.05);
   color: #555;
 }
-.ddd-chip--danger { background: rgba(231, 76, 60, 0.1); color: #c0392b; }
-.ddd-chip--blue   { background: rgba(52, 152, 219, 0.1); color: #1a73c1; }
+.ddd-chip--danger {
+  background: rgba(231, 76, 60, 0.1);
+  color: #c0392b;
+}
+.ddd-chip--blue {
+  background: rgba(52, 152, 219, 0.1);
+  color: #1a73c1;
+}
 
 /* ── Logos ───────────────────────────────────────────────────────────────── */
 .ddd-logo-sm {
@@ -651,8 +843,12 @@ export default { name: "DemandeDetailDrawer" };
   object-fit: cover;
   border: 1.5px solid rgba(0, 11, 35, 0.1);
 }
-.ddd-avatar-sm--amber { border-color: rgba(243, 156, 18, 0.35); }
-.ddd-avatar-sm--blue  { border-color: rgba(52, 152, 219, 0.35); }
+.ddd-avatar-sm--amber {
+  border-color: rgba(243, 156, 18, 0.35);
+}
+.ddd-avatar-sm--blue {
+  border-color: rgba(52, 152, 219, 0.35);
+}
 
 .ddd-avatar-lg {
   width: 34px;
@@ -742,7 +938,9 @@ export default { name: "DemandeDetailDrawer" };
   cursor: pointer;
   transition: border-color 0.15s;
 }
-.ddd-btn-close:hover { border-color: #aaa; }
+.ddd-btn-close:hover {
+  border-color: #aaa;
+}
 
 .ddd-btn-suivi {
   display: inline-flex;
@@ -761,5 +959,7 @@ export default { name: "DemandeDetailDrawer" };
   cursor: pointer;
   transition: background 0.15s;
 }
-.ddd-btn-suivi:hover { background: #3498db; }
+.ddd-btn-suivi:hover {
+  background: #3498db;
+}
 </style>

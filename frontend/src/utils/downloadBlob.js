@@ -35,6 +35,8 @@ export function arrayToCsv(header, rows, filename) {
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const lines = [header, ...rows].map((row) => row.map(escape).join(","));
-  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const blob = new Blob([lines.join("\n")], {
+    type: "text/csv;charset=utf-8;",
+  });
   downloadBlob(blob, filename);
 }

@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "@/store/auth";
 
 // ─── Rôles ────────────────────────────────────────────────────────────────────
-const ALL   = ["ADMIN", "MANAGER", "PERMANENCIER"];
+const ALL = ["ADMIN", "MANAGER", "PERMANENCIER"];
 const STAFF = ["ADMIN", "MANAGER"];
 const ADMIN = ["ADMIN"];
 
@@ -159,7 +159,10 @@ const routes = [
     // tenant-scopés, configurés depuis Paramètres > Intégrations > Téléphonie
     // > Configurer (relocalisé depuis l'ex-onglet Paramètres > Téléphonie, Phase 13).
     path: "/pbx-connectors",
-    redirect: { path: "/parameters", query: { tab: "integrations", configure: "telephony" } },
+    redirect: {
+      path: "/parameters",
+      query: { tab: "integrations", configure: "telephony" },
+    },
   },
   {
     // Configuration du tenant : déléguée à l'admin de tenant (et super-admin)
@@ -177,9 +180,9 @@ const router = createRouter({
 
 // ─── Garde de navigation ──────────────────────────────────────────────────────
 router.beforeEach((to, _from, next) => {
-  const authStore      = useAuthStore();
-  const authenticated  = authStore.isAuthenticated;
-  const role           = authStore.user?.role ?? null;
+  const authStore = useAuthStore();
+  const authenticated = authStore.isAuthenticated;
+  const role = authStore.user?.role ?? null;
 
   // 1. Route réservée aux guests : rediriger les utilisateurs déjà connectés
   if (to.meta.guestOnly) {
@@ -193,11 +196,19 @@ router.beforeEach((to, _from, next) => {
   }
 
   // 3. Sélection de tenant requise → forcer l'écran dédié avant toute route métier
-  if (authenticated && authStore.needsTenantSelection && !to.meta.skipTenantGuard) {
+  if (
+    authenticated &&
+    authStore.needsTenantSelection &&
+    !to.meta.skipTenantGuard
+  ) {
     return next({ name: "SelectTenant" });
   }
   // …et empêcher d'y accéder quand ce n'est pas (ou plus) nécessaire
-  if (to.name === "SelectTenant" && authenticated && !authStore.needsTenantSelection) {
+  if (
+    to.name === "SelectTenant" &&
+    authenticated &&
+    !authStore.needsTenantSelection
+  ) {
     return next(authStore.homeRoute);
   }
 

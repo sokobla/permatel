@@ -1,9 +1,10 @@
 <template>
   <v-card elevation="0" class="ddb-card">
-    <v-card-title class="card-title">RÉPARTITION DES DEMANDES OUVERTES</v-card-title>
+    <v-card-title class="card-title"
+      >RÉPARTITION DES DEMANDES OUVERTES</v-card-title
+    >
     <v-divider />
     <v-card-text class="ddb-body">
-
       <div v-if="loading" class="ddb-skeleton">
         <div v-for="n in 8" :key="n" class="ddb-sk-row">
           <div class="ddb-sk ddb-sk--label"></div>
@@ -13,7 +14,6 @@
       </div>
 
       <div v-else class="ddb-cols">
-
         <!-- ─ Par type ─ -->
         <div class="ddb-col">
           <div class="ddb-col-hdr">PAR TYPE</div>
@@ -49,7 +49,6 @@
             </div>
           </div>
         </div>
-
       </div>
     </v-card-text>
   </v-card>
@@ -57,9 +56,9 @@
 
 <script setup>
 defineProps({
-  byType:   { type: Array, default: () => [] },
+  byType: { type: Array, default: () => [] },
   byStatut: { type: Array, default: () => [] },
-  loading:  { type: Boolean, default: false },
+  loading: { type: Boolean, default: false },
 });
 </script>
 
@@ -167,8 +166,13 @@ export default { name: "DashboardDemandesBreakdown" };
 }
 
 @keyframes ddb-pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.35; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
 }
 
 .ddb-sk-row {
@@ -182,7 +186,18 @@ export default { name: "DashboardDemandesBreakdown" };
   border-radius: 3px;
 }
 
-.ddb-sk--label { width: 76px; height: 10px; flex-shrink: 0; }
-.ddb-sk--bar   { flex: 1; height: 6px; }
-.ddb-sk--count { width: 24px; height: 10px; flex-shrink: 0; }
+.ddb-sk--label {
+  width: 76px;
+  height: 10px;
+  flex-shrink: 0;
+}
+.ddb-sk--bar {
+  flex: 1;
+  height: 6px;
+}
+.ddb-sk--count {
+  width: 24px;
+  height: 10px;
+  flex-shrink: 0;
+}
 </style>

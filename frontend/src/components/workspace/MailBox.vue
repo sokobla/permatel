@@ -1,6 +1,5 @@
 <template>
   <div class="mbx-root">
-
     <!-- ══ TOPBAR ══════════════════════════════════════════════════════════ -->
     <div class="mbx-topbar">
       <h1 class="mbx-topbar__title">Gestion de Messagerie Email Permatel</h1>
@@ -12,11 +11,12 @@
 
     <!-- ══ BODY ════════════════════════════════════════════════════════════ -->
     <div class="mbx-body">
-
       <!-- ── Sidebar dossiers ── -->
       <aside class="mbx-sidebar">
         <div class="mbx-search-wrap">
-          <v-icon size="13" color="#ccc" class="mbx-search-icon">mdi-magnify</v-icon>
+          <v-icon size="13" color="#ccc" class="mbx-search-icon"
+            >mdi-magnify</v-icon
+          >
           <input
             v-model="folderSearch"
             class="mbx-search-input"
@@ -35,27 +35,36 @@
             :class="{ 'mbx-folder-btn--active': activeFolderId === f.id }"
             @click="selectFolder(f)"
           >
-            <v-icon size="14" :color="activeFolderId === f.id ? '#00a8a8' : '#bbb'">
+            <v-icon
+              size="14"
+              :color="activeFolderId === f.id ? '#00a8a8' : '#bbb'"
+            >
               {{ f.icon }}
             </v-icon>
             <span class="mbx-folder-lbl">{{ f.label }}</span>
             <span
               v-if="f.badge"
               class="mbx-folder-badge"
-              :class="f.badgeUrgent ? 'mbx-folder-badge--urgent' : 'mbx-folder-badge--default'"
-            >{{ f.badge }}</span>
+              :class="
+                f.badgeUrgent
+                  ? 'mbx-folder-badge--urgent'
+                  : 'mbx-folder-badge--default'
+              "
+              >{{ f.badge }}</span
+            >
           </button>
         </nav>
       </aside>
 
       <!-- ── Zone principale ── -->
       <div class="mbx-main">
-
         <!-- Liste des emails -->
         <div class="mbx-list">
           <div class="mbx-list-hdr">
             <span class="mbx-hdr-dot"></span>
-            <span class="mbx-hdr-cell mbx-hdr-sender">SENDER / CLIENT CODE</span>
+            <span class="mbx-hdr-cell mbx-hdr-sender"
+              >SENDER / CLIENT CODE</span
+            >
             <span class="mbx-hdr-cell mbx-hdr-subject">SUBJECT</span>
             <span class="mbx-hdr-cell mbx-hdr-priority">PRIORITY</span>
           </div>
@@ -83,7 +92,8 @@
               <span
                 class="mbx-prio-badge"
                 :class="`mbx-prio-badge--${email.priority.toLowerCase()}`"
-              >{{ email.priority }}</span>
+                >{{ email.priority }}</span
+              >
             </div>
           </button>
 
@@ -95,7 +105,6 @@
         <!-- ── Panneau de lecture ── -->
         <template v-if="activeEmail">
           <div class="mbx-reader">
-
             <!-- En-tête -->
             <div class="mbx-reader-hdr">
               <h2 class="mbx-reader-subject">{{ activeEmail.subject }}</h2>
@@ -107,15 +116,21 @@
               <div
                 class="mbx-from-avatar"
                 :style="{ background: avatarColor(activeEmail.sender) }"
-              >{{ getInitials(activeEmail.sender) }}</div>
+              >
+                {{ getInitials(activeEmail.sender) }}
+              </div>
               <div class="mbx-from-info">
                 <div class="mbx-from-name">
                   {{ activeEmail.sender }}
-                  <span class="mbx-from-addr">&lt;{{ activeEmail.from }}&gt;</span>
+                  <span class="mbx-from-addr"
+                    >&lt;{{ activeEmail.from }}&gt;</span
+                  >
                 </div>
                 <div class="mbx-from-meta">
-                  To: {{ activeEmail.to.join(', ') }}&ensp;|&ensp;Client Code:
-                  <span class="mbx-from-code">{{ activeEmail.clientCode }}</span>
+                  To: {{ activeEmail.to.join(", ") }}&ensp;|&ensp;Client Code:
+                  <span class="mbx-from-code">{{
+                    activeEmail.clientCode
+                  }}</span>
                 </div>
               </div>
             </div>
@@ -123,11 +138,16 @@
             <!-- Corps -->
             <div class="mbx-reader-body">
               <!-- eslint-disable-next-line vue/no-v-html -->
-              <div class="mbx-body-text" v-html="formatBody(activeEmail.body)"></div>
+              <div
+                class="mbx-body-text"
+                v-html="formatBody(activeEmail.body)"
+              ></div>
 
               <div v-if="activeEmail.technicalLog" class="mbx-tech-log">
                 <div class="mbx-tech-log__label">SYSTEM DIAGNOSTIC LOG</div>
-                <pre class="mbx-tech-log__content">{{ activeEmail.technicalLog }}</pre>
+                <pre class="mbx-tech-log__content">{{
+                  activeEmail.technicalLog
+                }}</pre>
               </div>
             </div>
 
@@ -146,142 +166,167 @@
                 RÉPONDRE
               </button>
             </div>
-
           </div>
         </template>
 
         <!-- État vide -->
         <div v-else class="mbx-reader-empty">
           <v-icon size="34" color="#ddd">mdi-email-open-outline</v-icon>
-          <p class="mbx-reader-empty__text">Sélectionner un email pour le lire</p>
+          <p class="mbx-reader-empty__text">
+            Sélectionner un email pour le lire
+          </p>
         </div>
-
       </div>
     </div>
-
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed } from "vue";
 
 // ─── Données statiques ────────────────────────────────────────────────────
 
 const FOLDERS = [
-  { id: 'inbox',   label: 'Boîte de réception', icon: 'mdi-monitor-outline',   badge: 12, badgeUrgent: false },
-  { id: 'sent',    label: 'Envoyés',             icon: 'mdi-send-outline',      badge: null },
-  { id: 'drafts',  label: 'Brouillons',          icon: 'mdi-file-outline',      badge: null },
-  { id: 'archive', label: 'Archives',            icon: 'mdi-archive-outline',   badge: null },
-  { id: 'urgent',  label: 'Urgences',            icon: 'mdi-alert-outline',     badge: 1,  badgeUrgent: true  },
-]
+  {
+    id: "inbox",
+    label: "Boîte de réception",
+    icon: "mdi-monitor-outline",
+    badge: 12,
+    badgeUrgent: false,
+  },
+  { id: "sent", label: "Envoyés", icon: "mdi-send-outline", badge: null },
+  { id: "drafts", label: "Brouillons", icon: "mdi-file-outline", badge: null },
+  {
+    id: "archive",
+    label: "Archives",
+    icon: "mdi-archive-outline",
+    badge: null,
+  },
+  {
+    id: "urgent",
+    label: "Urgences",
+    icon: "mdi-alert-outline",
+    badge: 1,
+    badgeUrgent: true,
+  },
+];
 
 const EMAILS_DATA = [
   {
     id: 1,
-    folder: 'inbox',
-    sender: 'Marie Dubois',
-    clientCode: 'CLI-8942-A',
-    subject: 'Alerte de sécurité - Incident critique détecté',
-    priority: 'HIGH',
+    folder: "inbox",
+    sender: "Marie Dubois",
+    clientCode: "CLI-8942-A",
+    subject: "Alerte de sécurité - Incident critique détecté",
+    priority: "HIGH",
     unread: true,
-    date: 'Today, 10:24',
-    from: 'marie.dubois@permatel.com',
-    to: ['Security Ops Team'],
+    date: "Today, 10:24",
+    from: "marie.dubois@permatel.com",
+    to: ["Security Ops Team"],
     body: "Bonjour l'équipe,\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Nulla cat lacus. Checkau security check sriis, **avr eget pousere**, et vehicula dignissim gilias qua mt commodo gravida.",
-    technicalLog: "ERR_CODE:  0x8892_AUTH_FAIL\nTIMESTAMP: 2023-10-27T09:58:12Z\nNODE:      PRO-AUTH-EUR-02\nSEVERITY:  CRITICAL",
+    technicalLog:
+      "ERR_CODE:  0x8892_AUTH_FAIL\nTIMESTAMP: 2023-10-27T09:58:12Z\nNODE:      PRO-AUTH-EUR-02\nSEVERITY:  CRITICAL",
   },
   {
     id: 2,
-    folder: 'inbox',
-    sender: 'Jean Dupont',
-    clientCode: 'CLI-1102-B',
-    subject: 'Rapport de nuit - Check security check résumé',
-    priority: 'NORMAL',
+    folder: "inbox",
+    sender: "Jean Dupont",
+    clientCode: "CLI-1102-B",
+    subject: "Rapport de nuit - Check security check résumé",
+    priority: "NORMAL",
     unread: false,
-    date: 'Today, 08:15',
-    from: 'jean.dupont@permatel.com',
-    to: ['Équipe Sécurité'],
+    date: "Today, 08:15",
+    from: "jean.dupont@permatel.com",
+    to: ["Équipe Sécurité"],
     body: "Bonsoir,\n\nVoici le rapport de surveillance de la nuit du 26 au 27 octobre. Toutes les rondes ont été effectuées sans incident majeur. Les accès enregistrés correspondent aux badges autorisés.",
     technicalLog: null,
   },
   {
     id: 3,
-    folder: 'inbox',
-    sender: 'Support Technique',
-    clientCode: 'INT-SYS-01',
-    subject: 'Mise à jour système - Une maintenance planifiée',
-    priority: 'INFO',
+    folder: "inbox",
+    sender: "Support Technique",
+    clientCode: "INT-SYS-01",
+    subject: "Mise à jour système - Une maintenance planifiée",
+    priority: "INFO",
     unread: false,
-    date: 'Yesterday',
-    from: 'support@permatel.com',
-    to: ['Tous les utilisateurs'],
+    date: "Yesterday",
+    from: "support@permatel.com",
+    to: ["Tous les utilisateurs"],
     body: "Bonjour,\n\nUne maintenance système est planifiée pour le 28 octobre de 02h00 à 04h00. Les services seront temporairement indisponibles durant cette fenêtre de maintenance.\n\nMerci de votre compréhension.",
     technicalLog: null,
   },
-]
+];
 
 // ─── État ─────────────────────────────────────────────────────────────────
 
-const folderSearch   = ref('')
-const activeFolderId = ref('inbox')
-const activeEmailId  = ref(1)
+const folderSearch = ref("");
+const activeFolderId = ref("inbox");
+const activeEmailId = ref(1);
 
 // ─── Dérivés ──────────────────────────────────────────────────────────────
 
 const filteredFolders = computed(() => {
-  const q = folderSearch.value.trim().toLowerCase()
-  return q ? FOLDERS.filter(f => f.label.toLowerCase().includes(q)) : FOLDERS
-})
+  const q = folderSearch.value.trim().toLowerCase();
+  return q ? FOLDERS.filter((f) => f.label.toLowerCase().includes(q)) : FOLDERS;
+});
 
 const folderEmails = computed(() =>
-  EMAILS_DATA.filter(e => e.folder === activeFolderId.value)
-)
+  EMAILS_DATA.filter((e) => e.folder === activeFolderId.value),
+);
 
-const activeEmail = computed(() =>
-  EMAILS_DATA.find(e => e.id === activeEmailId.value) ?? null
-)
+const activeEmail = computed(
+  () => EMAILS_DATA.find((e) => e.id === activeEmailId.value) ?? null,
+);
 
 // ─── Actions ──────────────────────────────────────────────────────────────
 
 function selectFolder(f) {
-  activeFolderId.value = f.id
-  const first = EMAILS_DATA.find(e => e.folder === f.id)
-  activeEmailId.value = first?.id ?? null
+  activeFolderId.value = f.id;
+  const first = EMAILS_DATA.find((e) => e.folder === f.id);
+  activeEmailId.value = first?.id ?? null;
 }
 
 function selectEmail(e) {
-  activeEmailId.value = e.id
+  activeEmailId.value = e.id;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
 function avatarColor(name) {
-  let h = 0
-  for (let i = 0; i < (name ?? '').length; i++)
-    h = (name.charCodeAt(i) + ((h << 5) - h)) | 0
-  return `hsl(${Math.abs(h) % 360}, 36%, 40%)`
+  let h = 0;
+  for (let i = 0; i < (name ?? "").length; i++)
+    h = (name.charCodeAt(i) + ((h << 5) - h)) | 0;
+  return `hsl(${Math.abs(h) % 360}, 36%, 40%)`;
 }
 
 function getInitials(name) {
-  return (name ?? '').split(' ').filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('')
+  return (name ?? "")
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join("");
 }
 
 function truncate(str, len) {
-  return str.length > len ? str.slice(0, len) + '…' : str
+  return str.length > len ? str.slice(0, len) + "…" : str;
 }
 
 function formatBody(text) {
-  return (text ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\n\n/g, '</p><p>')
-    .replace(/\n/g, '<br/>')
-    .replace(/^/, '<p>').replace(/$/, '</p>')
+  return (text ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\n\n/g, "</p><p>")
+    .replace(/\n/g, "<br/>")
+    .replace(/^/, "<p>")
+    .replace(/$/, "</p>");
 }
 </script>
 
 <script>
-export default { name: 'MailBox' }
+export default { name: "MailBox" };
 </script>
 
 <style scoped>
@@ -334,7 +379,9 @@ export default { name: 'MailBox' }
   cursor: pointer;
   transition: background 0.15s;
 }
-.mbx-new-btn:hover { background: #008888; }
+.mbx-new-btn:hover {
+  background: #008888;
+}
 
 /* ══ Body ══════════════════════════════════════════════════════════════════ */
 .mbx-body {
@@ -355,8 +402,13 @@ export default { name: 'MailBox' }
   background: #fafafa;
 }
 
-.mbx-sidebar::-webkit-scrollbar { width: 3px; }
-.mbx-sidebar::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 2px; }
+.mbx-sidebar::-webkit-scrollbar {
+  width: 3px;
+}
+.mbx-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+}
 
 /* Recherche */
 .mbx-search-wrap {
@@ -379,8 +431,12 @@ export default { name: 'MailBox' }
   box-sizing: border-box;
   transition: border-color 0.15s;
 }
-.mbx-search-input:focus { border-color: rgba(0, 168, 168, 0.4); }
-.mbx-search-input::placeholder { color: #ccc; }
+.mbx-search-input:focus {
+  border-color: rgba(0, 168, 168, 0.4);
+}
+.mbx-search-input::placeholder {
+  color: #ccc;
+}
 
 .mbx-search-icon {
   position: absolute;
@@ -418,9 +474,16 @@ export default { name: 'MailBox' }
   text-align: left;
   transition: background 0.1s;
 }
-.mbx-folder-btn:hover { background: rgba(0, 0, 0, 0.03); }
-.mbx-folder-btn--active { background: rgba(0, 168, 168, 0.07); }
-.mbx-folder-btn--active .mbx-folder-lbl { color: #007a7a; font-weight: 700; }
+.mbx-folder-btn:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+.mbx-folder-btn--active {
+  background: rgba(0, 168, 168, 0.07);
+}
+.mbx-folder-btn--active .mbx-folder-lbl {
+  color: #007a7a;
+  font-weight: 700;
+}
 
 .mbx-folder-lbl {
   flex: 1;
@@ -441,8 +504,14 @@ export default { name: 'MailBox' }
   text-align: center;
   line-height: 1.6;
 }
-.mbx-folder-badge--default { background: rgba(0, 168, 168, 0.12); color: #00a8a8; }
-.mbx-folder-badge--urgent  { background: rgba(231, 76, 60, 0.12);  color: #e74c3c; }
+.mbx-folder-badge--default {
+  background: rgba(0, 168, 168, 0.12);
+  color: #00a8a8;
+}
+.mbx-folder-badge--urgent {
+  background: rgba(231, 76, 60, 0.12);
+  color: #e74c3c;
+}
 
 /* ══ Zone principale ═══════════════════════════════════════════════════════ */
 .mbx-main {
@@ -461,8 +530,13 @@ export default { name: 'MailBox' }
   max-height: 240px;
 }
 
-.mbx-list::-webkit-scrollbar { width: 3px; }
-.mbx-list::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 2px; }
+.mbx-list::-webkit-scrollbar {
+  width: 3px;
+}
+.mbx-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+}
 
 /* En-tête colonnes */
 .mbx-list-hdr {
@@ -478,7 +552,9 @@ export default { name: 'MailBox' }
   z-index: 1;
 }
 
-.mbx-hdr-dot { /* spacer */ }
+.mbx-hdr-dot {
+  /* spacer */
+}
 
 .mbx-hdr-cell {
   font-size: 11px;
@@ -487,7 +563,9 @@ export default { name: 'MailBox' }
   color: #bbb;
   text-transform: uppercase;
 }
-.mbx-hdr-priority { text-align: center; }
+.mbx-hdr-priority {
+  text-align: center;
+}
 
 /* Lignes email */
 .mbx-row {
@@ -503,16 +581,26 @@ export default { name: 'MailBox' }
   background: #fff;
   cursor: pointer;
   text-align: left;
-  transition: background 0.1s, border-left-color 0.1s;
+  transition:
+    background 0.1s,
+    border-left-color 0.1s;
   box-sizing: border-box;
 }
-.mbx-row:hover { background: rgba(0, 0, 0, 0.02); }
+.mbx-row:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
 .mbx-row--active {
   background: rgba(0, 168, 168, 0.05);
   border-left-color: #00a8a8;
 }
-.mbx-row--unread .mbx-row-sender__name { font-weight: 700; color: #000b23; }
-.mbx-row--unread .mbx-row-subject { font-weight: 600; color: #222; }
+.mbx-row--unread .mbx-row-sender__name {
+  font-weight: 700;
+  color: #000b23;
+}
+.mbx-row--unread .mbx-row-subject {
+  font-weight: 600;
+  color: #222;
+}
 
 /* Dot statut */
 .mbx-row-dot {
@@ -522,7 +610,10 @@ export default { name: 'MailBox' }
   border: 1.5px solid #ddd;
   flex-shrink: 0;
 }
-.mbx-row-dot--on { background: #00a8a8; border-color: #00a8a8; }
+.mbx-row-dot--on {
+  background: #00a8a8;
+  border-color: #00a8a8;
+}
 
 /* Colonne expéditeur */
 .mbx-row-sender {
@@ -572,9 +663,21 @@ export default { name: 'MailBox' }
   border: 1px solid;
   text-transform: uppercase;
 }
-.mbx-prio-badge--high   { color: #e74c3c; background: rgba(231,76,60,.07);   border-color: rgba(231,76,60,.2); }
-.mbx-prio-badge--normal { color: #777;    background: rgba(0,0,0,.04);       border-color: rgba(0,0,0,.1);    }
-.mbx-prio-badge--info   { color: #2980b9; background: rgba(41,128,185,.07);  border-color: rgba(41,128,185,.2);}
+.mbx-prio-badge--high {
+  color: #e74c3c;
+  background: rgba(231, 76, 60, 0.07);
+  border-color: rgba(231, 76, 60, 0.2);
+}
+.mbx-prio-badge--normal {
+  color: #777;
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+.mbx-prio-badge--info {
+  color: #2980b9;
+  background: rgba(41, 128, 185, 0.07);
+  border-color: rgba(41, 128, 185, 0.2);
+}
 
 /* Vide */
 .mbx-list-empty {
@@ -686,17 +789,29 @@ export default { name: 'MailBox' }
   flex-direction: column;
   gap: 16px;
 }
-.mbx-reader-body::-webkit-scrollbar { width: 4px; }
-.mbx-reader-body::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 2px; }
+.mbx-reader-body::-webkit-scrollbar {
+  width: 4px;
+}
+.mbx-reader-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+}
 
 .mbx-body-text {
   font-size: 12.5px;
   color: #333;
   line-height: 1.7;
 }
-.mbx-body-text :deep(p)      { margin: 0 0 10px; }
-.mbx-body-text :deep(p:last-child) { margin-bottom: 0; }
-.mbx-body-text :deep(strong) { font-weight: 700; color: #000b23; }
+.mbx-body-text :deep(p) {
+  margin: 0 0 10px;
+}
+.mbx-body-text :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.mbx-body-text :deep(strong) {
+  font-weight: 700;
+  color: #000b23;
+}
 
 /* Bloc log technique */
 .mbx-tech-log {
@@ -749,7 +864,9 @@ export default { name: 'MailBox' }
   font-weight: 800;
   letter-spacing: 0.1em;
   cursor: pointer;
-  transition: background 0.14s, border-color 0.14s;
+  transition:
+    background 0.14s,
+    border-color 0.14s;
 }
 
 .mbx-act--ghost {
@@ -757,14 +874,19 @@ export default { name: 'MailBox' }
   border: 1px solid rgba(0, 0, 0, 0.14);
   color: #555;
 }
-.mbx-act--ghost:hover { background: rgba(0, 0, 0, 0.04); border-color: rgba(0, 0, 0, 0.22); }
+.mbx-act--ghost:hover {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.22);
+}
 
 .mbx-act--primary {
   background: #00a8a8;
   border: 1px solid transparent;
   color: #fff;
 }
-.mbx-act--primary:hover { background: #008888; }
+.mbx-act--primary:hover {
+  background: #008888;
+}
 
 /* ── État vide ── */
 .mbx-reader-empty {

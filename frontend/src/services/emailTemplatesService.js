@@ -16,7 +16,10 @@ export const emailTemplatesService = {
   },
   /** Enregistre { subject, body_html } ; 400 si le gabarit Jinja2 est invalide. */
   updateTemplate(key, { subject, body_html }) {
-    return apiClient.put(`/tenant/email-templates/${key}`, { subject, body_html });
+    return apiClient.put(`/tenant/email-templates/${key}`, {
+      subject,
+      body_html,
+    });
   },
   /** Revient au gabarit système par défaut. */
   resetTemplate(key) {
@@ -29,6 +32,9 @@ export const emailTemplatesService = {
    *   ou null/omis pour prévisualiser le gabarit actuellement enregistré.
    */
   previewTemplate(key, draft = null) {
-    return apiClient.post(`/tenant/email-templates/${key}/preview`, draft || {});
+    return apiClient.post(
+      `/tenant/email-templates/${key}/preview`,
+      draft || {},
+    );
   },
 };

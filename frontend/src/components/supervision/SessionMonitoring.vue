@@ -1,7 +1,6 @@
 <template>
   <!-- === MONITORING DES SESSIONS === -->
   <section class="sm-root">
-
     <!-- Barre d'actions -->
     <header class="sm-toolbar">
       <div class="sm-toolbar__title">
@@ -26,7 +25,9 @@
     </header>
 
     <!-- Erreur -->
-    <div v-if="loadError" class="sm-banner sm-banner--error">{{ loadError }}</div>
+    <div v-if="loadError" class="sm-banner sm-banner--error">
+      {{ loadError }}
+    </div>
 
     <!-- Tableau -->
     <div class="sm-table-wrap">
@@ -46,7 +47,9 @@
           <!-- Skeleton -->
           <template v-if="loading">
             <tr v-for="n in 4" :key="`sk-${n}`" class="sm-row">
-              <td v-for="c in 7" :key="c" class="sm-td"><span class="sm-skel"></span></td>
+              <td v-for="c in 7" :key="c" class="sm-td">
+                <span class="sm-skel"></span>
+              </td>
             </tr>
           </template>
 
@@ -54,29 +57,50 @@
           <tr v-else-if="sessions.length === 0" class="sm-row">
             <td colspan="7">
               <div class="sm-empty">
-                <p class="sm-empty__title">Aucune session {{ scope === 'live' ? 'active' : '' }}.</p>
-                <p class="sm-empty__sub">Les sessions du tenant courant apparaîtront ici.</p>
+                <p class="sm-empty__title">
+                  Aucune session {{ scope === "live" ? "active" : "" }}.
+                </p>
+                <p class="sm-empty__sub">
+                  Les sessions du tenant courant apparaîtront ici.
+                </p>
               </div>
             </td>
           </tr>
 
           <!-- Données -->
-          <tr v-for="s in sessions" :key="s.id" class="sm-row" :class="{ 'sm-row--me': s.is_current }">
+          <tr
+            v-for="s in sessions"
+            :key="s.id"
+            class="sm-row"
+            :class="{ 'sm-row--me': s.is_current }"
+          >
             <td class="sm-td">
               <div class="sm-user">
-                <span class="sm-user__name">{{ s.full_name || s.username || '—' }}</span>
-                <span class="sm-user__sub">@{{ s.username }}<span v-if="s.is_current" class="sm-tag-me">CETTE SESSION</span></span>
+                <span class="sm-user__name">{{
+                  s.full_name || s.username || "—"
+                }}</span>
+                <span class="sm-user__sub"
+                  >@{{ s.username
+                  }}<span v-if="s.is_current" class="sm-tag-me"
+                    >CETTE SESSION</span
+                  ></span
+                >
               </div>
             </td>
-            <td class="sm-td"><span class="sm-role">{{ s.role || '—' }}</span></td>
+            <td class="sm-td">
+              <span class="sm-role">{{ s.role || "—" }}</span>
+            </td>
             <td class="sm-td">
               <span :class="['sm-badge', `sm-badge--${s.status}`]">
-                <span class="sm-badge__dot"></span>{{ STATUT_LABELS[s.status] ?? s.status }}
+                <span class="sm-badge__dot"></span
+                >{{ STATUT_LABELS[s.status] ?? s.status }}
               </span>
             </td>
-            <td class="sm-td sm-mono">{{ s.ip_address || '—' }}</td>
+            <td class="sm-td sm-mono">{{ s.ip_address || "—" }}</td>
             <td class="sm-td sm-mono">{{ formatDate(s.session_start) }}</td>
-            <td class="sm-td sm-mono">{{ formatRelative(s.last_activity_at) }}</td>
+            <td class="sm-td sm-mono">
+              {{ formatRelative(s.last_activity_at) }}
+            </td>
             <td class="sm-td sm-td--right">
               <template v-if="canRevoke(s)">
                 <button
@@ -89,8 +113,19 @@
                 </button>
                 <template v-else>
                   <span class="sm-confirm">Confirmer ?</span>
-                  <button class="sm-btn sm-btn--danger sm-btn--xs" :disabled="revokingId === s.id" @click="revoke(s)">OUI</button>
-                  <button class="sm-btn sm-btn--ghost sm-btn--xs" @click="confirmId = null">NON</button>
+                  <button
+                    class="sm-btn sm-btn--danger sm-btn--xs"
+                    :disabled="revokingId === s.id"
+                    @click="revoke(s)"
+                  >
+                    OUI
+                  </button>
+                  <button
+                    class="sm-btn sm-btn--ghost sm-btn--xs"
+                    @click="confirmId = null"
+                  >
+                    NON
+                  </button>
                 </template>
               </template>
               <span v-else class="sm-na">—</span>
@@ -136,7 +171,9 @@ async function fetch() {
   loadError.value = "";
   confirmId.value = null;
   try {
-    const { data } = await sessionService.getMonitoring({ status: scope.value });
+    const { data } = await sessionService.getMonitoring({
+      status: scope.value,
+    });
     sessions.value = data.sessions ?? [];
   } catch (err) {
     loadError.value =
@@ -158,8 +195,7 @@ async function revoke(s) {
     }
     await fetch();
   } catch (err) {
-    loadError.value =
-      err?.response?.data?.error || "Échec de la révocation.";
+    loadError.value = err?.response?.data?.error || "Échec de la révocation.";
   } finally {
     revokingId.value = null;
   }
@@ -214,7 +250,9 @@ onMounted(fetch);
   --ok: #22c55e;
   font-family: "Fira Sans", sans-serif;
 }
-.sm-mono { font-family: "Fira Code", monospace; }
+.sm-mono {
+  font-family: "Fira Code", monospace;
+}
 
 /* Toolbar */
 .sm-toolbar {
@@ -225,7 +263,11 @@ onMounted(fetch);
   margin-bottom: 14px;
   flex-wrap: wrap;
 }
-.sm-toolbar__title { display: flex; align-items: baseline; gap: 8px; }
+.sm-toolbar__title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
 .sm-title {
   font-size: 16px;
   font-weight: 700;
@@ -233,10 +275,22 @@ onMounted(fetch);
   color: var(--authority);
   margin: 0;
 }
-.sm-count { font-size: 15px; color: var(--muted); }
-.sm-toolbar__actions { display: flex; align-items: center; gap: 8px; }
+.sm-count {
+  font-size: 15px;
+  color: var(--muted);
+}
+.sm-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
-.sm-seg { display: inline-flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+.sm-seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
 .sm-seg__btn {
   border: none;
   background: #fff;
@@ -247,7 +301,10 @@ onMounted(fetch);
   color: var(--muted);
   cursor: pointer;
 }
-.sm-seg__btn--on { background: var(--teal); color: #fff; }
+.sm-seg__btn--on {
+  background: var(--teal);
+  color: #fff;
+}
 
 /* Boutons */
 .sm-btn {
@@ -261,23 +318,65 @@ onMounted(fetch);
   cursor: pointer;
   padding: 6px 12px;
 }
-.sm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.sm-btn--ghost { background: transparent; border-color: var(--border); color: var(--authority); }
-.sm-btn--ghost:not(:disabled):hover { background: #f7f7f8; }
-.sm-btn--danger { background: var(--danger); color: #fff; }
-.sm-btn--danger:not(:disabled):hover { filter: brightness(0.93); }
-.sm-btn--xs { padding: 4px 9px; font-size: 12px; margin-left: 4px; }
+.sm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sm-btn--ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--authority);
+}
+.sm-btn--ghost:not(:disabled):hover {
+  background: #f7f7f8;
+}
+.sm-btn--danger {
+  background: var(--danger);
+  color: #fff;
+}
+.sm-btn--danger:not(:disabled):hover {
+  filter: brightness(0.93);
+}
+.sm-btn--xs {
+  padding: 4px 9px;
+  font-size: 12px;
+  margin-left: 4px;
+}
 
-.sm-spin { display: inline-block; animation: sm-rot 0.8s linear infinite; }
-@keyframes sm-rot { to { transform: rotate(360deg); } }
+.sm-spin {
+  display: inline-block;
+  animation: sm-rot 0.8s linear infinite;
+}
+@keyframes sm-rot {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 /* Bandeau */
-.sm-banner { padding: 10px 14px; border-radius: 4px; font-size: 15px; margin-bottom: 12px; }
-.sm-banner--error { background: rgba(231,76,60,0.08); border: 1px solid rgba(231,76,60,0.3); color: #a93226; }
+.sm-banner {
+  padding: 10px 14px;
+  border-radius: 4px;
+  font-size: 15px;
+  margin-bottom: 12px;
+}
+.sm-banner--error {
+  background: rgba(231, 76, 60, 0.08);
+  border: 1px solid rgba(231, 76, 60, 0.3);
+  color: #a93226;
+}
 
 /* Tableau */
-.sm-table-wrap { background: #fff; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-.sm-table { width: 100%; border-collapse: collapse; }
+.sm-table-wrap {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.sm-table {
+  width: 100%;
+  border-collapse: collapse;
+}
 .sm-th {
   text-align: left;
   padding: 11px 14px;
@@ -289,26 +388,58 @@ onMounted(fetch);
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
-.sm-th--right { text-align: right; }
-.sm-row:hover { background: #f7f8fa; }
-.sm-row--me { background: rgba(0,168,168,0.04); }
-.sm-td { padding: 10px 14px; font-size: 15px; color: #1a1a2e; border-bottom: 1px solid var(--border); vertical-align: middle; }
-.sm-table tbody tr:last-child .sm-td { border-bottom: none; }
-.sm-td--right { text-align: right; white-space: nowrap; }
+.sm-th--right {
+  text-align: right;
+}
+.sm-row:hover {
+  background: #f7f8fa;
+}
+.sm-row--me {
+  background: rgba(0, 168, 168, 0.04);
+}
+.sm-td {
+  padding: 10px 14px;
+  font-size: 15px;
+  color: #1a1a2e;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.sm-table tbody tr:last-child .sm-td {
+  border-bottom: none;
+}
+.sm-td--right {
+  text-align: right;
+  white-space: nowrap;
+}
 
-.sm-user { display: flex; flex-direction: column; }
-.sm-user__name { font-weight: 600; }
-.sm-user__sub { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.sm-user {
+  display: flex;
+  flex-direction: column;
+}
+.sm-user__name {
+  font-weight: 600;
+}
+.sm-user__sub {
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .sm-tag-me {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   color: var(--teal);
-  background: rgba(0,168,168,0.1);
+  background: rgba(0, 168, 168, 0.1);
   padding: 1px 5px;
   border-radius: 3px;
 }
-.sm-role { font-size: 13px; font-weight: 600; color: var(--muted); }
+.sm-role {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
 
 .sm-badge {
   display: inline-flex;
@@ -319,18 +450,47 @@ onMounted(fetch);
   font-size: 13px;
   font-weight: 600;
 }
-.sm-badge__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
-.sm-badge--active { background: rgba(34,197,94,0.12); color: #15803d; }
-.sm-badge--active .sm-badge__dot { background: var(--ok); }
-.sm-badge--paused { background: rgba(243,156,18,0.12); color: #b7770d; }
-.sm-badge--paused .sm-badge__dot { background: #f39c12; }
+.sm-badge__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.sm-badge--active {
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
+}
+.sm-badge--active .sm-badge__dot {
+  background: var(--ok);
+}
+.sm-badge--paused {
+  background: rgba(243, 156, 18, 0.12);
+  color: #b7770d;
+}
+.sm-badge--paused .sm-badge__dot {
+  background: #f39c12;
+}
 .sm-badge--ended,
-.sm-badge--expired { background: #f4f6f7; color: #707b7c; }
-.sm-badge--revoked { background: rgba(231,76,60,0.1); color: #a93226; }
-.sm-badge--revoked .sm-badge__dot { background: var(--danger); }
+.sm-badge--expired {
+  background: #f4f6f7;
+  color: #707b7c;
+}
+.sm-badge--revoked {
+  background: rgba(231, 76, 60, 0.1);
+  color: #a93226;
+}
+.sm-badge--revoked .sm-badge__dot {
+  background: var(--danger);
+}
 
-.sm-confirm { font-size: 13px; font-weight: 600; color: #a93226; }
-.sm-na { color: var(--muted); }
+.sm-confirm {
+  font-size: 13px;
+  font-weight: 600;
+  color: #a93226;
+}
+.sm-na {
+  color: var(--muted);
+}
 
 .sm-skel {
   display: block;
@@ -340,9 +500,28 @@ onMounted(fetch);
   background-size: 400% 100%;
   animation: sm-shim 1.3s ease infinite;
 }
-@keyframes sm-shim { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+@keyframes sm-shim {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
 
-.sm-empty { text-align: center; padding: 40px 16px; }
-.sm-empty__title { font-size: 16px; font-weight: 600; color: var(--authority); margin: 0 0 4px; }
-.sm-empty__sub { font-size: 14px; color: var(--muted); margin: 0; }
+.sm-empty {
+  text-align: center;
+  padding: 40px 16px;
+}
+.sm-empty__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--authority);
+  margin: 0 0 4px;
+}
+.sm-empty__sub {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0;
+}
 </style>

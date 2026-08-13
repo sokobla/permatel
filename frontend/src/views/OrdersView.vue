@@ -1,6 +1,5 @@
 <template>
   <div class="ov-root">
-
     <!-- ══ HEADER ════════════════════════════════════════════════════════ -->
     <div class="ov-hdr">
       <div class="ov-hdr-left">
@@ -9,7 +8,8 @@
           <h1 class="ov-title">Commandes de sécurité</h1>
         </div>
         <p class="ov-subtitle">
-          Suivez l'ensemble des commandes de prestations de sécurité en cours et à venir.
+          Suivez l'ensemble des commandes de prestations de sécurité en cours et
+          à venir.
         </p>
       </div>
       <div class="ov-hdr-actions">
@@ -29,14 +29,23 @@
       <div
         v-for="card in kpiCards"
         :key="card.client"
-        :class="['ov-kpi-card', filterClientId === card.clientId ? 'ov-kpi-card--active' : '']"
+        :class="[
+          'ov-kpi-card',
+          filterClientId === card.clientId ? 'ov-kpi-card--active' : '',
+        ]"
         @click="toggleClientFilter(card.clientId)"
       >
         <div class="ov-kpi-card__head">
           <span v-if="card.hasNew" class="ov-kpi-card__badge">NOUVEAU</span>
-          <span class="ov-kpi-card__dot" :style="{ background: card.color }"></span>
+          <span
+            class="ov-kpi-card__dot"
+            :style="{ background: card.color }"
+          ></span>
           <span class="ov-kpi-card__name">{{ card.client }}</span>
-          <button class="ov-kpi-card__link" @click.stop="toggleClientFilter(card.clientId)">
+          <button
+            class="ov-kpi-card__link"
+            @click.stop="toggleClientFilter(card.clientId)"
+          >
             Voir détails
             <v-icon size="10">mdi-arrow-right</v-icon>
           </button>
@@ -45,7 +54,8 @@
           <div class="ov-kpi-card__metric">
             <span class="ov-kpi-card__metric-lbl">EN COURS</span>
             <span class="ov-kpi-card__metric-val">
-              {{ card.enCours }}<span class="ov-kpi-card__metric-total">/{{ card.total }}</span>
+              {{ card.enCours
+              }}<span class="ov-kpi-card__metric-total">/{{ card.total }}</span>
             </span>
           </div>
           <div class="ov-kpi-card__divider"></div>
@@ -87,21 +97,25 @@
         >
           <v-icon size="13">mdi-filter-outline</v-icon>
           Filtres
-          <span v-if="activeFiltersCount > 0" class="ov-tool-btn__badge">{{ activeFiltersCount }}</span>
+          <span v-if="activeFiltersCount > 0" class="ov-tool-btn__badge">{{
+            activeFiltersCount
+          }}</span>
         </button>
       </div>
     </div>
 
     <!-- ── Barre de filtres rapides ─────────────────────────────────── -->
     <div v-if="showFilters || filterContactId != null" class="ov-filter-bar">
-
       <!-- Filtre contact actif (venant d'un lien ContactsView) -->
       <div v-if="filterContactId != null" class="ov-filter-group">
         <span class="ov-filter-lbl">DEMANDEUR</span>
         <span class="ov-active-filter-chip">
           <v-icon size="11" color="#00a8a8">mdi-account-outline</v-icon>
           {{ filterContactName }}
-          <button class="ov-active-filter-chip__close" @click="filterContactId = null">
+          <button
+            class="ov-active-filter-chip__close"
+            @click="filterContactId = null"
+          >
             <v-icon size="10">mdi-close</v-icon>
           </button>
         </span>
@@ -113,10 +127,16 @@
           <button
             v-for="s in statutOptions"
             :key="s.value"
-            :class="['ov-filter-chip', filterStatut === s.value ? 'ov-filter-chip--active' : '']"
+            :class="[
+              'ov-filter-chip',
+              filterStatut === s.value ? 'ov-filter-chip--active' : '',
+            ]"
             @click="filterStatut = filterStatut === s.value ? null : s.value"
           >
-            <span class="ov-filter-chip__dot" :style="{ background: s.color }"></span>
+            <span
+              class="ov-filter-chip__dot"
+              :style="{ background: s.color }"
+            ></span>
             {{ s.label }}
           </button>
         </div>
@@ -125,7 +145,10 @@
           <button
             v-for="t in typeOptions"
             :key="t.value"
-            :class="['ov-filter-chip', filterType === t.value ? 'ov-filter-chip--active' : '']"
+            :class="[
+              'ov-filter-chip',
+              filterType === t.value ? 'ov-filter-chip--active' : '',
+            ]"
             @click="filterType = filterType === t.value ? null : t.value"
           >
             {{ t.label }}
@@ -133,7 +156,11 @@
         </div>
       </template>
 
-      <button v-if="activeFiltersCount > 0" class="ov-filter-reset" @click="resetFilters">
+      <button
+        v-if="activeFiltersCount > 0"
+        class="ov-filter-reset"
+        @click="resetFilters"
+      >
         <v-icon size="11">mdi-close</v-icon>
         Réinitialiser tout
       </button>
@@ -145,29 +172,48 @@
         <thead>
           <tr>
             <th class="ov-th">Commande</th>
-            <th class="ov-th" style="width:130px">Type / Montant</th>
-            <th class="ov-th" style="width:150px">Créée le</th>
-            <th class="ov-th" style="width:130px">Impliqués</th>
-            <th class="ov-th" style="width:50px; text-align:right">Actions</th>
+            <th class="ov-th" style="width: 130px">Type / Montant</th>
+            <th class="ov-th" style="width: 150px">Créée le</th>
+            <th class="ov-th" style="width: 130px">Impliqués</th>
+            <th class="ov-th" style="width: 50px; text-align: right">
+              Actions
+            </th>
           </tr>
         </thead>
         <tbody>
           <template v-if="groupEnabled">
             <template v-for="group in groupedRows" :key="group.client">
-
               <!-- Ligne accordéon groupe -->
               <tr class="ov-group-row" @click="toggleGroup(group.client)">
                 <td colspan="5" class="ov-group-row__cell">
                   <div class="ov-group-row__inner">
                     <v-icon
                       size="12"
-                      :class="['ov-group-row__chevron', openGroups.has(group.client) ? 'ov-group-row__chevron--open' : '']"
-                    >mdi-chevron-right</v-icon>
-                    <span class="ov-group-row__dot" :style="{ background: group.color }"></span>
+                      :class="[
+                        'ov-group-row__chevron',
+                        openGroups.has(group.client)
+                          ? 'ov-group-row__chevron--open'
+                          : '',
+                      ]"
+                      >mdi-chevron-right</v-icon
+                    >
+                    <span
+                      class="ov-group-row__dot"
+                      :style="{ background: group.color }"
+                    ></span>
                     <span class="ov-group-row__name">{{ group.client }}</span>
-                    <span class="ov-group-row__count">{{ group.items.length }}</span>
+                    <span class="ov-group-row__count">{{
+                      group.items.length
+                    }}</span>
                     <span class="ov-group-row__total">
-                      {{ formatMontant(group.items.reduce((s, o) => s + (o.budget_estime ?? 0), 0)) }}
+                      {{
+                        formatMontant(
+                          group.items.reduce(
+                            (s, o) => s + (o.budget_estime ?? 0),
+                            0,
+                          ),
+                        )
+                      }}
                     </span>
                     <span class="ov-group-row__spacer"></span>
                     <button class="ov-group-row__link" @click.stop>
@@ -184,42 +230,71 @@
                   v-for="row in group.items"
                   :key="row.id"
                   class="ov-data-row"
-                  style="cursor:pointer"
+                  style="cursor: pointer"
                   @click="selectRow(row)"
                 >
                   <td class="ov-td ov-td--commande">
                     <div class="ov-name-cell">
-                      <span class="ov-type-icon" :style="typeStyle(row.type_commande)">
-                        <v-icon size="14" :color="typeStyle(row.type_commande).color">mdi-clipboard-text-outline</v-icon>
+                      <span
+                        class="ov-type-icon"
+                        :style="typeStyle(row.type_commande)"
+                      >
+                        <v-icon
+                          size="14"
+                          :color="typeStyle(row.type_commande).color"
+                          >mdi-clipboard-text-outline</v-icon
+                        >
                       </span>
                       <div class="ov-name-text-block">
                         <span class="ov-titre">{{ row.titre }}</span>
                         <span class="ov-name-sub">
-                          <span class="ov-client-dot" :style="{ background: group.color }"></span>
+                          <span
+                            class="ov-client-dot"
+                            :style="{ background: group.color }"
+                          ></span>
                           {{ row.client_nom ?? `Client #${row.client_id}` }}
-                          <template v-if="row.site_nom"> · {{ row.site_nom }}</template>
+                          <template v-if="row.site_nom">
+                            · {{ row.site_nom }}</template
+                          >
                         </span>
                         <div class="ov-cell-flex ov-name-status">
-                          <span :class="['ov-statut-chip', `ov-statut-chip--${row.statut}`]">
+                          <span
+                            :class="[
+                              'ov-statut-chip',
+                              `ov-statut-chip--${row.statut}`,
+                            ]"
+                          >
                             <span class="ov-statut-chip__dot"></span>
                             {{ statutLabels[row.statut] }}
                           </span>
-                          <button v-if="row.statut === 'planifiee'" class="ov-schedule-btn" @click.stop>
-                            Planifié {{ formatShortDate(row.date_livraison_souhaitee) }}
+                          <button
+                            v-if="row.statut === 'planifiee'"
+                            class="ov-schedule-btn"
+                            @click.stop
+                          >
+                            Planifié
+                            {{ formatShortDate(row.date_livraison_souhaitee) }}
                           </button>
                         </div>
                       </div>
                     </div>
                   </td>
                   <td class="ov-td">
-                    <span class="ov-type-badge" :style="typeStyle(row.type_commande)">
+                    <span
+                      class="ov-type-badge"
+                      :style="typeStyle(row.type_commande)"
+                    >
                       {{ typeLabels[row.type_commande] ?? row.type_commande }}
                     </span>
-                    <div class="ov-montant">{{ formatMontant(row.budget_estime) }}</div>
+                    <div class="ov-montant">
+                      {{ formatMontant(row.budget_estime) }}
+                    </div>
                   </td>
                   <td class="ov-td ov-td--date">
                     {{ formatShortDate(row.created_at) }}
-                    <div class="ov-date-sub">début {{ formatShortDate(row.date_livraison_souhaitee) }}</div>
+                    <div class="ov-date-sub">
+                      début {{ formatShortDate(row.date_livraison_souhaitee) }}
+                    </div>
                   </td>
                   <td class="ov-td">
                     <div class="ov-avatar-stack">
@@ -228,21 +303,26 @@
                         :key="a.name"
                         :class="['ov-avatar', 'ov-avatar--stack', a.cls]"
                         :title="a.name"
-                      >{{ initials(a.name) }}</span>
-                      <span v-if="involvedAvatars(row).length > 3" class="ov-avatar ov-avatar--stack ov-avatar--more">
+                        >{{ initials(a.name) }}</span
+                      >
+                      <span
+                        v-if="involvedAvatars(row).length > 3"
+                        class="ov-avatar ov-avatar--stack ov-avatar--more"
+                      >
                         +{{ involvedAvatars(row).length - 3 }}
                       </span>
-                      <span v-if="!involvedAvatars(row).length" class="ov-muted">—</span>
+                      <span v-if="!involvedAvatars(row).length" class="ov-muted"
+                        >—</span
+                      >
                     </div>
                   </td>
-                  <td class="ov-td" style="text-align:right">
+                  <td class="ov-td" style="text-align: right">
                     <button class="ov-action-btn" @click.stop="selectRow(row)">
                       <v-icon size="15">mdi-dots-vertical</v-icon>
                     </button>
                   </td>
                 </tr>
               </template>
-
             </template>
           </template>
 
@@ -252,42 +332,71 @@
               v-for="row in filteredRows"
               :key="row.id"
               class="ov-data-row"
-              style="cursor:pointer"
+              style="cursor: pointer"
               @click="selectRow(row)"
             >
               <td class="ov-td ov-td--commande">
                 <div class="ov-name-cell">
-                  <span class="ov-type-icon" :style="typeStyle(row.type_commande)">
-                    <v-icon size="14" :color="typeStyle(row.type_commande).color">mdi-clipboard-text-outline</v-icon>
+                  <span
+                    class="ov-type-icon"
+                    :style="typeStyle(row.type_commande)"
+                  >
+                    <v-icon
+                      size="14"
+                      :color="typeStyle(row.type_commande).color"
+                      >mdi-clipboard-text-outline</v-icon
+                    >
                   </span>
                   <div class="ov-name-text-block">
                     <span class="ov-titre">{{ row.titre }}</span>
                     <span class="ov-name-sub">
-                      <span class="ov-client-dot" :style="{ background: clientColor(row.client_id) }"></span>
+                      <span
+                        class="ov-client-dot"
+                        :style="{ background: clientColor(row.client_id) }"
+                      ></span>
                       {{ row.client_nom ?? `Client #${row.client_id}` }}
-                      <template v-if="row.site_nom"> · {{ row.site_nom }}</template>
+                      <template v-if="row.site_nom">
+                        · {{ row.site_nom }}</template
+                      >
                     </span>
                     <div class="ov-cell-flex ov-name-status">
-                      <span :class="['ov-statut-chip', `ov-statut-chip--${row.statut}`]">
+                      <span
+                        :class="[
+                          'ov-statut-chip',
+                          `ov-statut-chip--${row.statut}`,
+                        ]"
+                      >
                         <span class="ov-statut-chip__dot"></span>
                         {{ statutLabels[row.statut] }}
                       </span>
-                      <button v-if="row.statut === 'planifiee'" class="ov-schedule-btn" @click.stop>
-                        Planifié {{ formatShortDate(row.date_livraison_souhaitee) }}
+                      <button
+                        v-if="row.statut === 'planifiee'"
+                        class="ov-schedule-btn"
+                        @click.stop
+                      >
+                        Planifié
+                        {{ formatShortDate(row.date_livraison_souhaitee) }}
                       </button>
                     </div>
                   </div>
                 </div>
               </td>
               <td class="ov-td">
-                <span class="ov-type-badge" :style="typeStyle(row.type_commande)">
+                <span
+                  class="ov-type-badge"
+                  :style="typeStyle(row.type_commande)"
+                >
                   {{ typeLabels[row.type_commande] ?? row.type_commande }}
                 </span>
-                <div class="ov-montant">{{ formatMontant(row.budget_estime) }}</div>
+                <div class="ov-montant">
+                  {{ formatMontant(row.budget_estime) }}
+                </div>
               </td>
               <td class="ov-td ov-td--date">
                 {{ formatShortDate(row.created_at) }}
-                <div class="ov-date-sub">début {{ formatShortDate(row.date_livraison_souhaitee) }}</div>
+                <div class="ov-date-sub">
+                  début {{ formatShortDate(row.date_livraison_souhaitee) }}
+                </div>
               </td>
               <td class="ov-td">
                 <div class="ov-avatar-stack">
@@ -296,14 +405,20 @@
                     :key="a.name"
                     :class="['ov-avatar', 'ov-avatar--stack', a.cls]"
                     :title="a.name"
-                  >{{ initials(a.name) }}</span>
-                  <span v-if="involvedAvatars(row).length > 3" class="ov-avatar ov-avatar--stack ov-avatar--more">
+                    >{{ initials(a.name) }}</span
+                  >
+                  <span
+                    v-if="involvedAvatars(row).length > 3"
+                    class="ov-avatar ov-avatar--stack ov-avatar--more"
+                  >
                     +{{ involvedAvatars(row).length - 3 }}
                   </span>
-                  <span v-if="!involvedAvatars(row).length" class="ov-muted">—</span>
+                  <span v-if="!involvedAvatars(row).length" class="ov-muted"
+                    >—</span
+                  >
                 </div>
               </td>
-              <td class="ov-td" style="text-align:right">
+              <td class="ov-td" style="text-align: right">
                 <button class="ov-action-btn" @click.stop="selectRow(row)">
                   <v-icon size="15">mdi-dots-vertical</v-icon>
                 </button>
@@ -315,7 +430,9 @@
           <tr v-if="loading">
             <td colspan="5">
               <div class="ov-empty">
-                <v-icon size="28" color="#e0e0e0" class="ov-spin">mdi-loading</v-icon>
+                <v-icon size="28" color="#e0e0e0" class="ov-spin"
+                  >mdi-loading</v-icon
+                >
                 <span>Chargement des commandes…</span>
               </div>
             </td>
@@ -324,18 +441,24 @@
           <!-- Erreur API -->
           <tr v-else-if="loadError">
             <td colspan="5">
-              <div class="ov-empty" style="color:#e74c3c">
-                <v-icon size="28" color="#e74c3c">mdi-alert-circle-outline</v-icon>
+              <div class="ov-empty" style="color: #e74c3c">
+                <v-icon size="28" color="#e74c3c"
+                  >mdi-alert-circle-outline</v-icon
+                >
                 <span>{{ loadError }}</span>
               </div>
             </td>
           </tr>
 
           <!-- État vide -->
-          <tr v-else-if="(groupEnabled ? groupedRows : filteredRows).length === 0">
+          <tr
+            v-else-if="(groupEnabled ? groupedRows : filteredRows).length === 0"
+          >
             <td colspan="5">
               <div class="ov-empty">
-                <v-icon size="36" color="#e0e0e0">mdi-package-variant-closed-check</v-icon>
+                <v-icon size="36" color="#e0e0e0"
+                  >mdi-package-variant-closed-check</v-icon
+                >
                 <span>Aucune commande ne correspond aux critères</span>
               </div>
             </td>
@@ -343,7 +466,6 @@
         </tbody>
       </table>
     </div>
-
   </div>
 
   <!-- ── Drawer d'édition ─────────────────────────────────────────────── -->
@@ -353,7 +475,6 @@
     @close="selectedDemande = null"
     @updated="onUpdated"
   />
-
 </template>
 
 <script setup>
@@ -365,62 +486,72 @@ import EditCommandeDrawer from "@/components/workspace/EditCommandeDrawer.vue";
 const route = useRoute();
 
 // ─── Palette couleur ──────────────────────────────────────────────────────────
-const PALETTE = ["#00a8a8","#3498db","#8e44ad","#e67e22","#27ae60","#e74c3c","#f39c12","#16a085"];
-const clientColor = (id) => PALETTE[((id ?? 0) - 1 + PALETTE.length) % PALETTE.length];
+const PALETTE = [
+  "#00a8a8",
+  "#3498db",
+  "#8e44ad",
+  "#e67e22",
+  "#27ae60",
+  "#e74c3c",
+  "#f39c12",
+  "#16a085",
+];
+const clientColor = (id) =>
+  PALETTE[((id ?? 0) - 1 + PALETTE.length) % PALETTE.length];
 
 const typeLabels = {
-  gardiennage:          "Gardiennage",
-  surveillance_mobile:  "Surv. mobile",
-  rondes:               "Rondes",
-  intervention:         "Intervention",
-  filtrage:             "Filtrage",
-  protection_rapprochee:"Protection",
-  accueil_securite:     "Accueil sécu.",
-  autre:                "Autre",
+  gardiennage: "Gardiennage",
+  surveillance_mobile: "Surv. mobile",
+  rondes: "Rondes",
+  intervention: "Intervention",
+  filtrage: "Filtrage",
+  protection_rapprochee: "Protection",
+  accueil_securite: "Accueil sécu.",
+  autre: "Autre",
 };
 
 const typeColors = {
-  gardiennage:          { bg: "rgba(0,168,168,0.1)",  fg: "#00a8a8" },
-  surveillance_mobile:  { bg: "rgba(52,152,219,0.1)", fg: "#3498db" },
-  rondes:               { bg: "rgba(0,11,35,0.06)",   fg: "#555"    },
-  intervention:         { bg: "rgba(231,76,60,0.1)",  fg: "#e74c3c" },
-  filtrage:             { bg: "rgba(243,156,18,0.1)", fg: "#f39c12" },
-  protection_rapprochee:{ bg: "rgba(142,68,173,0.1)", fg: "#8e44ad" },
-  accueil_securite:     { bg: "rgba(39,174,96,0.1)",  fg: "#27ae60" },
-  autre:                { bg: "rgba(0,0,0,0.05)",     fg: "#aaa"    },
+  gardiennage: { bg: "rgba(0,168,168,0.1)", fg: "#00a8a8" },
+  surveillance_mobile: { bg: "rgba(52,152,219,0.1)", fg: "#3498db" },
+  rondes: { bg: "rgba(0,11,35,0.06)", fg: "#555" },
+  intervention: { bg: "rgba(231,76,60,0.1)", fg: "#e74c3c" },
+  filtrage: { bg: "rgba(243,156,18,0.1)", fg: "#f39c12" },
+  protection_rapprochee: { bg: "rgba(142,68,173,0.1)", fg: "#8e44ad" },
+  accueil_securite: { bg: "rgba(39,174,96,0.1)", fg: "#27ae60" },
+  autre: { bg: "rgba(0,0,0,0.05)", fg: "#aaa" },
 };
 
 const statutLabels = {
   planifiee: "Planifiée",
-  en_cours:  "En cours",
-  validee:   "Validée",
-  termine:   "Terminée",
+  en_cours: "En cours",
+  validee: "Validée",
+  termine: "Terminée",
   suspendue: "Suspendue",
-  annulee:   "Annulée",
+  annulee: "Annulée",
 };
 
 const statutOptions = [
-  { value: "planifiee", label: "Planifiée",  color: "#3498db" },
-  { value: "en_cours",  label: "En cours",   color: "#f39c12" },
-  { value: "validee",   label: "Validée",    color: "#27ae60" },
-  { value: "termine",   label: "Terminée",   color: "#95a5a6" },
-  { value: "annulee",   label: "Annulée",    color: "#e74c3c" },
+  { value: "planifiee", label: "Planifiée", color: "#3498db" },
+  { value: "en_cours", label: "En cours", color: "#f39c12" },
+  { value: "validee", label: "Validée", color: "#27ae60" },
+  { value: "termine", label: "Terminée", color: "#95a5a6" },
+  { value: "annulee", label: "Annulée", color: "#e74c3c" },
 ];
 
 const typeOptions = [
-  { value: "gardiennage",          label: "Gardiennage"   },
-  { value: "surveillance_mobile",  label: "Surveillance"  },
-  { value: "rondes",               label: "Rondes"        },
-  { value: "intervention",         label: "Intervention"  },
-  { value: "filtrage",             label: "Filtrage"      },
-  { value: "protection_rapprochee",label: "Protection"    },
-  { value: "accueil_securite",     label: "Accueil"       },
+  { value: "gardiennage", label: "Gardiennage" },
+  { value: "surveillance_mobile", label: "Surveillance" },
+  { value: "rondes", label: "Rondes" },
+  { value: "intervention", label: "Intervention" },
+  { value: "filtrage", label: "Filtrage" },
+  { value: "protection_rapprochee", label: "Protection" },
+  { value: "accueil_securite", label: "Accueil" },
 ];
 
 // ─── Données réelles ──────────────────────────────────────────────────────────
-const demandes        = ref([]);
-const loading         = ref(false);
-const loadError       = ref("");
+const demandes = ref([]);
+const loading = ref(false);
+const loadError = ref("");
 const selectedDemande = ref(null);
 
 async function loadData() {
@@ -444,38 +575,47 @@ onMounted(() => {
 });
 
 // ─── État UI ──────────────────────────────────────────────────────────────────
-const search          = ref("");
-const showFilters     = ref(false);
-const filterStatut    = ref(null);
-const filterType      = ref(null);
-const filterClientId  = ref(null);
+const search = ref("");
+const showFilters = ref(false);
+const filterStatut = ref(null);
+const filterType = ref(null);
+const filterClientId = ref(null);
 const filterContactId = ref(null);
-const groupEnabled   = ref(true);
-const openGroups     = ref(new Set());
+const groupEnabled = ref(true);
+const openGroups = ref(new Set());
 
 // ─── Computed ─────────────────────────────────────────────────────────────────
-const activeFiltersCount = computed(() =>
-  [filterStatut.value, filterType.value, filterClientId.value,
-   filterContactId.value].filter(v => v != null).length
+const activeFiltersCount = computed(
+  () =>
+    [
+      filterStatut.value,
+      filterType.value,
+      filterClientId.value,
+      filterContactId.value,
+    ].filter((v) => v != null).length,
 );
 
 const filterContactName = computed(() => {
   if (filterContactId.value == null) return null;
-  const found = demandes.value.find(d => d.contact_id === filterContactId.value);
+  const found = demandes.value.find(
+    (d) => d.contact_id === filterContactId.value,
+  );
   return found?.contact_nom ?? `Contact #${filterContactId.value}`;
 });
 
 const filteredRows = computed(() => {
   const q = search.value.trim().toLowerCase();
-  return demandes.value.filter(o => {
+  return demandes.value.filter((o) => {
     if (q) {
       const hay = `${o.titre} ${o.client_nom ?? ""}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
-    if (filterStatut.value    && o.statut        !== filterStatut.value)    return false;
-    if (filterType.value      && o.type_commande !== filterType.value)      return false;
-    if (filterClientId.value  != null && o.client_id  !== filterClientId.value)  return false;
-    if (filterContactId.value != null && o.contact_id !== filterContactId.value) return false;
+    if (filterStatut.value && o.statut !== filterStatut.value) return false;
+    if (filterType.value && o.type_commande !== filterType.value) return false;
+    if (filterClientId.value != null && o.client_id !== filterClientId.value)
+      return false;
+    if (filterContactId.value != null && o.contact_id !== filterContactId.value)
+      return false;
     return true;
   });
 });
@@ -484,23 +624,42 @@ const groupedRows = computed(() => {
   const map = {};
   for (const o of filteredRows.value) {
     const name = o.client_nom ?? `Client #${o.client_id}`;
-    if (!map[name]) map[name] = { client: name, clientId: o.client_id, color: clientColor(o.client_id), items: [] };
+    if (!map[name])
+      map[name] = {
+        client: name,
+        clientId: o.client_id,
+        color: clientColor(o.client_id),
+        items: [],
+      };
     map[name].items.push(o);
   }
   return Object.values(map);
 });
 
-watch(groupedRows, (groups) => {
-  const s = new Set(openGroups.value);
-  groups.forEach(g => s.add(g.client));
-  openGroups.value = s;
-}, { immediate: true });
+watch(
+  groupedRows,
+  (groups) => {
+    const s = new Set(openGroups.value);
+    groups.forEach((g) => s.add(g.client));
+    openGroups.value = s;
+  },
+  { immediate: true },
+);
 
 const kpiCards = computed(() => {
   const map = {};
   for (const o of demandes.value) {
     const name = o.client_nom ?? `Client #${o.client_id}`;
-    if (!map[name]) map[name] = { client: name, clientId: o.client_id, color: clientColor(o.client_id), enCours: 0, total: 0, montantTotal: 0, hasNew: false };
+    if (!map[name])
+      map[name] = {
+        client: name,
+        clientId: o.client_id,
+        color: clientColor(o.client_id),
+        enCours: 0,
+        total: 0,
+        montantTotal: 0,
+        hasNew: false,
+      };
     map[name].total++;
     map[name].montantTotal += o.budget_estime ?? 0;
     if (["planifiee", "en_cours"].includes(o.statut)) map[name].enCours++;
@@ -521,16 +680,18 @@ function toggleClientFilter(clientId) {
 }
 
 function resetFilters() {
-  filterStatut.value    = null;
-  filterType.value      = null;
-  filterClientId.value  = null;
+  filterStatut.value = null;
+  filterType.value = null;
+  filterClientId.value = null;
   filterContactId.value = null;
 }
 
-function selectRow(row) { selectedDemande.value = row; }
+function selectRow(row) {
+  selectedDemande.value = row;
+}
 
 function onUpdated(updated) {
-  const idx = demandes.value.findIndex(d => d.id === updated.id);
+  const idx = demandes.value.findIndex((d) => d.id === updated.id);
   if (idx !== -1) demandes.value.splice(idx, 1, updated);
   selectedDemande.value = null;
 }
@@ -542,17 +703,30 @@ function typeStyle(type) {
 
 function formatMontant(val) {
   if (val == null) return "—";
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(val);
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(val);
 }
 
 function formatShortDate(iso) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  return new Date(iso).toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  });
 }
 
 function initials(name) {
   if (!name) return "?";
-  return name.split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase();
+  return name
+    .split(" ")
+    .map((p) => p[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 }
 
 // ─── Pile d'avatars "Impliqués" ────────────────────────────────────────────
@@ -646,13 +820,18 @@ function involvedAvatars(row) {
   color: #555;
   border: 1px solid rgba(0, 0, 0, 0.12);
 }
-.ov-btn--ghost:hover { border-color: #00a8a8; color: #00a8a8; }
+.ov-btn--ghost:hover {
+  border-color: #00a8a8;
+  color: #00a8a8;
+}
 
 .ov-btn--primary {
   background: #000b23;
   color: #fff;
 }
-.ov-btn--primary:hover { background: #00a8a8; }
+.ov-btn--primary:hover {
+  background: #00a8a8;
+}
 
 /* ══ KPI STRIP ═══════════════════════════════════════════════════════ */
 .ov-kpi-strip {
@@ -661,8 +840,13 @@ function involvedAvatars(row) {
   overflow-x: auto;
   padding-bottom: 2px;
 }
-.ov-kpi-strip::-webkit-scrollbar { height: 3px; }
-.ov-kpi-strip::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 2px; }
+.ov-kpi-strip::-webkit-scrollbar {
+  height: 3px;
+}
+.ov-kpi-strip::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+}
 
 .ov-kpi-card {
   flex-shrink: 0;
@@ -675,10 +859,18 @@ function involvedAvatars(row) {
   flex-direction: column;
   gap: 9px;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
-.ov-kpi-card:hover { border-color: rgba(0,168,168,0.3); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-.ov-kpi-card--active { border-color: #00a8a8; background: rgba(0,168,168,0.03); }
+.ov-kpi-card:hover {
+  border-color: rgba(0, 168, 168, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.ov-kpi-card--active {
+  border-color: #00a8a8;
+  background: rgba(0, 168, 168, 0.03);
+}
 
 .ov-kpi-card__head {
   display: flex;
@@ -692,7 +884,7 @@ function involvedAvatars(row) {
   font-weight: 700;
   letter-spacing: 0.1em;
   color: #3498db;
-  background: rgba(52,152,219,0.1);
+  background: rgba(52, 152, 219, 0.1);
   padding: 2px 5px;
   border-radius: 2px;
   text-transform: uppercase;
@@ -740,7 +932,7 @@ function involvedAvatars(row) {
 .ov-kpi-card__divider {
   width: 1px;
   height: 22px;
-  background: rgba(0,0,0,0.07);
+  background: rgba(0, 0, 0, 0.07);
 }
 
 .ov-kpi-card__metric {
@@ -764,8 +956,15 @@ function involvedAvatars(row) {
   font-weight: 700;
   color: #000b23;
 }
-.ov-kpi-card__metric-val--teal { color: #00a8a8; font-size: 14px; }
-.ov-kpi-card__metric-total { font-size: 13px; color: #bbb; font-weight: 500; }
+.ov-kpi-card__metric-val--teal {
+  color: #00a8a8;
+  font-size: 14px;
+}
+.ov-kpi-card__metric-total {
+  font-size: 13px;
+  color: #bbb;
+  font-weight: 500;
+}
 
 /* ══ TOOLBAR ════════════════════════════════════════════════════════ */
 .ov-toolbar {
@@ -773,7 +972,7 @@ function involvedAvatars(row) {
   align-items: center;
   gap: 10px;
   background: #fff;
-  border: 1px solid rgba(0,0,0,0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 3px;
   padding: 7px 12px;
 }
@@ -794,7 +993,9 @@ function involvedAvatars(row) {
   color: #000b23;
   background: transparent;
 }
-.ov-search__input::placeholder { color: #ccc; }
+.ov-search__input::placeholder {
+  color: #ccc;
+}
 
 .ov-search__clear {
   display: flex;
@@ -804,7 +1005,7 @@ function involvedAvatars(row) {
   height: 16px;
   border-radius: 50%;
   border: none;
-  background: rgba(0,0,0,0.08);
+  background: rgba(0, 0, 0, 0.08);
   cursor: pointer;
   color: #888;
 }
@@ -813,7 +1014,7 @@ function involvedAvatars(row) {
   display: flex;
   align-items: center;
   gap: 6px;
-  border-left: 1px solid rgba(0,0,0,0.07);
+  border-left: 1px solid rgba(0, 0, 0, 0.07);
   padding-left: 10px;
 }
 
@@ -823,7 +1024,7 @@ function involvedAvatars(row) {
   gap: 4px;
   height: 26px;
   padding: 0 10px;
-  border: 1px solid rgba(0,0,0,0.1);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 3px;
   background: transparent;
   font-family: "Fira Sans", sans-serif;
@@ -834,8 +1035,15 @@ function involvedAvatars(row) {
   transition: all 0.12s;
   position: relative;
 }
-.ov-tool-btn:hover { border-color: #00a8a8; color: #00a8a8; }
-.ov-tool-btn--active { border-color: #00a8a8; color: #00a8a8; background: rgba(0,168,168,0.06); }
+.ov-tool-btn:hover {
+  border-color: #00a8a8;
+  color: #00a8a8;
+}
+.ov-tool-btn--active {
+  border-color: #00a8a8;
+  color: #00a8a8;
+  background: rgba(0, 168, 168, 0.06);
+}
 
 .ov-tool-btn__badge {
   display: inline-flex;
@@ -856,7 +1064,7 @@ function involvedAvatars(row) {
   align-items: center;
   gap: 14px;
   background: #fff;
-  border: 1px solid rgba(0,0,0,0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 3px;
   padding: 8px 12px;
   flex-wrap: wrap;
@@ -886,7 +1094,7 @@ function involvedAvatars(row) {
   gap: 4px;
   height: 22px;
   padding: 0 9px;
-  border: 1px solid rgba(0,0,0,0.1);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 11px;
   background: transparent;
   font-family: "Fira Sans", sans-serif;
@@ -896,8 +1104,15 @@ function involvedAvatars(row) {
   cursor: pointer;
   transition: all 0.12s;
 }
-.ov-filter-chip:hover { border-color: #00a8a8; color: #00a8a8; }
-.ov-filter-chip--active { background: #000b23; border-color: #000b23; color: #fff; }
+.ov-filter-chip:hover {
+  border-color: #00a8a8;
+  color: #00a8a8;
+}
+.ov-filter-chip--active {
+  background: #000b23;
+  border-color: #000b23;
+  color: #fff;
+}
 
 .ov-filter-chip__dot {
   width: 6px;
@@ -915,7 +1130,7 @@ function involvedAvatars(row) {
   padding: 0 8px;
   border: none;
   border-radius: 3px;
-  background: rgba(231,76,60,0.08);
+  background: rgba(231, 76, 60, 0.08);
   font-family: "Fira Sans", sans-serif;
   font-size: 12px;
   font-weight: 600;
@@ -926,7 +1141,7 @@ function involvedAvatars(row) {
 /* ══ TABLE ═══════════════════════════════════════════════════════════ */
 .ov-table-wrap {
   background: #fff;
-  border: 1px solid rgba(0,0,0,0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -946,19 +1161,23 @@ function involvedAvatars(row) {
   color: #bbb;
   text-transform: uppercase;
   background: #fafafa;
-  border-bottom: 1px solid rgba(0,0,0,0.07);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
   white-space: nowrap;
   user-select: none;
 }
 
 /* Groupe accordéon */
-.ov-group-row { cursor: pointer; }
-.ov-group-row:hover .ov-group-row__cell { background: rgba(0,168,168,0.04); }
+.ov-group-row {
+  cursor: pointer;
+}
+.ov-group-row:hover .ov-group-row__cell {
+  background: rgba(0, 168, 168, 0.04);
+}
 
 .ov-group-row__cell {
   padding: 7px 12px;
-  background: rgba(0,11,35,0.02);
-  border-bottom: 1px solid rgba(0,0,0,0.06);
+  background: rgba(0, 11, 35, 0.02);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   transition: background 0.1s;
 }
 
@@ -973,7 +1192,9 @@ function involvedAvatars(row) {
   transition: transform 0.18s;
   flex-shrink: 0;
 }
-.ov-group-row__chevron--open { transform: rotate(90deg); }
+.ov-group-row__chevron--open {
+  transform: rotate(90deg);
+}
 
 .ov-group-row__dot {
   width: 10px;
@@ -996,7 +1217,7 @@ function involvedAvatars(row) {
   height: 18px;
   padding: 0 5px;
   border-radius: 9px;
-  background: rgba(0,0,0,0.07);
+  background: rgba(0, 0, 0, 0.07);
   font-family: "Fira Code", monospace;
   font-size: 12px;
   font-weight: 700;
@@ -1010,7 +1231,9 @@ function involvedAvatars(row) {
   color: #00a8a8;
 }
 
-.ov-group-row__spacer { flex: 1; }
+.ov-group-row__spacer {
+  flex: 1;
+}
 
 .ov-group-row__link {
   display: inline-flex;
@@ -1028,11 +1251,15 @@ function involvedAvatars(row) {
 
 /* Lignes de données */
 .ov-data-row {
-  border-bottom: 1px solid rgba(0,0,0,0.05);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   transition: background 0.1s;
 }
-.ov-data-row:hover { background: rgba(0,168,168,0.025); }
-.ov-data-row:last-child { border-bottom: none; }
+.ov-data-row:hover {
+  background: rgba(0, 168, 168, 0.025);
+}
+.ov-data-row:last-child {
+  border-bottom: none;
+}
 
 .ov-td {
   padding: 10px 12px;
@@ -1041,15 +1268,25 @@ function involvedAvatars(row) {
   vertical-align: top;
 }
 
-.ov-td--commande { max-width: 0; }
+.ov-td--commande {
+  max-width: 0;
+}
 .ov-td--date {
   font-family: "Fira Code", monospace;
   font-size: 13px;
   color: #333;
   white-space: nowrap;
 }
-.ov-date-sub { font-family: "Fira Sans", sans-serif; font-size: 10.5px; color: #9aa0aa; margin-top: 2px; }
-.ov-muted { color: #9aa0aa; font-size: 13px; }
+.ov-date-sub {
+  font-family: "Fira Sans", sans-serif;
+  font-size: 10.5px;
+  color: #9aa0aa;
+  margin-top: 2px;
+}
+.ov-muted {
+  color: #9aa0aa;
+  font-size: 13px;
+}
 
 .ov-cell-flex {
   display: flex;
@@ -1059,23 +1296,56 @@ function involvedAvatars(row) {
 }
 
 /* Client */
-.ov-client-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.ov-client-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
 
 /* Cellule "Commande" (icône + titre + client/site + statut) */
-.ov-name-cell { display: flex; align-items: flex-start; gap: 10px; }
+.ov-name-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
 .ov-type-icon {
-  width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center;
-  justify-content: center; flex-shrink: 0; margin-top: 1px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
 }
-.ov-name-text-block { min-width: 0; }
+.ov-name-text-block {
+  min-width: 0;
+}
 .ov-name-sub {
-  display: flex; align-items: center; gap: 4px; font-size: 13px; color: #9aa0aa;
-  margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #9aa0aa;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.ov-name-status { margin-top: 5px; }
+.ov-name-status {
+  margin-top: 5px;
+}
 
 /* Titre */
-.ov-titre { font-weight: 600; color: #000b23; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.ov-titre {
+  font-weight: 600;
+  color: #000b23;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
 
 /* Type badge — couleur dynamique via :style */
 .ov-type-badge {
@@ -1099,7 +1369,7 @@ function involvedAvatars(row) {
   padding: 0 8px;
   border: none;
   border-radius: 2px;
-  background: rgba(52,152,219,0.08);
+  background: rgba(52, 152, 219, 0.08);
   font-family: "Fira Sans", sans-serif;
   font-size: 10.5px;
   font-weight: 700;
@@ -1108,7 +1378,9 @@ function involvedAvatars(row) {
   white-space: nowrap;
   letter-spacing: 0.02em;
 }
-.ov-schedule-btn:hover { background: rgba(52,152,219,0.15); }
+.ov-schedule-btn:hover {
+  background: rgba(52, 152, 219, 0.15);
+}
 
 /* Montant */
 .ov-montant {
@@ -1131,14 +1403,38 @@ function involvedAvatars(row) {
   font-weight: 600;
   white-space: nowrap;
 }
-.ov-statut-chip__dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.ov-statut-chip__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
 
-.ov-statut-chip--planifiee { background: rgba(52,152,219,0.1); color: #3498db; }
-.ov-statut-chip--en_cours  { background: rgba(243,156,18,0.1); color: #f39c12; }
-.ov-statut-chip--validee   { background: rgba(39,174,96,0.1);  color: #27ae60; }
-.ov-statut-chip--termine   { background: rgba(0,0,0,0.06);     color: #95a5a6; }
-.ov-statut-chip--suspendue { background: rgba(231,76,60,0.1);  color: #e67e22; }
-.ov-statut-chip--annulee   { background: rgba(231,76,60,0.1);  color: #e74c3c; }
+.ov-statut-chip--planifiee {
+  background: rgba(52, 152, 219, 0.1);
+  color: #3498db;
+}
+.ov-statut-chip--en_cours {
+  background: rgba(243, 156, 18, 0.1);
+  color: #f39c12;
+}
+.ov-statut-chip--validee {
+  background: rgba(39, 174, 96, 0.1);
+  color: #27ae60;
+}
+.ov-statut-chip--termine {
+  background: rgba(0, 0, 0, 0.06);
+  color: #95a5a6;
+}
+.ov-statut-chip--suspendue {
+  background: rgba(231, 76, 60, 0.1);
+  color: #e67e22;
+}
+.ov-statut-chip--annulee {
+  background: rgba(231, 76, 60, 0.1);
+  color: #e74c3c;
+}
 
 /* Responsable */
 .ov-avatar {
@@ -1148,7 +1444,7 @@ function involvedAvatars(row) {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: rgba(0,168,168,0.12);
+  background: rgba(0, 168, 168, 0.12);
   font-family: "Fira Code", monospace;
   font-size: 10px;
   font-weight: 700;
@@ -1156,15 +1452,35 @@ function involvedAvatars(row) {
   flex-shrink: 0;
 }
 
-.ov-avatar--blue  { background: rgba(52,152,219,0.12);  color: #3498db; }
-.ov-avatar--teal  { background: rgba(0,168,168,0.12);   color: #00a8a8; }
-.ov-avatar--amber { background: rgba(243,156,18,0.12);  color: #f39c12; }
+.ov-avatar--blue {
+  background: rgba(52, 152, 219, 0.12);
+  color: #3498db;
+}
+.ov-avatar--teal {
+  background: rgba(0, 168, 168, 0.12);
+  color: #00a8a8;
+}
+.ov-avatar--amber {
+  background: rgba(243, 156, 18, 0.12);
+  color: #f39c12;
+}
 
 /* Pile d'avatars "Impliqués" */
-.ov-avatar-stack { display: flex; align-items: center; }
-.ov-avatar--stack { margin-left: -7px; border: 2px solid #fff; }
-.ov-avatar--stack:first-child { margin-left: 0; }
-.ov-avatar--more { background: rgba(0,11,35,0.06); color: #9aa0aa; }
+.ov-avatar-stack {
+  display: flex;
+  align-items: center;
+}
+.ov-avatar--stack {
+  margin-left: -7px;
+  border: 2px solid #fff;
+}
+.ov-avatar--stack:first-child {
+  margin-left: 0;
+}
+.ov-avatar--more {
+  background: rgba(0, 11, 35, 0.06);
+  color: #9aa0aa;
+}
 
 /* Chip filtre actif demandeur */
 .ov-active-filter-chip {
@@ -1174,8 +1490,8 @@ function involvedAvatars(row) {
   height: 24px;
   padding: 0 8px 0 6px;
   border-radius: 12px;
-  background: rgba(0,168,168,0.1);
-  border: 1px solid rgba(0,168,168,0.3);
+  background: rgba(0, 168, 168, 0.1);
+  border: 1px solid rgba(0, 168, 168, 0.3);
   font-family: "Fira Sans", sans-serif;
   font-size: 13px;
   font-weight: 600;
@@ -1192,7 +1508,9 @@ function involvedAvatars(row) {
   margin-left: 2px;
   opacity: 0.7;
 }
-.ov-active-filter-chip__close:hover { opacity: 1; }
+.ov-active-filter-chip__close:hover {
+  opacity: 1;
+}
 
 /* Actions */
 .ov-action-btn {
@@ -1206,12 +1524,23 @@ function involvedAvatars(row) {
   background: transparent;
   cursor: pointer;
   color: #ccc;
-  transition: background 0.1s, color 0.1s;
+  transition:
+    background 0.1s,
+    color 0.1s;
 }
-.ov-action-btn:hover { background: rgba(0,0,0,0.06); color: #555; }
+.ov-action-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #555;
+}
 
-.ov-spin { animation: ov-rotate 0.8s linear infinite; }
-@keyframes ov-rotate { to { transform: rotate(360deg); } }
+.ov-spin {
+  animation: ov-rotate 0.8s linear infinite;
+}
+@keyframes ov-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 /* Empty */
 .ov-empty {

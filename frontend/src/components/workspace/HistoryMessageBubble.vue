@@ -6,10 +6,10 @@
           size="13"
           :color="message.role === 'agent' ? '#00a8a8' : '#aaa'"
         >
-          {{ message.role === 'agent' ? 'mdi-headset' : 'mdi-account-outline' }}
+          {{ message.role === "agent" ? "mdi-headset" : "mdi-account-outline" }}
         </v-icon>
         <span class="msg-bubble__role-label">
-          {{ message.role === 'agent' ? 'AGENT' : 'CLIENT' }}
+          {{ message.role === "agent" ? "AGENT" : "CLIENT" }}
         </span>
       </div>
       <p class="msg-bubble__text">{{ message.text }}</p>
@@ -28,9 +28,9 @@ defineProps({
     required: true,
     // Shape : { id, role: 'client'|'agent', text, time, type: 'TRANSCRIPTION'|'AUDIO'|'CHAT' }
   },
-})
+});
 </script>
 
 <script>
-export default { name: 'HistoryMessageBubble' }
+export default { name: "HistoryMessageBubble" };
 </script>

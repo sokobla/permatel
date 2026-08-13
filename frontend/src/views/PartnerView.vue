@@ -111,12 +111,17 @@
                   <span v-if="item.code" class="user-cell__seen"
                     >#{{ item.code }}</span
                   >
-                  <div v-if="item.telephone || item.email" class="user-cell__meta">
+                  <div
+                    v-if="item.telephone || item.email"
+                    class="user-cell__meta"
+                  >
                     <span v-if="item.telephone" class="user-cell__meta-item">
-                      <v-icon size="10">mdi-phone-outline</v-icon>{{ item.telephone }}
+                      <v-icon size="10">mdi-phone-outline</v-icon
+                      >{{ item.telephone }}
                     </span>
                     <span v-if="item.email" class="user-cell__meta-item">
-                      <v-icon size="10">mdi-email-outline</v-icon>{{ item.email }}
+                      <v-icon size="10">mdi-email-outline</v-icon
+                      >{{ item.email }}
                     </span>
                   </div>
                 </div>
@@ -388,8 +393,13 @@
                     :key="groupType"
                     :label="groupType"
                   >
-                    <option v-for="c in liste" :key="c.id" :value="`${c.nom} ${c.prenom}`">
-                      {{ c.nom }} {{ c.prenom }}{{ c.fonction ? ' - ' + c.fonction : '' }}
+                    <option
+                      v-for="c in liste"
+                      :key="c.id"
+                      :value="`${c.nom} ${c.prenom}`"
+                    >
+                      {{ c.nom }} {{ c.prenom
+                      }}{{ c.fonction ? " - " + c.fonction : "" }}
                     </option>
                   </optgroup>
                 </select>
@@ -624,7 +634,9 @@ const contactsLoading = ref(false);
 async function loadContacts() {
   contactsLoading.value = true;
   try {
-    const response = await apiClient.get("/contacts", { params: { per_page: 1000 } });
+    const response = await apiClient.get("/contacts", {
+      params: { per_page: 1000 },
+    });
     const contactsList = response.data.contacts || [];
     const filteredGroups = {};
     for (const c of contactsList) {

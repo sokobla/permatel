@@ -1,9 +1,7 @@
 <template>
   <div class="df-root">
-
     <!-- ══ HEADER ════════════════════════════════════════════════════ -->
     <div class="bc-hdr">
-
       <!-- Fil d'Ariane -->
       <p class="bc-ctx">
         <span>WORKSPACE</span>
@@ -17,7 +15,9 @@
       <div class="bc-title-row">
         <div class="bc-title-left">
           <span class="bc-marker"></span>
-          <h2 class="bc-title">BON DE COMMANDE SÉCURITÉ — FORMULAIRE OPÉRATIONNEL</h2>
+          <h2 class="bc-title">
+            BON DE COMMANDE SÉCURITÉ — FORMULAIRE OPÉRATIONNEL
+          </h2>
         </div>
         <div class="bc-title-right">
           <div class="bc-meta-field">
@@ -56,7 +56,6 @@
 
     <!-- ══ CORPS ══════════════════════════════════════════════════════ -->
     <div class="bc-body">
-
       <!-- ─ Section : INFORMATIONS CLIENT ──────────────────────────── -->
       <section class="bc-sec">
         <header class="bc-sec-hdr">
@@ -92,7 +91,6 @@
           <span class="bc-sec-rule"></span>
         </header>
         <div class="bc-grid">
-
           <div class="form-group bc-full">
             <label class="form-label">SITE D'INTERVENTION</label>
             <SiteSelectWithAdd
@@ -120,11 +118,7 @@
           <div class="form-group bc-full">
             <label class="form-label">ÉQUIPEMENTS PRÉSENTS SUR SITE</label>
             <div class="bc-checks">
-              <label
-                v-for="eq in EQUIPEMENTS"
-                :key="eq"
-                class="bc-check-item"
-              >
+              <label v-for="eq in EQUIPEMENTS" :key="eq" class="bc-check-item">
                 <input
                   type="checkbox"
                   :value="eq"
@@ -139,11 +133,7 @@
           <div class="form-group bc-full">
             <label class="form-label">RISQUES SPÉCIFIQUES</label>
             <div class="bc-checks">
-              <label
-                v-for="r in RISQUES"
-                :key="r"
-                class="bc-check-item"
-              >
+              <label v-for="r in RISQUES" :key="r" class="bc-check-item">
                 <input
                   type="checkbox"
                   :value="r"
@@ -154,7 +144,6 @@
               </label>
             </div>
           </div>
-
         </div>
       </section>
 
@@ -166,19 +155,24 @@
           <span class="bc-sec-rule"></span>
         </header>
         <div class="bc-grid">
-
           <div class="form-group">
             <label class="form-label" for="bc-mission">
               TYPE DE MISSION <span class="df-required">*</span>
             </label>
-            <select id="bc-mission" v-model="form.type_commande" class="form-input">
+            <select
+              id="bc-mission"
+              v-model="form.type_commande"
+              class="form-input"
+            >
               <option value="">— Sélectionner —</option>
               <option value="gardiennage">Gardiennage statique</option>
               <option value="surveillance_mobile">Surveillance mobile</option>
               <option value="rondes">Rondes de surveillance</option>
               <option value="intervention">Intervention</option>
               <option value="filtrage">Filtrage / Contrôle d'accès</option>
-              <option value="protection_rapprochee">Protection rapprochée</option>
+              <option value="protection_rapprochee">
+                Protection rapprochée
+              </option>
               <option value="accueil_securite">Accueil sécurité</option>
               <option value="autre">Autre</option>
             </select>
@@ -211,11 +205,7 @@
           <div class="form-group bc-full">
             <label class="form-label">BESOINS SPÉCIFIQUES AGENT</label>
             <div class="bc-checks">
-              <label
-                v-for="b in BESOINS_AGENTS"
-                :key="b"
-                class="bc-check-item"
-              >
+              <label v-for="b in BESOINS_AGENTS" :key="b" class="bc-check-item">
                 <input
                   type="checkbox"
                   :value="b"
@@ -228,7 +218,9 @@
           </div>
 
           <div class="form-group bc-full">
-            <label class="form-label" for="bc-missions">MISSIONS DÉTAILLÉES</label>
+            <label class="form-label" for="bc-missions"
+              >MISSIONS DÉTAILLÉES</label
+            >
             <textarea
               id="bc-missions"
               v-model="form.missions_detaillees"
@@ -237,7 +229,6 @@
               placeholder="Décrivez précisément les missions attendues, les consignes particulières, les procédures de sécurité…"
             ></textarea>
           </div>
-
         </div>
       </section>
 
@@ -268,7 +259,9 @@
             />
           </div>
           <div class="form-group">
-            <label class="form-label" for="bc-heure-debut">HEURE DE DÉBUT</label>
+            <label class="form-label" for="bc-heure-debut"
+              >HEURE DE DÉBUT</label
+            >
             <input
               id="bc-heure-debut"
               v-model="form.heure_debut"
@@ -287,12 +280,15 @@
           </div>
         </div>
       </section>
-
     </div>
 
     <!-- ══ FOOTER ══════════════════════════════════════════════════════ -->
     <div class="df-footer">
-      <button class="df-btn-cancel" :disabled="submitting" @click="emit('cancel')">
+      <button
+        class="df-btn-cancel"
+        :disabled="submitting"
+        @click="emit('cancel')"
+      >
         ANNULER
       </button>
       <button class="btn-submit" :disabled="submitting" @click="submit">
@@ -300,7 +296,6 @@
         ENREGISTRER LA COMMANDE
       </button>
     </div>
-
   </div>
 </template>
 
@@ -315,14 +310,29 @@ import SiteSelectWithAdd from "@/components/workspace/SiteSelectWithAdd.vue";
 // ─── Valeurs de référence (chargées depuis les paramètres, avec repli) ────────
 // Les valeurs par défaut servent de repli si la famille n'est pas configurée.
 const MOYENS_ACCES = ref([
-  "Clé", "Digicode", "Badge magnétique", "Interphone", "Accès libre", "Autre",
+  "Clé",
+  "Digicode",
+  "Badge magnétique",
+  "Interphone",
+  "Accès libre",
+  "Autre",
 ]);
 const RISQUES = ref([
-  "Vol", "Intrusion", "Incendie", "Vandalisme", "Conflit social", "Risque terroriste",
+  "Vol",
+  "Intrusion",
+  "Incendie",
+  "Vandalisme",
+  "Conflit social",
+  "Risque terroriste",
 ]);
 const BESOINS_AGENTS = ref([
-  "Tenue fournie", "Formation SSIAP", "Habilitation électrique",
-  "Maîtrise anglais", "Permis B", "Agent APS qualifié", "Autre",
+  "Tenue fournie",
+  "Formation SSIAP",
+  "Habilitation électrique",
+  "Maîtrise anglais",
+  "Permis B",
+  "Agent APS qualifié",
+  "Autre",
 ]);
 
 // Équipements : pas de famille de référence dédiée → reste statique.
@@ -345,7 +355,9 @@ async function loadReferenceValues() {
     map.map(async ([family, target]) => {
       try {
         const items = await settingsService.getReferenceValues(family);
-        const labels = (items ?? []).filter((i) => i.active).map((i) => i.label);
+        const labels = (items ?? [])
+          .filter((i) => i.active)
+          .map((i) => i.label);
         if (labels.length) target.value = labels; // sinon on conserve le repli
       } catch {
         /* repli silencieux sur les valeurs par défaut */
@@ -356,18 +368,21 @@ async function loadReferenceValues() {
 
 onMounted(loadReferenceValues);
 
-
 // ─── Props / Emits ───────────────────────────────────────────────────────────
 const props = defineProps({ contactId: { type: Number, default: null } });
 const emit = defineEmits(["submitted", "cancel"]);
 
 // ─── État ────────────────────────────────────────────────────────────────────
-const { submitting, submitError, submit: submitDemande } = useDemandeCreate(emit);
+const {
+  submitting,
+  submitError,
+  submit: submitDemande,
+} = useDemandeCreate(emit);
 
 // Entités résolues par les composants enfants
-const resolvedClient = ref(null);   // objet client complet
-const resolvedContact = ref(null);  // objet contact complet
-const resolvedSite = ref(null);     // { site_id, adresse_intervention, mode, siteData? }
+const resolvedClient = ref(null); // objet client complet
+const resolvedContact = ref(null); // objet contact complet
+const resolvedSite = ref(null); // { site_id, adresse_intervention, mode, siteData? }
 
 const clientId = computed(() => resolvedClient.value?.id ?? null);
 
@@ -473,7 +488,8 @@ async function submit() {
     return;
   }
   if (!form.value.nombre_agents && !form.value.nombre_heures) {
-    submitError.value = "Indiquez le nombre d'agents et/ou le nombre d'heures nécessaires.";
+    submitError.value =
+      "Indiquez le nombre d'agents et/ou le nombre d'heures nécessaires.";
     return;
   }
   await submitDemande({
@@ -509,7 +525,9 @@ export default { name: "DemandeCommandeForm" };
   margin: 0 0 8px;
 }
 
-.bc-ctx__sep { color: #e0e0e0; }
+.bc-ctx__sep {
+  color: #e0e0e0;
+}
 
 .bc-ctx__active {
   color: #27ae60;
@@ -650,9 +668,16 @@ export default { name: "DemandeCommandeForm" };
   gap: 16px;
 }
 
-.bc-body::-webkit-scrollbar { width: 4px; }
-.bc-body::-webkit-scrollbar-track { background: transparent; }
-.bc-body::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.12); border-radius: 2px; }
+.bc-body::-webkit-scrollbar {
+  width: 4px;
+}
+.bc-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.bc-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 2px;
+}
 
 /* ══ SECTIONS ══════════════════════════════════════════════════════ */
 
@@ -675,7 +700,9 @@ export default { name: "DemandeCommandeForm" };
   flex-shrink: 0;
 }
 
-.bc-sec-mark--green { background: #27ae60; }
+.bc-sec-mark--green {
+  background: #27ae60;
+}
 
 .bc-sec-lbl {
   font-family: "Fira Sans", sans-serif;
@@ -701,7 +728,9 @@ export default { name: "DemandeCommandeForm" };
   gap: 10px 16px;
 }
 
-.bc-full { grid-column: 1 / -1; }
+.bc-full {
+  grid-column: 1 / -1;
+}
 
 /* ── Section client (2 colonnes: combobox + contact) ── */
 .bc-client-fields {

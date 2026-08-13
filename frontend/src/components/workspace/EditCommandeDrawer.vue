@@ -1,7 +1,6 @@
 <template>
   <div class="ecd-overlay" @click.self="emit('close')">
     <div class="ecd-panel" role="dialog" aria-modal="true">
-
       <!-- ── Header ───────────────────────────────────────────────── -->
       <div class="ecd-hdr">
         <p class="ecd-ctx">
@@ -19,7 +18,11 @@
         </div>
         <div class="ecd-titre-row">
           <span class="ecd-titre-lbl">INTITULÉ</span>
-          <input v-model="form.titre" class="ecd-titre-input" autocomplete="off" />
+          <input
+            v-model="form.titre"
+            class="ecd-titre-input"
+            autocomplete="off"
+          />
         </div>
       </div>
 
@@ -30,21 +33,23 @@
 
       <!-- ── Corps ──────────────────────────────────────────────────── -->
       <div class="ecd-body">
-
         <!-- Contexte : client + site -->
         <div class="ecd-context">
           <div class="ecd-context__item">
             <span class="ecd-context__lbl">CLIENT</span>
             <span class="ecd-context__val">
               <v-icon size="13" color="#00a8a8">mdi-domain</v-icon>
-              {{ demande.client_nom ?? (demande.client_id ? `Client #${demande.client_id}` : '—') }}
+              {{
+                demande.client_nom ??
+                (demande.client_id ? `Client #${demande.client_id}` : "—")
+              }}
             </span>
           </div>
           <div class="ecd-context__item">
             <span class="ecd-context__lbl">SITE</span>
             <span class="ecd-context__val">
               <v-icon size="13" color="#00a8a8">mdi-map-marker-outline</v-icon>
-              {{ demande.site_nom ?? '—' }}
+              {{ demande.site_nom ?? "—" }}
             </span>
           </div>
         </div>
@@ -86,7 +91,9 @@
                 <option value="rondes">Rondes</option>
                 <option value="intervention">Intervention</option>
                 <option value="filtrage">Filtrage</option>
-                <option value="protection_rapprochee">Protection rapprochée</option>
+                <option value="protection_rapprochee">
+                  Protection rapprochée
+                </option>
                 <option value="accueil_securite">Accueil sécurité</option>
                 <option value="autre">Autre</option>
               </select>
@@ -103,7 +110,11 @@
           </header>
           <div class="form-group">
             <label class="form-label">DESCRIPTION</label>
-            <textarea v-model="form.description" class="form-input ecd-textarea" rows="4"></textarea>
+            <textarea
+              v-model="form.description"
+              class="form-input ecd-textarea"
+              rows="4"
+            ></textarea>
           </div>
         </section>
 
@@ -117,47 +128,82 @@
           <div class="ecd-grid">
             <div class="form-group">
               <label class="form-label">QUANTITÉ / EFFECTIF</label>
-              <input v-model.number="form.quantite" type="number" min="1" class="form-input" />
+              <input
+                v-model.number="form.quantite"
+                type="number"
+                min="1"
+                class="form-input"
+              />
             </div>
             <div class="form-group">
               <label class="form-label">NOMBRE D'HEURES</label>
-              <input v-model.number="form.nombre_heures" type="number" min="1" class="form-input" />
+              <input
+                v-model.number="form.nombre_heures"
+                type="number"
+                min="1"
+                class="form-input"
+              />
             </div>
             <div class="form-group">
               <label class="form-label">BUDGET ESTIMÉ (€)</label>
-              <input v-model.number="form.budget_estime" type="number" min="0" step="10" class="form-input" />
+              <input
+                v-model.number="form.budget_estime"
+                type="number"
+                min="0"
+                step="10"
+                class="form-input"
+              />
             </div>
             <div class="form-group">
               <label class="form-label">DATE LIVRAISON SOUHAITÉE</label>
-              <input v-model="form.date_livraison_souhaitee" type="date" class="form-input" />
+              <input
+                v-model="form.date_livraison_souhaitee"
+                type="date"
+                class="form-input"
+              />
             </div>
             <div class="form-group">
               <label class="form-label">FOURNISSEUR SUGGÉRÉ</label>
-              <input v-model="form.fournisseur_suggere" class="form-input" autocomplete="off" />
+              <input
+                v-model="form.fournisseur_suggere"
+                class="form-input"
+                autocomplete="off"
+              />
             </div>
             <div class="form-group ecd-full">
               <label class="form-label">BON DE COMMANDE / RÉFÉRENCE</label>
-              <input v-model="form.bon_commande" class="form-input" autocomplete="off" />
+              <input
+                v-model="form.bon_commande"
+                class="form-input"
+                autocomplete="off"
+              />
             </div>
           </div>
         </section>
 
         <!-- Section 4 : Suivi & interactions -->
         <section class="ecd-sec">
-          <DemandeInteractions :demande-id="demande.id" :client-id="demande.client_id ?? null" />
+          <DemandeInteractions
+            :demande-id="demande.id"
+            :client-id="demande.client_id ?? null"
+          />
         </section>
-
       </div>
 
       <!-- ── Footer ───────────────────────────────────────────────── -->
       <div class="ecd-footer">
-        <button class="ecd-btn-cancel" :disabled="saving" @click="emit('close')">ANNULER</button>
+        <button
+          class="ecd-btn-cancel"
+          :disabled="saving"
+          @click="emit('close')"
+        >
+          ANNULER
+        </button>
         <button class="ecd-btn-save" :disabled="saving" @click="save">
           <span v-if="saving" class="ecd-spinner"></span>
           ENREGISTRER
         </button>
       </div>
-
     </div>
   </div>
 </template>
@@ -168,25 +214,25 @@ import { updateDemande } from "@/services/demandeService";
 import DemandeInteractions from "@/components/workspace/DemandeInteractions.vue";
 
 const props = defineProps({ demande: { type: Object, required: true } });
-const emit  = defineEmits(["close", "updated"]);
+const emit = defineEmits(["close", "updated"]);
 
 const saving = ref(false);
-const error  = ref("");
+const error = ref("");
 
 const form = reactive({
-  titre:                    props.demande.titre                     ?? "",
-  statut:                   props.demande.statut                    ?? "nouvelle",
-  priorite:                 props.demande.priorite                  ?? "normale",
-  type_commande:            props.demande.type_commande             ?? "",
-  description:              props.demande.description               ?? "",
-  quantite:                 props.demande.quantite                  ?? null,
-  nombre_heures:            props.demande.nombre_heures             ?? null,
-  budget_estime:            props.demande.budget_estime             ?? null,
-  fournisseur_suggere:      props.demande.fournisseur_suggere       ?? "",
+  titre: props.demande.titre ?? "",
+  statut: props.demande.statut ?? "nouvelle",
+  priorite: props.demande.priorite ?? "normale",
+  type_commande: props.demande.type_commande ?? "",
+  description: props.demande.description ?? "",
+  quantite: props.demande.quantite ?? null,
+  nombre_heures: props.demande.nombre_heures ?? null,
+  budget_estime: props.demande.budget_estime ?? null,
+  fournisseur_suggere: props.demande.fournisseur_suggere ?? "",
   date_livraison_souhaitee: props.demande.date_livraison_souhaitee
     ? props.demande.date_livraison_souhaitee.slice(0, 10)
     : "",
-  bon_commande:             props.demande.bon_commande              ?? "",
+  bon_commande: props.demande.bon_commande ?? "",
 });
 
 async function save() {
@@ -228,8 +274,12 @@ async function save() {
 }
 
 @keyframes ecd-slide {
-  from { transform: translateX(100%); }
-  to   { transform: translateX(0); }
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 
 .ecd-hdr {
@@ -249,8 +299,13 @@ async function save() {
   text-transform: uppercase;
   margin: 0 0 8px;
 }
-.ecd-ctx__sep { color: #e0e0e0; }
-.ecd-ctx__ticket { color: #00a8a8; font-weight: 600; }
+.ecd-ctx__sep {
+  color: #e0e0e0;
+}
+.ecd-ctx__ticket {
+  color: #00a8a8;
+  font-weight: 600;
+}
 
 .ecd-title-row {
   display: flex;
@@ -277,7 +332,9 @@ async function save() {
   margin: 0;
 }
 
-.ecd-hdr-spacer { flex: 1; }
+.ecd-hdr-spacer {
+  flex: 1;
+}
 
 .ecd-close-btn {
   display: flex;
@@ -291,7 +348,10 @@ async function save() {
   cursor: pointer;
   color: #aaa;
 }
-.ecd-close-btn:hover { color: #e74c3c; border-color: #e74c3c; }
+.ecd-close-btn:hover {
+  color: #e74c3c;
+  border-color: #e74c3c;
+}
 
 .ecd-titre-row {
   display: flex;
@@ -325,7 +385,9 @@ async function save() {
   outline: none;
   transition: border-color 0.15s;
 }
-.ecd-titre-input:focus { border-color: #00a8a8; }
+.ecd-titre-input:focus {
+  border-color: #00a8a8;
+}
 
 .ecd-error-bar {
   display: flex;
@@ -347,8 +409,13 @@ async function save() {
   flex-direction: column;
   gap: 16px;
 }
-.ecd-body::-webkit-scrollbar { width: 4px; }
-.ecd-body::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 2px; }
+.ecd-body::-webkit-scrollbar {
+  width: 4px;
+}
+.ecd-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+}
 
 /* ── Contexte client / site ──────────────────────────────────────── */
 .ecd-context {
@@ -360,7 +427,12 @@ async function save() {
   border: 1px solid rgba(0, 168, 168, 0.18);
   border-radius: 6px;
 }
-.ecd-context__item { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ecd-context__item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
 .ecd-context__lbl {
   font-family: "Fira Sans", sans-serif;
   font-size: 11px;
@@ -382,7 +454,11 @@ async function save() {
   white-space: nowrap;
 }
 
-.ecd-sec { display: flex; flex-direction: column; gap: 10px; }
+.ecd-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 
 .ecd-sec-hdr {
   display: flex;
@@ -396,9 +472,15 @@ async function save() {
   border-radius: 1px;
   flex-shrink: 0;
 }
-.ecd-sec-mark--teal  { background: #00a8a8; }
-.ecd-sec-mark--navy  { background: #000b23; }
-.ecd-sec-mark--amber { background: #f39c12; }
+.ecd-sec-mark--teal {
+  background: #00a8a8;
+}
+.ecd-sec-mark--navy {
+  background: #000b23;
+}
+.ecd-sec-mark--amber {
+  background: #f39c12;
+}
 
 .ecd-sec-lbl {
   font-family: "Fira Sans", sans-serif;
@@ -410,7 +492,11 @@ async function save() {
   white-space: nowrap;
 }
 
-.ecd-sec-rule { flex: 1; height: 1px; background: rgba(0, 0, 0, 0.06); }
+.ecd-sec-rule {
+  flex: 1;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.06);
+}
 
 .ecd-grid {
   display: grid;
@@ -418,9 +504,15 @@ async function save() {
   gap: 10px 14px;
 }
 
-.ecd-full { grid-column: 1 / -1; }
+.ecd-full {
+  grid-column: 1 / -1;
+}
 
-.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 
 .form-label {
   font-family: "Fira Sans", sans-serif;
@@ -445,7 +537,9 @@ async function save() {
   width: 100%;
   box-sizing: border-box;
 }
-.form-input:focus { border-color: #00a8a8; }
+.form-input:focus {
+  border-color: #00a8a8;
+}
 
 .ecd-textarea {
   height: auto;
@@ -477,7 +571,9 @@ async function save() {
   color: #555;
   cursor: pointer;
 }
-.ecd-btn-cancel:hover { border-color: #aaa; }
+.ecd-btn-cancel:hover {
+  border-color: #aaa;
+}
 
 .ecd-btn-save {
   display: flex;
@@ -496,8 +592,13 @@ async function save() {
   cursor: pointer;
   transition: background 0.15s;
 }
-.ecd-btn-save:hover:not(:disabled) { background: #00a8a8; }
-.ecd-btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
+.ecd-btn-save:hover:not(:disabled) {
+  background: #00a8a8;
+}
+.ecd-btn-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
 .ecd-spinner {
   width: 12px;
@@ -508,5 +609,9 @@ async function save() {
   animation: ecd-spin 0.7s linear infinite;
   flex-shrink: 0;
 }
-@keyframes ecd-spin { to { transform: rotate(360deg); } }
+@keyframes ecd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 </style>

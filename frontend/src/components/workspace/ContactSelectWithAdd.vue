@@ -1,6 +1,5 @@
 <template>
   <div class="csa-root">
-
     <template v-if="!addMode">
       <div class="csa-select-row">
         <select
@@ -10,7 +9,13 @@
           @change="onSelectChange"
         >
           <option value="">
-            {{ loading ? "Chargement…" : clientId ? "— Sélectionner un contact —" : "— Sélectionner d'abord un client —" }}
+            {{
+              loading
+                ? "Chargement…"
+                : clientId
+                  ? "— Sélectionner un contact —"
+                  : "— Sélectionner d'abord un client —"
+            }}
           </option>
           <option v-for="c in contacts" :key="c.id" :value="c.id">
             {{ c.prenom }} {{ c.nom }}{{ c.fonction ? ` — ${c.fonction}` : "" }}
@@ -143,7 +148,6 @@
         </div>
       </div>
     </template>
-
   </div>
 </template>
 
@@ -235,7 +239,8 @@ async function openAddMode() {
       // Ne pas écraser une saisie déjà commencée pendant l'attente de la
       // réponse (réseau lent) — le préremplissage ne s'applique que si le
       // champ est resté vide entre-temps.
-      if (!newContact.value.adresse) newContact.value.adresse = client.adresse ?? "";
+      if (!newContact.value.adresse)
+        newContact.value.adresse = client.adresse ?? "";
       if (!newContact.value.ville) newContact.value.ville = client.ville ?? "";
     } catch {
       // Best-effort : un échec de préremplissage ne doit jamais bloquer
@@ -279,7 +284,8 @@ async function saveContact() {
     emit("contact-selected", created);
     addMode.value = false;
   } catch (err) {
-    addError.value = err?.response?.data?.error ?? "Erreur lors de la création.";
+    addError.value =
+      err?.response?.data?.error ?? "Erreur lors de la création.";
   } finally {
     saving.value = false;
   }
@@ -291,11 +297,21 @@ export default { name: "ContactSelectWithAdd" };
 </script>
 
 <style scoped>
-.csa-root { display: flex; flex-direction: column; gap: 5px; }
+.csa-root {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
 
-.csa-select-row { display: flex; gap: 6px; align-items: center; }
+.csa-select-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
 
-.csa-select { flex: 1; }
+.csa-select {
+  flex: 1;
+}
 
 .csa-add-btn {
   flex-shrink: 0;
@@ -309,14 +325,19 @@ export default { name: "ContactSelectWithAdd" };
   align-items: center;
   justify-content: center;
   color: #555;
-  transition: background 0.12s, border-color 0.12s;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
 }
 .csa-add-btn:hover:not(:disabled) {
   background: rgba(0, 168, 168, 0.06);
   border-color: rgba(0, 168, 168, 0.4);
   color: #00a8a8;
 }
-.csa-add-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.csa-add-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 
 .csa-info {
   display: flex;
@@ -359,7 +380,9 @@ export default { name: "ContactSelectWithAdd" };
   color: #aaa;
   cursor: pointer;
 }
-.csa-back-btn:hover { color: #555; }
+.csa-back-btn:hover {
+  color: #555;
+}
 
 .csa-error {
   font-family: "Fira Sans", sans-serif;
@@ -367,7 +390,10 @@ export default { name: "ContactSelectWithAdd" };
   color: #e74c3c;
 }
 
-.csa-add-actions { display: flex; justify-content: flex-end; }
+.csa-add-actions {
+  display: flex;
+  justify-content: flex-end;
+}
 
 .csa-save-btn {
   display: inline-flex;
@@ -386,6 +412,11 @@ export default { name: "ContactSelectWithAdd" };
   cursor: pointer;
   transition: background 0.15s;
 }
-.csa-save-btn:hover:not(:disabled) { background: #008f8f; }
-.csa-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.csa-save-btn:hover:not(:disabled) {
+  background: #008f8f;
+}
+.csa-save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 </style>

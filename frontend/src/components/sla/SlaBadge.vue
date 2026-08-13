@@ -1,5 +1,10 @@
 <template>
-  <span v-if="meta" class="sla-badge" :style="{ background: meta.tint, color: meta.color }" :title="title">
+  <span
+    v-if="meta"
+    class="sla-badge"
+    :style="{ background: meta.tint, color: meta.color }"
+    :title="title"
+  >
     <span class="sla-dot" :style="{ background: meta.color }"></span>
     {{ meta.label }}<template v-if="timeText"> · {{ timeText }}</template>
   </span>
@@ -15,12 +20,32 @@ const props = defineProps({
 });
 
 const META = {
-  on_time:  { label: "Dans les délais", color: "#16a34a", tint: "rgba(22,163,74,0.10)" },
-  at_risk:  { label: "À risque",        color: "#f39c12", tint: "rgba(243,156,18,0.12)" },
-  breached: { label: "Hors délai",      color: "#e74c3c", tint: "rgba(231,76,60,0.12)" },
-  met:      { label: "Respecté",        color: "#16a34a", tint: "rgba(22,163,74,0.10)" },
-  missed:   { label: "Non respecté",    color: "#e74c3c", tint: "rgba(231,76,60,0.12)" },
-  paused:   { label: "En pause",        color: "#6b7280", tint: "rgba(107,114,128,0.12)" },
+  on_time: {
+    label: "Dans les délais",
+    color: "#16a34a",
+    tint: "rgba(22,163,74,0.10)",
+  },
+  at_risk: {
+    label: "À risque",
+    color: "#f39c12",
+    tint: "rgba(243,156,18,0.12)",
+  },
+  breached: {
+    label: "Hors délai",
+    color: "#e74c3c",
+    tint: "rgba(231,76,60,0.12)",
+  },
+  met: { label: "Respecté", color: "#16a34a", tint: "rgba(22,163,74,0.10)" },
+  missed: {
+    label: "Non respecté",
+    color: "#e74c3c",
+    tint: "rgba(231,76,60,0.12)",
+  },
+  paused: {
+    label: "En pause",
+    color: "#6b7280",
+    tint: "rgba(107,114,128,0.12)",
+  },
 };
 
 const meta = computed(() => META[props.state?.status] || null); // n/a → rien
@@ -37,14 +62,20 @@ function humanize(sec) {
 const timeText = computed(() => {
   const s = props.state;
   if (!s) return "";
-  if (s.status === "breached" && s.overdue_seconds != null) return `retard ${humanize(s.overdue_seconds)}`;
-  if ((s.status === "on_time" || s.status === "at_risk") && s.remaining_seconds != null)
+  if (s.status === "breached" && s.overdue_seconds != null)
+    return `retard ${humanize(s.overdue_seconds)}`;
+  if (
+    (s.status === "on_time" || s.status === "at_risk") &&
+    s.remaining_seconds != null
+  )
     return `reste ${humanize(s.remaining_seconds)}`;
   return "";
 });
 
 const title = computed(() =>
-  props.state?.deadline ? `Échéance : ${new Date(props.state.deadline).toLocaleString("fr-FR")}` : "",
+  props.state?.deadline
+    ? `Échéance : ${new Date(props.state.deadline).toLocaleString("fr-FR")}`
+    : "",
 );
 </script>
 

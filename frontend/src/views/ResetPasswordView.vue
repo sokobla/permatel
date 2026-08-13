@@ -2,7 +2,9 @@
   <div class="ai-page">
     <div class="ai-card">
       <div class="ai-head">
-        <span class="ai-logo-chip"><img :src="permatelLogo" alt="PERMATEL" class="ai-logo" /></span>
+        <span class="ai-logo-chip"
+          ><img :src="permatelLogo" alt="PERMATEL" class="ai-logo"
+        /></span>
       </div>
 
       <div v-if="loading" class="ai-state">
@@ -13,18 +15,24 @@
       <div v-else-if="loadError" class="ai-state ai-state--err">
         <v-icon color="#c0392b" size="28">mdi-alert-circle-outline</v-icon>
         <p>{{ loadError }}</p>
-        <router-link to="/login" class="ai-link">Retour à la connexion</router-link>
+        <router-link to="/login" class="ai-link"
+          >Retour à la connexion</router-link
+        >
       </div>
 
       <div v-else-if="done" class="ai-state ai-state--ok">
         <v-icon color="#00a8a8" size="28">mdi-check-circle-outline</v-icon>
-        <p>Votre mot de passe a été réinitialisé. Vous pouvez vous connecter.</p>
+        <p>
+          Votre mot de passe a été réinitialisé. Vous pouvez vous connecter.
+        </p>
         <router-link to="/login" class="ai-link">Se connecter</router-link>
       </div>
 
       <template v-else>
         <h1 class="ai-title">Réinitialiser votre mot de passe</h1>
-        <p class="ai-sub">Choisissez un nouveau mot de passe pour votre compte.</p>
+        <p class="ai-sub">
+          Choisissez un nouveau mot de passe pour votre compte.
+        </p>
 
         <v-alert
           v-if="errorMessage"
@@ -87,7 +95,8 @@ const form = reactive({ password: "", confirm: "" });
 async function submit() {
   errorMessage.value = null;
   if (form.password.length < 12) {
-    errorMessage.value = "Le mot de passe doit contenir au moins 12 caractères.";
+    errorMessage.value =
+      "Le mot de passe doit contenir au moins 12 caractères.";
     return;
   }
   if (form.password !== form.confirm) {
@@ -99,7 +108,8 @@ async function submit() {
     await passwordResetService.resetPassword(token, form.password);
     done.value = true;
   } catch (err) {
-    errorMessage.value = err?.response?.data?.error || "Échec de la réinitialisation.";
+    errorMessage.value =
+      err?.response?.data?.error || "Échec de la réinitialisation.";
   } finally {
     submitting.value = false;
   }
@@ -114,7 +124,9 @@ onMounted(async () => {
   try {
     await passwordResetService.checkResetToken(token);
   } catch (err) {
-    loadError.value = err?.response?.data?.error || "Lien de réinitialisation invalide ou expiré.";
+    loadError.value =
+      err?.response?.data?.error ||
+      "Lien de réinitialisation invalide ou expiré.";
   } finally {
     loading.value = false;
   }

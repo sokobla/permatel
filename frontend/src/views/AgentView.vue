@@ -119,7 +119,9 @@
                               :style="{ background: group.color }"
                               >{{ getInitials(group.name) }}</span
                             >
-                            <span class="group-row__name">{{ group.name }}</span>
+                            <span class="group-row__name">{{
+                              group.name
+                            }}</span>
                             <span class="group-row__count">{{
                               group.items.length
                             }}</span>
@@ -157,21 +159,42 @@
                               <div class="user-cell__info">
                                 <span
                                   class="user-cell__handle"
-                                  style="font-family: &quot;Fira Sans, sans-serif&quot;"
+                                  style="
+                                    font-family: &quot;Fira Sans, sans-serif&quot;;
+                                  "
                                   >{{ item.nom }} {{ item.prenom }}</span
                                 >
                                 <div
-                                  v-if="item.telephone || item.email || item.ville"
+                                  v-if="
+                                    item.telephone || item.email || item.ville
+                                  "
                                   class="user-cell__meta"
                                 >
-                                  <span v-if="item.telephone" class="user-cell__meta-item">
-                                    <v-icon size="10">mdi-phone-outline</v-icon>{{ item.telephone }}
+                                  <span
+                                    v-if="item.telephone"
+                                    class="user-cell__meta-item"
+                                  >
+                                    <v-icon size="10">mdi-phone-outline</v-icon
+                                    >{{ item.telephone }}
                                   </span>
-                                  <span v-if="item.email" class="user-cell__meta-item">
-                                    <v-icon size="10">mdi-email-outline</v-icon>{{ item.email }}
+                                  <span
+                                    v-if="item.email"
+                                    class="user-cell__meta-item"
+                                  >
+                                    <v-icon size="10">mdi-email-outline</v-icon
+                                    >{{ item.email }}
                                   </span>
-                                  <span v-if="item.ville" class="user-cell__meta-item">
-                                    <v-icon size="10">mdi-map-marker-outline</v-icon>{{ [item.code_postal, item.ville].filter(Boolean).join(' ') }}
+                                  <span
+                                    v-if="item.ville"
+                                    class="user-cell__meta-item"
+                                  >
+                                    <v-icon size="10"
+                                      >mdi-map-marker-outline</v-icon
+                                    >{{
+                                      [item.code_postal, item.ville]
+                                        .filter(Boolean)
+                                        .join(" ")
+                                    }}
                                   </span>
                                 </div>
                               </div>
@@ -189,14 +212,19 @@
                                 item.motorise === 'true' ||
                                 item.motorise === 1
                               "
-                              ><v-icon icon="mdi-car-side" color="green"></v-icon
+                              ><v-icon
+                                icon="mdi-car-side"
+                                color="green"
+                              ></v-icon
                             ></span>
                             <span v-else class="tenant-badge"></span>
                           </td>
                           <td style="text-align: center">
-                            <span v-if="item.prestataire_id !== ''" class="role-badge">{{
-                              item.prestataire_nom
-                            }}</span>
+                            <span
+                              v-if="item.prestataire_id !== ''"
+                              class="role-badge"
+                              >{{ item.prestataire_nom }}</span
+                            >
                             <span v-else class="tenant-badge">INTERNE</span>
                           </td>
                           <td style="text-align: center">
@@ -257,21 +285,39 @@
                           <div class="user-cell__info">
                             <span
                               class="user-cell__handle"
-                              style="font-family: &quot;Fira Sans, sans-serif&quot;"
+                              style="
+                                font-family: &quot;Fira Sans, sans-serif&quot;;
+                              "
                               >{{ item.nom }} {{ item.prenom }}</span
                             >
                             <div
                               v-if="item.telephone || item.email || item.ville"
                               class="user-cell__meta"
                             >
-                              <span v-if="item.telephone" class="user-cell__meta-item">
-                                <v-icon size="10">mdi-phone-outline</v-icon>{{ item.telephone }}
+                              <span
+                                v-if="item.telephone"
+                                class="user-cell__meta-item"
+                              >
+                                <v-icon size="10">mdi-phone-outline</v-icon
+                                >{{ item.telephone }}
                               </span>
-                              <span v-if="item.email" class="user-cell__meta-item">
-                                <v-icon size="10">mdi-email-outline</v-icon>{{ item.email }}
+                              <span
+                                v-if="item.email"
+                                class="user-cell__meta-item"
+                              >
+                                <v-icon size="10">mdi-email-outline</v-icon
+                                >{{ item.email }}
                               </span>
-                              <span v-if="item.ville" class="user-cell__meta-item">
-                                <v-icon size="10">mdi-map-marker-outline</v-icon>{{ [item.code_postal, item.ville].filter(Boolean).join(' ') }}
+                              <span
+                                v-if="item.ville"
+                                class="user-cell__meta-item"
+                              >
+                                <v-icon size="10">mdi-map-marker-outline</v-icon
+                                >{{
+                                  [item.code_postal, item.ville]
+                                    .filter(Boolean)
+                                    .join(" ")
+                                }}
                               </span>
                             </div>
                           </div>
@@ -294,9 +340,11 @@
                         <span v-else class="tenant-badge"></span>
                       </td>
                       <td style="text-align: center">
-                        <span v-if="item.prestataire_id !== ''" class="role-badge">{{
-                          item.prestataire_nom
-                        }}</span>
+                        <span
+                          v-if="item.prestataire_id !== ''"
+                          class="role-badge"
+                          >{{ item.prestataire_nom }}</span
+                        >
                         <span v-else class="tenant-badge">INTERNE</span>
                       </td>
                       <td style="text-align: center">
@@ -488,9 +536,7 @@
                 }}</span>
               </div>
               <div class="form-group">
-                <label class="form-label"
-                  >CODE POSTAL</label
-                >
+                <label class="form-label">CODE POSTAL</label>
                 <input
                   v-model="form.code_postal"
                   class="form-input"
@@ -803,8 +849,13 @@ const agentTypesLoading = ref(false);
 async function loadAgentTypes() {
   agentTypesLoading.value = true;
   try {
-    const data = await settingsService.getReferenceValues("qualification_agent");
-    agentTypes.value = data.filter(v => v.active).sort((a, b) => a.position - b.position).map(v => v.label);
+    const data = await settingsService.getReferenceValues(
+      "qualification_agent",
+    );
+    agentTypes.value = data
+      .filter((v) => v.active)
+      .sort((a, b) => a.position - b.position)
+      .map((v) => v.label);
   } catch (err) {
     console.error("Erreur chargement qualifications agent", err);
   } finally {

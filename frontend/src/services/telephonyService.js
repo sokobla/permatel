@@ -30,7 +30,10 @@ export const telephonyService = {
   },
   /** Export CSV du même historique (mêmes filtres) — réponse blob. */
   exportCallsCsv(params = {}) {
-    return apiClient.get("/telephony/calls/export", { params, responseType: "blob" });
+    return apiClient.get("/telephony/calls/export", {
+      params,
+      responseType: "blob",
+    });
   },
   /** Enregistrements paginés/filtrables (sous-ensemble des appels avec `recording_url`). */
   getRecordings(params = {}) {
@@ -38,7 +41,9 @@ export const telephonyService = {
   },
   /** Téléchargement d'un enregistrement (proxy backend) — réponse blob. */
   downloadRecording(callUuid) {
-    return apiClient.get(`/telephony/recordings/${callUuid}/download`, { responseType: "blob" });
+    return apiClient.get(`/telephony/recordings/${callUuid}/download`, {
+      responseType: "blob",
+    });
   },
   /** Export groupé en ZIP — `callUuids` optionnel (sélection explicite), sinon filtres. */
   exportRecordingsBulk(callUuids, params = {}) {
@@ -53,7 +58,9 @@ export const telephonyService = {
 
   /** (Re)génère le jeton webhook CDR d'un connecteur — invalide l'ancienne URL. */
   regenerateCdrToken(connectorId) {
-    return apiClient.post(`/telephony/connectors/${connectorId}/cdr-token/regenerate`);
+    return apiClient.post(
+      `/telephony/connectors/${connectorId}/cdr-token/regenerate`,
+    );
   },
 
   // ── Statut self-service (exécution à distance ESL, 13/08) ────────────────

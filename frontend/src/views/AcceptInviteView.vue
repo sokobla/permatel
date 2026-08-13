@@ -2,7 +2,9 @@
   <div class="ai-page">
     <div class="ai-card">
       <div class="ai-head">
-        <span class="ai-logo-chip"><img :src="permatelLogo" alt="PERMATEL" class="ai-logo" /></span>
+        <span class="ai-logo-chip"
+          ><img :src="permatelLogo" alt="PERMATEL" class="ai-logo"
+        /></span>
       </div>
 
       <div v-if="loading" class="ai-state">
@@ -13,7 +15,9 @@
       <div v-else-if="loadError" class="ai-state ai-state--err">
         <v-icon color="#c0392b" size="28">mdi-alert-circle-outline</v-icon>
         <p>{{ loadError }}</p>
-        <router-link to="/login" class="ai-link">Retour à la connexion</router-link>
+        <router-link to="/login" class="ai-link"
+          >Retour à la connexion</router-link
+        >
       </div>
 
       <div v-else-if="done" class="ai-state ai-state--ok">
@@ -25,8 +29,8 @@
       <template v-else>
         <h1 class="ai-title">Rejoindre {{ invite.tenant_name }}</h1>
         <p class="ai-sub">
-          Invitation pour <strong>{{ invite.email }}</strong>
-          (rôle : {{ invite.role }}).
+          Invitation pour <strong>{{ invite.email }}</strong> (rôle :
+          {{ invite.role }}).
         </p>
 
         <v-alert
@@ -69,8 +73,8 @@
           />
         </template>
         <p v-else class="ai-existing">
-          Un compte existe déjà pour cet email. Cliquez pour rejoindre cet espace ;
-          vous vous connecterez avec vos identifiants habituels.
+          Un compte existe déjà pour cet email. Cliquez pour rejoindre cet
+          espace ; vous vous connecterez avec vos identifiants habituels.
         </p>
 
         <v-btn
@@ -81,7 +85,11 @@
           class="text-none mt-2"
           @click="submit"
         >
-          {{ invite.requires_account ? "Activer mon compte" : "Rejoindre l'espace" }}
+          {{
+            invite.requires_account
+              ? "Activer mon compte"
+              : "Rejoindre l'espace"
+          }}
         </v-btn>
       </template>
     </div>
@@ -103,7 +111,12 @@ const loadError = ref(null);
 const submitting = ref(false);
 const errorMessage = ref(null);
 const done = ref(false);
-const invite = reactive({ email: "", tenant_name: "", role: "", requires_account: true });
+const invite = reactive({
+  email: "",
+  tenant_name: "",
+  role: "",
+  requires_account: true,
+});
 const form = reactive({ nom: "", prenom: "", password: "", confirm: "" });
 
 async function submit() {
@@ -114,7 +127,8 @@ async function submit() {
       return;
     }
     if (form.password.length < 8) {
-      errorMessage.value = "Le mot de passe doit contenir au moins 8 caractères.";
+      errorMessage.value =
+        "Le mot de passe doit contenir au moins 8 caractères.";
       return;
     }
     if (form.password !== form.confirm) {
@@ -125,12 +139,17 @@ async function submit() {
   submitting.value = true;
   try {
     const payload = invite.requires_account
-      ? { nom: form.nom.trim(), prenom: form.prenom.trim(), password: form.password }
+      ? {
+          nom: form.nom.trim(),
+          prenom: form.prenom.trim(),
+          password: form.password,
+        }
       : {};
     await invitationService.accept(token, payload);
     done.value = true;
   } catch (err) {
-    errorMessage.value = err?.response?.data?.error || "Échec de l'acceptation.";
+    errorMessage.value =
+      err?.response?.data?.error || "Échec de l'acceptation.";
   } finally {
     submitting.value = false;
   }
@@ -146,7 +165,8 @@ onMounted(async () => {
     const { data } = await invitationService.get(token);
     Object.assign(invite, data);
   } catch (err) {
-    loadError.value = err?.response?.data?.error || "Invitation invalide ou expirée.";
+    loadError.value =
+      err?.response?.data?.error || "Invitation invalide ou expirée.";
   } finally {
     loading.value = false;
   }

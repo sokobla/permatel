@@ -93,7 +93,9 @@
             style="max-width: 210px"
           />
           <v-spacer />
-          <v-btn variant="text" class="text-none" @click="resetCallsFilters">Réinitialiser</v-btn>
+          <v-btn variant="text" class="text-none" @click="resetCallsFilters"
+            >Réinitialiser</v-btn
+          >
           <v-btn
             color="#00a8a8"
             variant="flat"
@@ -123,7 +125,11 @@
           </template>
           <template #[`item.direction`]="{ item }">
             <span class="cdr-dir">
-              <v-icon size="13">{{ item.direction === "outbound" ? "mdi-phone-forward-outline" : "mdi-phone-incoming-outline" }}</v-icon>
+              <v-icon size="13">{{
+                item.direction === "outbound"
+                  ? "mdi-phone-forward-outline"
+                  : "mdi-phone-incoming-outline"
+              }}</v-icon>
               {{ item.direction === "outbound" ? "Sortant" : "Entrant" }}
             </span>
           </template>
@@ -132,11 +138,17 @@
             <span v-else class="cdr-muted">—</span>
           </template>
           <template #[`item.agent_station`]="{ item }">
-            <span v-if="item.agent_station" class="cdr-mono">{{ item.agent_station }}</span>
+            <span v-if="item.agent_station" class="cdr-mono">{{
+              item.agent_station
+            }}</span>
             <span v-else class="cdr-muted">—</span>
           </template>
           <template #[`item.call_status`]="{ item }">
-            <v-chip size="small" variant="tonal" :color="statusColor(item.call_status)">
+            <v-chip
+              size="small"
+              variant="tonal"
+              :color="statusColor(item.call_status)"
+            >
               <v-icon start size="10">mdi-circle</v-icon>
               {{ STATUS_LABEL[item.call_status] || item.call_status }}
             </v-chip>
@@ -145,7 +157,9 @@
             <span class="cdr-mono">{{ formatDuration(item.duration) }}</span>
           </template>
           <template #no-data>
-            <div class="cdr-empty">Aucun appel sur cette période/ces filtres.</div>
+            <div class="cdr-empty">
+              Aucun appel sur cette période/ces filtres.
+            </div>
           </template>
         </v-data-table-server>
       </v-card>
@@ -154,9 +168,10 @@
     <!-- ═══════════ ENREGISTREMENTS ═══════════ -->
     <template v-else>
       <v-alert type="warning" variant="tonal" density="compact" class="mb-3">
-        Écoute/téléchargement disponibles uniquement si FusionPBX expose le fichier via une URL
-        accessible (http/https). Un chemin de fichier local PBX est signalé comme indisponible
-        plutôt que de proposer un téléchargement cassé.
+        Écoute/téléchargement disponibles uniquement si FusionPBX expose le
+        fichier via une URL accessible (http/https). Un chemin de fichier local
+        PBX est signalé comme indisponible plutôt que de proposer un
+        téléchargement cassé.
       </v-alert>
 
       <v-card variant="flat" class="cdr-filters" rounded="lg" border>
@@ -197,7 +212,9 @@
             style="max-width: 210px"
           />
           <v-spacer />
-          <v-btn variant="text" class="text-none" @click="resetRecFilters">Réinitialiser</v-btn>
+          <v-btn variant="text" class="text-none" @click="resetRecFilters"
+            >Réinitialiser</v-btn
+          >
         </div>
       </v-card>
 
@@ -239,7 +256,9 @@
             <span v-else class="cdr-muted">—</span>
           </template>
           <template #[`item.agent_station`]="{ item }">
-            <span v-if="item.agent_station" class="cdr-mono">{{ item.agent_station }}</span>
+            <span v-if="item.agent_station" class="cdr-mono">{{
+              item.agent_station
+            }}</span>
             <span v-else class="cdr-muted">—</span>
           </template>
           <template #[`item.duration`]="{ item }">
@@ -251,13 +270,19 @@
               variant="text"
               size="x-small"
               :disabled="!item.recording_available"
-              :title="item.recording_available ? 'Télécharger' : 'Indisponible (chemin local PBX)'"
+              :title="
+                item.recording_available
+                  ? 'Télécharger'
+                  : 'Indisponible (chemin local PBX)'
+              "
               :loading="downloadingId === item.call_uuid"
               @click="downloadOne(item)"
             />
           </template>
           <template #no-data>
-            <div class="cdr-empty">Aucun enregistrement sur cette période/ces filtres.</div>
+            <div class="cdr-empty">
+              Aucun enregistrement sur cette période/ces filtres.
+            </div>
           </template>
         </v-data-table-server>
 
@@ -408,15 +433,22 @@ async function fetchCalls(options) {
     callsTotal.value = data.total || 0;
   } catch (err) {
     feedback.type = "error";
-    feedback.text = err?.response?.data?.error || "Impossible de charger l'historique des appels.";
+    feedback.text =
+      err?.response?.data?.error ||
+      "Impossible de charger l'historique des appels.";
   } finally {
     callsLoading.value = false;
   }
 }
 function resetCallsFilters() {
   Object.assign(callsFilters, {
-    from: daysAgoIso(7), to: todayIso(), call_status: null, direction: null,
-    queue_id: "", agent_login: "", search: "",
+    from: daysAgoIso(7),
+    to: todayIso(),
+    call_status: null,
+    direction: null,
+    queue_id: "",
+    agent_login: "",
+    search: "",
   });
   callsPage.value = 1;
   fetchCalls();
@@ -426,7 +458,10 @@ async function exportCsv() {
   exportingCsv.value = true;
   try {
     const { data } = await telephonyService.exportCallsCsv(callsParams());
-    triggerBlobDownload(data, `appels_${callsFilters.from}_${callsFilters.to}.csv`);
+    triggerBlobDownload(
+      data,
+      `appels_${callsFilters.from}_${callsFilters.to}.csv`,
+    );
   } catch (err) {
     feedback.type = "error";
     feedback.text = await blobErrorMessage(err, "L'export CSV a échoué.");
@@ -486,13 +521,21 @@ async function fetchRecordings(options) {
     recTotal.value = data.total || 0;
   } catch (err) {
     feedback.type = "error";
-    feedback.text = err?.response?.data?.error || "Impossible de charger les enregistrements.";
+    feedback.text =
+      err?.response?.data?.error ||
+      "Impossible de charger les enregistrements.";
   } finally {
     recLoading.value = false;
   }
 }
 function resetRecFilters() {
-  Object.assign(recFilters, { from: daysAgoIso(7), to: todayIso(), queue_id: "", agent_login: "", search: "" });
+  Object.assign(recFilters, {
+    from: daysAgoIso(7),
+    to: todayIso(),
+    queue_id: "",
+    agent_login: "",
+    search: "",
+  });
   recPage.value = 1;
   fetchRecordings();
 }
@@ -513,8 +556,14 @@ async function downloadOne(item) {
 async function exportSelectedRecordings() {
   exportingBulk.value = true;
   try {
-    const { data } = await telephonyService.exportRecordingsBulk(selectedRecordings.value, recParams());
-    triggerBlobDownload(data, `enregistrements_${recFilters.from}_${recFilters.to}.zip`);
+    const { data } = await telephonyService.exportRecordingsBulk(
+      selectedRecordings.value,
+      recParams(),
+    );
+    triggerBlobDownload(
+      data,
+      `enregistrements_${recFilters.from}_${recFilters.to}.zip`,
+    );
   } catch (err) {
     feedback.type = "error";
     feedback.text = await blobErrorMessage(err, "L'export groupé a échoué.");
@@ -525,8 +574,14 @@ async function exportSelectedRecordings() {
 async function exportAllFilteredRecordings() {
   exportingBulk.value = true;
   try {
-    const { data } = await telephonyService.exportRecordingsBulk(null, recParams());
-    triggerBlobDownload(data, `enregistrements_${recFilters.from}_${recFilters.to}.zip`);
+    const { data } = await telephonyService.exportRecordingsBulk(
+      null,
+      recParams(),
+    );
+    triggerBlobDownload(
+      data,
+      `enregistrements_${recFilters.from}_${recFilters.to}.zip`,
+    );
   } catch (err) {
     feedback.type = "error";
     feedback.text = await blobErrorMessage(err, "L'export groupé a échoué.");
@@ -537,9 +592,16 @@ async function exportAllFilteredRecordings() {
 </script>
 
 <style scoped>
-.cdr-root { font-family: "Fira Sans", sans-serif; }
-.cdr-mono { font-family: "Fira Code", ui-monospace, monospace; font-size: 12.5px; }
-.cdr-muted { color: #9aa0aa; }
+.cdr-root {
+  font-family: "Fira Sans", sans-serif;
+}
+.cdr-mono {
+  font-family: "Fira Code", ui-monospace, monospace;
+  font-size: 12.5px;
+}
+.cdr-muted {
+  color: #9aa0aa;
+}
 
 .cdr-subtabs {
   display: inline-flex;
@@ -558,23 +620,68 @@ async function exportAllFilteredRecordings() {
   border: none;
   font-family: inherit;
 }
-.cdr-subtab:first-child { border-right: 1px solid #e5e7eb; }
-.cdr-subtab--active { background: rgba(0, 168, 168, 0.1); color: #00a8a8; }
-
-.cdr-filters { padding: 14px 16px; }
-.cdr-filters__row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.cdr-field { display: flex; flex-direction: column; gap: 3px; }
-.cdr-field label { font-size: 12px; font-weight: 700; letter-spacing: 0.05em; color: #9aa0aa; }
-.cdr-date {
-  font-family: inherit; font-size: 15px; padding: 6px 8px; border: 1px solid #c7c9d1;
-  border-radius: 4px; color: #1a1a2e; height: 40px;
+.cdr-subtab:first-child {
+  border-right: 1px solid #e5e7eb;
+}
+.cdr-subtab--active {
+  background: rgba(0, 168, 168, 0.1);
+  color: #00a8a8;
 }
 
-.cdr-dir { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; color: #6b7280; }
-.cdr-empty { text-align: center; padding: 28px 16px; color: #9aa0aa; font-size: 12.5px; }
+.cdr-filters {
+  padding: 14px 16px;
+}
+.cdr-filters__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.cdr-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.cdr-field label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #9aa0aa;
+}
+.cdr-date {
+  font-family: inherit;
+  font-size: 15px;
+  padding: 6px 8px;
+  border: 1px solid #c7c9d1;
+  border-radius: 4px;
+  color: #1a1a2e;
+  height: 40px;
+}
+
+.cdr-dir {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  color: #6b7280;
+}
+.cdr-empty {
+  text-align: center;
+  padding: 28px 16px;
+  color: #9aa0aa;
+  font-size: 12.5px;
+}
 
 .cdr-bulkbar {
-  display: flex; align-items: center; gap: 10px; padding: 8px 4px; font-size: 12.5px; color: #1a1a2e;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  font-size: 12.5px;
+  color: #1a1a2e;
 }
-.cdr-bulkbar--footer { padding: 10px 16px; border-top: 1px solid #e5e7eb; }
+.cdr-bulkbar--footer {
+  padding: 10px 16px;
+  border-top: 1px solid #e5e7eb;
+}
 </style>

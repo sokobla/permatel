@@ -99,9 +99,13 @@ const siteId = ref(null);
 const loadingStart = ref(false);
 const loadingEnd = ref(false);
 
-const canStart = computed(() => !!(agentId.value && clientId.value && siteId.value));
+const canStart = computed(
+  () => !!(agentId.value && clientId.value && siteId.value),
+);
 const filteredSites = computed(() =>
-  clientId.value ? sites.value.filter((s) => s.client_id === clientId.value) : sites.value,
+  clientId.value
+    ? sites.value.filter((s) => s.client_id === clientId.value)
+    : sites.value,
 );
 
 function onClientChange() {
@@ -141,7 +145,10 @@ async function onStart() {
 
 async function onEnd() {
   if (!agentId.value) {
-    notify("error", "Sélectionnez l'agent dont la vacation doit être terminée.");
+    notify(
+      "error",
+      "Sélectionnez l'agent dont la vacation doit être terminée.",
+    );
     return;
   }
   loadingEnd.value = true;
@@ -182,19 +189,38 @@ onMounted(async () => {
   flex-direction: column;
   gap: 12px;
 }
-.pdf-hdr { display: flex; align-items: center; gap: 9px; }
-.pdf-hdr-marker { width: 3px; height: 16px; background: #00a8a8; border-radius: 1px; }
+.pdf-hdr {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.pdf-hdr-marker {
+  width: 3px;
+  height: 16px;
+  background: #00a8a8;
+  border-radius: 1px;
+}
 .pdf-title {
-  font-size: 0.95rem; font-weight: 800; letter-spacing: 0.08em;
-  color: #000b23; text-transform: uppercase; margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #000b23;
+  text-transform: uppercase;
+  margin: 0;
 }
 .pdf-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
-.pdf-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.pdf-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 @media (max-width: 720px) {
-  .pdf-grid { grid-template-columns: 1fr; }
+  .pdf-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

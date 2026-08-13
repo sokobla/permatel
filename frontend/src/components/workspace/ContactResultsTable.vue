@@ -52,14 +52,14 @@
 
 <script setup>
 defineProps({
-  contacts:          { type: Array,          default: () => [] },
-  selectedContactId: { type: [Number, null], default: null    },
-  isLoading:         { type: Boolean,        default: false   },
-})
+  contacts: { type: Array, default: () => [] },
+  selectedContactId: { type: [Number, null], default: null },
+  isLoading: { type: Boolean, default: false },
+});
 
-const emit = defineEmits(['select'])
+const emit = defineEmits(["select"]);
 </script>
 
 <script>
-export default { name: 'ContactResultsTable' }
+export default { name: "ContactResultsTable" };
 </script>

@@ -1,7 +1,13 @@
 <template>
   <v-menu location="bottom end">
     <template #activator="{ props }">
-      <v-btn v-bind="props" variant="text" color="#000b23" size="small" class="asm-btn">
+      <v-btn
+        v-bind="props"
+        variant="text"
+        color="#000b23"
+        size="small"
+        class="asm-btn"
+      >
         <span class="asm-dot" :class="`asm-dot--${statusColor}`"></span>
         {{ statusLabel }}
         <v-icon size="16" class="ml-1">mdi-chevron-down</v-icon>
@@ -9,15 +15,24 @@
     </template>
     <v-list density="compact" min-width="220">
       <v-list-item @click="setStatus('Available')">
-        <template #prepend><span class="asm-dot asm-dot--online"></span></template>
+        <template #prepend
+          ><span class="asm-dot asm-dot--online"></span
+        ></template>
         <v-list-item-title>Disponible</v-list-item-title>
       </v-list-item>
 
-      <v-list-item :active="pauseSubmenuOpen" @click.stop="pauseSubmenuOpen = !pauseSubmenuOpen">
-        <template #prepend><span class="asm-dot asm-dot--away"></span></template>
+      <v-list-item
+        :active="pauseSubmenuOpen"
+        @click.stop="pauseSubmenuOpen = !pauseSubmenuOpen"
+      >
+        <template #prepend
+          ><span class="asm-dot asm-dot--away"></span
+        ></template>
         <v-list-item-title>En pause</v-list-item-title>
         <template #append>
-          <v-icon size="16">{{ pauseSubmenuOpen ? "mdi-chevron-up" : "mdi-chevron-down" }}</v-icon>
+          <v-icon size="16">{{
+            pauseSubmenuOpen ? "mdi-chevron-up" : "mdi-chevron-down"
+          }}</v-icon>
         </template>
       </v-list-item>
       <template v-if="pauseSubmenuOpen">
@@ -27,15 +42,21 @@
           class="asm-pause-code"
           @click="setStatus('On Break', code.digit)"
         >
-          <v-list-item-title>{{ code.label }} ({{ code.digit }})</v-list-item-title>
+          <v-list-item-title
+            >{{ code.label }} ({{ code.digit }})</v-list-item-title
+          >
         </v-list-item>
         <v-list-item v-if="!pauseCodes.length" disabled>
-          <v-list-item-title class="text-caption">Aucun code configuré</v-list-item-title>
+          <v-list-item-title class="text-caption"
+            >Aucun code configuré</v-list-item-title
+          >
         </v-list-item>
       </template>
 
       <v-list-item @click="setStatus('Logged Out')">
-        <template #prepend><span class="asm-dot asm-dot--offline"></span></template>
+        <template #prepend
+          ><span class="asm-dot asm-dot--offline"></span
+        ></template>
         <v-list-item-title>Déconnecté</v-list-item-title>
       </v-list-item>
     </v-list>

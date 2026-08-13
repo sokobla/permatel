@@ -1,6 +1,5 @@
 <template>
   <div class="sv-page">
-
     <!-- En-tête : titre + tenant actif (toujours spécifié) -->
     <header class="sv-head">
       <div>
@@ -22,15 +21,26 @@
     </div>
 
     <template v-else>
-      <v-tabs v-if="showTelephonyTab" v-model="tab" color="#00a8a8" density="comfortable" class="sv-tabs">
-        <v-tab value="sessions" class="text-none"><v-icon start size="16">mdi-account-clock-outline</v-icon>Sessions</v-tab>
-        <v-tab value="telephony" class="text-none"><v-icon start size="16">mdi-phone-in-talk-outline</v-icon>Téléphonie</v-tab>
+      <v-tabs
+        v-if="showTelephonyTab"
+        v-model="tab"
+        color="#00a8a8"
+        density="comfortable"
+        class="sv-tabs"
+      >
+        <v-tab value="sessions" class="text-none"
+          ><v-icon start size="16">mdi-account-clock-outline</v-icon
+          >Sessions</v-tab
+        >
+        <v-tab value="telephony" class="text-none"
+          ><v-icon start size="16">mdi-phone-in-talk-outline</v-icon
+          >Téléphonie</v-tab
+        >
       </v-tabs>
 
       <SessionMonitoring v-if="!showTelephonyTab || tab === 'sessions'" />
       <SupervisionTelephony v-else-if="tab === 'telephony'" />
     </template>
-
   </div>
 </template>
 
@@ -56,7 +66,9 @@ const activeTenantName = computed(() => {
 // (contrairement au bouton « Configurer » d'Intégrations, qui doit rester
 // accessible avant la première configuration).
 const showTelephonyTab = computed(
-  () => !!authStore.featureMap.channels?.telephonie && !!authStore.featureMap.config_state?.telephony_configured,
+  () =>
+    !!authStore.featureMap.channels?.telephonie &&
+    !!authStore.featureMap.config_state?.telephony_configured,
 );
 </script>
 

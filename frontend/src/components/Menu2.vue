@@ -9,17 +9,18 @@
     @click="rail = false"
   >
     <v-list>
-      <v-list-item
-        :title="authUser.fullName"
-        :subtitle="authUser.role"
-      >
+      <v-list-item :title="authUser.fullName" :subtitle="authUser.role">
         <template v-slot:prepend>
           <v-avatar
             :class="{ 'mx-1': wider }"
             :size="wider && rail ? 40 : undefined"
             color="#00a8a8"
           >
-            <v-img v-if="userAvatarUrl" :src="userAvatarUrl" alt="Avatar utilisateur" />
+            <v-img
+              v-if="userAvatarUrl"
+              :src="userAvatarUrl"
+              alt="Avatar utilisateur"
+            />
             <span v-else class="menu-avatar-initials">{{ userInitials }}</span>
           </v-avatar>
         </template>
@@ -85,7 +86,12 @@
     <template v-slot:append>
       <div :class="['tn-menu-foot', { 'tn-menu-foot--rail': rail }]">
         <span v-if="rail" class="tn-menu-foot__name">P</span>
-        <img v-else :src="permatelLogo" alt="PERMATEL" class="tn-menu-foot__logo" />
+        <img
+          v-else
+          :src="permatelLogo"
+          alt="PERMATEL"
+          class="tn-menu-foot__logo"
+        />
         <span v-if="!rail" class="tn-menu-foot__ver">v{{ APP_VERSION }}</span>
       </div>
     </template>

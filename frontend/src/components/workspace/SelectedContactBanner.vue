@@ -127,7 +127,9 @@ const features = computed(() => authStore.featureMap);
 // (canal email + SMTP + IMAP configurés → workspace_tabs.mail).
 const showEmail = computed(() => features.value.workspace_tabs?.mail === true);
 // APPEL : visible seulement si l'intégration téléphonie est activée.
-const showCall = computed(() => features.value.integrations?.telephony === true);
+const showCall = computed(
+  () => features.value.integrations?.telephony === true,
+);
 
 const DEMANDE_TYPES = [
   { type: "anomalie", label: "Anomalie", icon: "mdi-alert-circle-outline" },
@@ -149,7 +151,14 @@ const DEMANDE_TYPES = [
 // "Prise de service" : exclusivement pour les contacts de type agent.
 const demandeTypes = computed(() =>
   props.isAgent
-    ? [...DEMANDE_TYPES, { type: "prise_de_service", label: "Prise de service", icon: "mdi-clock-start" }]
+    ? [
+        ...DEMANDE_TYPES,
+        {
+          type: "prise_de_service",
+          label: "Prise de service",
+          icon: "mdi-clock-start",
+        },
+      ]
     : DEMANDE_TYPES,
 );
 

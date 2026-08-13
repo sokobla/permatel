@@ -7,10 +7,12 @@
           <h1 class="st-title">Choisir un espace de travail</h1>
           <p class="st-subtitle">
             <template v-if="authStore.isGlobalAdmin">
-              Vous êtes administrateur global : sélectionnez le tenant à superviser.
+              Vous êtes administrateur global : sélectionnez le tenant à
+              superviser.
             </template>
             <template v-else>
-              Votre compte est rattaché à plusieurs entités. Sélectionnez celle à ouvrir.
+              Votre compte est rattaché à plusieurs entités. Sélectionnez celle
+              à ouvrir.
             </template>
           </p>
         </div>
@@ -95,7 +97,9 @@ const BACKEND_ORIGIN = (
 
 function logoOf(t) {
   if (!t?.logo_url) return null;
-  return /^https?:\/\//.test(t.logo_url) ? t.logo_url : BACKEND_ORIGIN + t.logo_url;
+  return /^https?:\/\//.test(t.logo_url)
+    ? t.logo_url
+    : BACKEND_ORIGIN + t.logo_url;
 }
 
 function initials(name) {
@@ -194,7 +198,9 @@ onMounted(async () => {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 .st-item:hover {
   border-color: #00a8a8;

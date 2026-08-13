@@ -1,8 +1,12 @@
 <template>
   <v-card elevation="0" class="dud-card">
     <div class="dud-header">
-      <span class="card-title">DEMANDES CRITIQUES — URGENCES &amp; SLA DÉPASSÉS</span>
-      <span v-if="!loading && demandes.length > 0" class="dud-count">{{ demandes.length }}</span>
+      <span class="card-title"
+        >DEMANDES CRITIQUES — URGENCES &amp; SLA DÉPASSÉS</span
+      >
+      <span v-if="!loading && demandes.length > 0" class="dud-count">{{
+        demandes.length
+      }}</span>
     </div>
     <v-divider />
 
@@ -38,7 +42,9 @@
       </template>
 
       <template #[`item.type_demande`]="{ item }">
-        <span :class="['dud-type-badge', `dud-type-badge--${item.type_demande}`]">
+        <span
+          :class="['dud-type-badge', `dud-type-badge--${item.type_demande}`]"
+        >
           {{ TYPE_LABELS[item.type_demande] ?? item.type_demande }}
         </span>
       </template>
@@ -59,9 +65,20 @@
       </template>
 
       <template #[`item.sla_deadline`]="{ item }">
-        <span v-if="item.sla_deadline" :class="['code-font text-caption', isSlaBreached(item.sla_deadline) ? 'dud-sla--alert' : '']">
+        <span
+          v-if="item.sla_deadline"
+          :class="[
+            'code-font text-caption',
+            isSlaBreached(item.sla_deadline) ? 'dud-sla--alert' : '',
+          ]"
+        >
           {{ formatDate(item.sla_deadline) }}
-          <v-icon v-if="isSlaBreached(item.sla_deadline)" size="11" color="#e74c3c">mdi-alert</v-icon>
+          <v-icon
+            v-if="isSlaBreached(item.sla_deadline)"
+            size="11"
+            color="#e74c3c"
+            >mdi-alert</v-icon
+          >
         </span>
         <span v-else class="dud-na">—</span>
       </template>
@@ -78,36 +95,43 @@
 <script setup>
 defineProps({
   demandes: { type: Array, default: () => [] },
-  loading:  { type: Boolean, default: false },
+  loading: { type: Boolean, default: false },
 });
 
 const TYPE_LABELS = {
   anomalie: "ANO",
   commande: "CMD",
   planning: "PLN",
-  admin:    "ADM",
+  admin: "ADM",
 };
 
 const STATUT_LABELS = {
-  nouvelle:   "Nouvelle",
-  en_cours:   "En cours",
+  nouvelle: "Nouvelle",
+  en_cours: "En cours",
   en_attente: "En attente",
-  resolue:    "Résolue",
-  cloturee:   "Clôturée",
-  annulee:    "Annulée",
+  resolue: "Résolue",
+  cloturee: "Clôturée",
+  annulee: "Annulée",
 };
 
 const headers = [
-  { title: "TICKET",    key: "numero_ticket", sortable: false, width: "120px" },
-  { title: "TYPE",      key: "type_demande",  sortable: false, width: "72px" },
-  { title: "TITRE",     key: "titre",         sortable: false },
-  { title: "PRIORITÉ",  key: "priorite",      sortable: false, width: "110px" },
-  { title: "SLA",       key: "sla_deadline",  sortable: false, width: "110px" },
-  { title: "STATUT",    key: "statut",        sortable: false, width: "110px" },
+  { title: "TICKET", key: "numero_ticket", sortable: false, width: "120px" },
+  { title: "TYPE", key: "type_demande", sortable: false, width: "72px" },
+  { title: "TITRE", key: "titre", sortable: false },
+  { title: "PRIORITÉ", key: "priorite", sortable: false, width: "110px" },
+  { title: "SLA", key: "sla_deadline", sortable: false, width: "110px" },
+  { title: "STATUT", key: "statut", sortable: false, width: "110px" },
 ];
 
 function prioriteColor(p) {
-  return { urgente: "#e74c3c", haute: "orange-darken-2", normale: "grey-darken-1", basse: "grey" }[p] ?? "grey";
+  return (
+    {
+      urgente: "#e74c3c",
+      haute: "orange-darken-2",
+      normale: "grey-darken-1",
+      basse: "grey",
+    }[p] ?? "grey"
+  );
 }
 
 function isSlaBreached(deadline) {
@@ -117,8 +141,10 @@ function isSlaBreached(deadline) {
 function formatDate(iso) {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("fr-FR", {
-    day: "2-digit", month: "2-digit",
-    hour: "2-digit", minute: "2-digit",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 </script>
@@ -181,10 +207,22 @@ export default { name: "DashboardUrgentDemandes" };
   border-radius: 2px;
 }
 
-.dud-type-badge--anomalie { background: rgba(231, 76, 60, 0.1);  color: #c0392b; }
-.dud-type-badge--commande { background: rgba(0, 168, 168, 0.1);  color: #007a7a; }
-.dud-type-badge--planning { background: rgba(52, 152, 219, 0.1); color: #1a73c1; }
-.dud-type-badge--admin    { background: rgba(142, 68, 173, 0.1); color: #7d3c98; }
+.dud-type-badge--anomalie {
+  background: rgba(231, 76, 60, 0.1);
+  color: #c0392b;
+}
+.dud-type-badge--commande {
+  background: rgba(0, 168, 168, 0.1);
+  color: #007a7a;
+}
+.dud-type-badge--planning {
+  background: rgba(52, 152, 219, 0.1);
+  color: #1a73c1;
+}
+.dud-type-badge--admin {
+  background: rgba(142, 68, 173, 0.1);
+  color: #7d3c98;
+}
 
 /* ── SLA ───────────────────────────────────────────────────── */
 
@@ -211,12 +249,30 @@ export default { name: "DashboardUrgentDemandes" };
   white-space: nowrap;
 }
 
-.dud-statut--nouvelle   { background: #eaf4fb; color: #1a73c1; }
-.dud-statut--en_cours   { background: rgba(0,168,168,0.1); color: #007a7a; }
-.dud-statut--en_attente { background: #fef9e7; color: #b7770d; }
-.dud-statut--resolue    { background: #eafaf1; color: #1e8449; }
-.dud-statut--cloturee   { background: #f4f6f7; color: #707b7c; }
-.dud-statut--annulee    { background: rgba(231,76,60,0.07); color: #c0392b; }
+.dud-statut--nouvelle {
+  background: #eaf4fb;
+  color: #1a73c1;
+}
+.dud-statut--en_cours {
+  background: rgba(0, 168, 168, 0.1);
+  color: #007a7a;
+}
+.dud-statut--en_attente {
+  background: #fef9e7;
+  color: #b7770d;
+}
+.dud-statut--resolue {
+  background: #eafaf1;
+  color: #1e8449;
+}
+.dud-statut--cloturee {
+  background: #f4f6f7;
+  color: #707b7c;
+}
+.dud-statut--annulee {
+  background: rgba(231, 76, 60, 0.07);
+  color: #c0392b;
+}
 
 /* ── Empty ─────────────────────────────────────────────────── */
 
@@ -247,8 +303,13 @@ export default { name: "DashboardUrgentDemandes" };
 }
 
 @keyframes dud-pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.35; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
 }
 
 .dud-sk-row {
@@ -256,14 +317,37 @@ export default { name: "DashboardUrgentDemandes" };
   align-items: center;
   gap: 12px;
   padding: 8px 0;
-  border-bottom: 1px solid rgba(0,0,0,0.04);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
 }
 
-.dud-sk { background: #e8e8e8; border-radius: 3px; }
+.dud-sk {
+  background: #e8e8e8;
+  border-radius: 3px;
+}
 
-.dud-sk--ticket { width: 90px;  height: 10px; flex-shrink: 0; }
-.dud-sk--badge  { width: 36px;  height: 16px; flex-shrink: 0; }
-.dud-sk--title  { flex: 1;      height: 10px; }
-.dud-sk--chip   { width: 70px;  height: 18px; flex-shrink: 0; border-radius: 9px; }
-.dud-sk--status { width: 80px;  height: 10px; flex-shrink: 0; }
+.dud-sk--ticket {
+  width: 90px;
+  height: 10px;
+  flex-shrink: 0;
+}
+.dud-sk--badge {
+  width: 36px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.dud-sk--title {
+  flex: 1;
+  height: 10px;
+}
+.dud-sk--chip {
+  width: 70px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 9px;
+}
+.dud-sk--status {
+  width: 80px;
+  height: 10px;
+  flex-shrink: 0;
+}
 </style>

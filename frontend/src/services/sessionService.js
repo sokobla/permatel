@@ -32,7 +32,10 @@ export const sessionService = {
 
   /** Export CSV des sessions du tenant actif (mêmes filtres que getMonitoring) — réponse blob. */
   exportMonitoringCsv(params = {}) {
-    return apiClient.get("/auth/sessions/monitoring/export", { params, responseType: "blob" });
+    return apiClient.get("/auth/sessions/monitoring/export", {
+      params,
+      responseType: "blob",
+    });
   },
 
   /** Liste des utilisateurs rattachés à un tenant (pour filtrer les KPI). */

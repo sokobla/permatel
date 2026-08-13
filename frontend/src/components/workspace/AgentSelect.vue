@@ -2,7 +2,9 @@
   <div class="ags-root" ref="rootRef">
     <!-- Champ de recherche -->
     <div :class="['ags-field', open ? 'ags-field--open' : '']">
-      <v-icon size="13" color="#aaa" class="ags-icon">mdi-account-hard-hat-outline</v-icon>
+      <v-icon size="13" color="#aaa" class="ags-icon"
+        >mdi-account-hard-hat-outline</v-icon
+      >
       <input
         ref="inputRef"
         v-model="query"
@@ -15,7 +17,12 @@
         @keydown.escape="close"
         @keydown.tab="close"
       />
-      <button v-if="selectedId" class="ags-clear" tabindex="-1" @click.prevent="clear">
+      <button
+        v-if="selectedId"
+        class="ags-clear"
+        tabindex="-1"
+        @click.prevent="clear"
+      >
         <v-icon size="12">mdi-close</v-icon>
       </button>
     </div>
@@ -49,14 +56,14 @@ import apiClient from "@/services/http/axios";
 
 const emit = defineEmits(["agent-selected", "agent-cleared"]);
 
-const query      = ref("");
-const results    = ref([]);
-const loading    = ref(false);
-const open       = ref(false);
+const query = ref("");
+const results = ref([]);
+const loading = ref(false);
+const open = ref(false);
 const selectedId = ref(null);
 const selectedLabel = ref("");
 
-const rootRef  = ref(null);
+const rootRef = ref(null);
 const inputRef = ref(null);
 
 let debounceTimer = null;
@@ -112,7 +119,9 @@ function onOutsideClick(e) {
 }
 
 onMounted(() => document.addEventListener("mousedown", onOutsideClick));
-onBeforeUnmount(() => document.removeEventListener("mousedown", onOutsideClick));
+onBeforeUnmount(() =>
+  document.removeEventListener("mousedown", onOutsideClick),
+);
 </script>
 
 <script>
@@ -142,7 +151,9 @@ export default { name: "AgentSelect" };
   border-color: #00a8a8;
 }
 
-.ags-icon { flex-shrink: 0; }
+.ags-icon {
+  flex-shrink: 0;
+}
 
 .ags-input {
   flex: 1;
@@ -178,7 +189,9 @@ export default { name: "AgentSelect" };
   color: #666;
   flex-shrink: 0;
 }
-.ags-clear:hover { background: rgba(0, 0, 0, 0.15); }
+.ags-clear:hover {
+  background: rgba(0, 0, 0, 0.15);
+}
 
 /* ── Dropdown ──────────────────────────────────────────────── */
 
@@ -196,8 +209,13 @@ export default { name: "AgentSelect" };
   overflow-y: auto;
 }
 
-.ags-dropdown::-webkit-scrollbar { width: 3px; }
-.ags-dropdown::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 2px; }
+.ags-dropdown::-webkit-scrollbar {
+  width: 3px;
+}
+.ags-dropdown::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 2px;
+}
 
 .ags-loading,
 .ags-empty {
@@ -224,8 +242,12 @@ export default { name: "AgentSelect" };
   border-bottom: 1px solid rgba(0, 0, 0, 0.04);
   transition: background 0.1s;
 }
-.ags-item:last-child { border-bottom: none; }
-.ags-item:hover { background: rgba(0, 168, 168, 0.05); }
+.ags-item:last-child {
+  border-bottom: none;
+}
+.ags-item:hover {
+  background: rgba(0, 168, 168, 0.05);
+}
 
 .ags-item__name {
   font-family: "Fira Sans", sans-serif;
@@ -246,6 +268,8 @@ export default { name: "AgentSelect" };
 }
 
 @keyframes ags-rotate {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

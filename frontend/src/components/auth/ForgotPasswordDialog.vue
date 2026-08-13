@@ -9,7 +9,12 @@
             Recevez un lien de réinitialisation par email.
           </v-card-subtitle>
         </div>
-        <v-btn icon="mdi-close" variant="text" size="small" @click="emit('close')" />
+        <v-btn
+          icon="mdi-close"
+          variant="text"
+          size="small"
+          @click="emit('close')"
+        />
       </div>
     </v-card-item>
 
@@ -23,7 +28,12 @@
         Si un compte existe pour cette adresse, un email de réinitialisation a
         été envoyé.
       </p>
-      <v-btn color="#00a8a8" variant="flat" class="text-none" @click="emit('close')">
+      <v-btn
+        color="#00a8a8"
+        variant="flat"
+        class="text-none"
+        @click="emit('close')"
+      >
         Fermer
       </v-btn>
     </v-card-text>
@@ -61,7 +71,12 @@
       <v-divider />
 
       <v-card-actions class="fp-actions">
-        <v-btn variant="text" class="text-none" :disabled="loading" @click="emit('close')">
+        <v-btn
+          variant="text"
+          class="text-none"
+          :disabled="loading"
+          @click="emit('close')"
+        >
           Annuler
         </v-btn>
         <v-spacer />
@@ -116,10 +131,19 @@ async function submit() {
 </script>
 
 <style scoped>
-.fp-card { font-family: "Fira Sans", sans-serif; }
+.fp-card {
+  font-family: "Fira Sans", sans-serif;
+}
 
-.fp-head { padding: 18px 20px 12px; }
-.fp-head__row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.fp-head {
+  padding: 18px 20px 12px;
+}
+.fp-head__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
 .fp-title {
   font-family: "Fira Code", monospace;
   font-size: 20px;
@@ -134,7 +158,9 @@ async function submit() {
   margin-top: 2px;
 }
 
-.fp-body { padding: 18px 20px; }
+.fp-body {
+  padding: 18px 20px;
+}
 
 .fp-label {
   display: block;
@@ -143,10 +169,16 @@ async function submit() {
   color: #15223a;
   margin-bottom: 4px;
 }
-.fp-req { color: #e74c3c; }
+.fp-req {
+  color: #e74c3c;
+}
 
-.fp-actions { padding: 12px 16px; }
-.fp-submit { min-width: 150px; }
+.fp-actions {
+  padding: 12px 16px;
+}
+.fp-submit {
+  min-width: 150px;
+}
 
 .fp-success {
   display: flex;
@@ -156,6 +188,16 @@ async function submit() {
   gap: 10px;
   padding: 32px 24px 28px;
 }
-.fp-success__title { font-size: 18px; font-weight: 700; color: #000b23; margin: 4px 0 0; }
-.fp-success__text { font-size: 15px; color: #6b7280; max-width: 340px; margin: 0 0 8px; }
+.fp-success__title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #000b23;
+  margin: 4px 0 0;
+}
+.fp-success__text {
+  font-size: 15px;
+  color: #6b7280;
+  max-width: 340px;
+  margin: 0 0 8px;
+}
 </style>

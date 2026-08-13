@@ -1,6 +1,10 @@
 import apiClient from "@/services/http/axios";
 
-export async function searchClients({ search = "", page = 1, perPage = 20 } = {}) {
+export async function searchClients({
+  search = "",
+  page = 1,
+  perPage = 20,
+} = {}) {
   const { data } = await apiClient.get("/clients", {
     params: { search, page, per_page: perPage },
   });

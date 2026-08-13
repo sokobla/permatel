@@ -14,15 +14,27 @@
         <span class="code-font">{{ item.id.toString() }}</span>
       </template>
       <template v-slot:[`item.timestamp`]="{ item }">
-        <span class="code-font">{{ new Date(item.timestamp).toLocaleTimeString() }}</span>
+        <span class="code-font">{{
+          new Date(item.timestamp).toLocaleTimeString()
+        }}</span>
       </template>
       <template v-slot:[`item.priority`]="{ item }">
-        <v-chip :color="priorityColor(item.priority)" label size="small" class="priority-chip">
+        <v-chip
+          :color="priorityColor(item.priority)"
+          label
+          size="small"
+          class="priority-chip"
+        >
           {{ item.priority }}
         </v-chip>
       </template>
       <template v-slot:[`item.actions`]>
-        <v-btn variant="text" size="small" icon="mdi-magnify" color="#910807"></v-btn>
+        <v-btn
+          variant="text"
+          size="small"
+          icon="mdi-magnify"
+          color="#910807"
+        ></v-btn>
       </template>
     </v-data-table>
   </v-card>
@@ -36,35 +48,46 @@ defineProps<{
 }>();
 
 const headers = [
-  { title: 'ID', key: 'id', sortable: false, width: '140px' },
-  { title: 'Time', key: 'timestamp', sortable: false, width: '100px' },
-  { title: 'Description', key: 'description', sortable: false },
-  { title: 'Priority', key: 'priority', sortable: false, width: '120px' },
-  { title: 'Status', key: 'status', sortable: false, width: '130px' },
-  { title: 'Actions', key: 'actions', sortable: false, align: 'center', width: '80px' },
+  { title: "ID", key: "id", sortable: false, width: "140px" },
+  { title: "Time", key: "timestamp", sortable: false, width: "100px" },
+  { title: "Description", key: "description", sortable: false },
+  { title: "Priority", key: "priority", sortable: false, width: "120px" },
+  { title: "Status", key: "status", sortable: false, width: "130px" },
+  {
+    title: "Actions",
+    key: "actions",
+    sortable: false,
+    align: "center",
+    width: "80px",
+  },
 ];
 
-const priorityColor = (priority: Incident['priority']) => {
+const priorityColor = (priority: Incident["priority"]) => {
   switch (priority) {
-    case 'CRITICAL': return '#E74C3C';
-    case 'HIGH': return 'orange';
-    case 'MEDIUM': return 'grey-darken-1';
-    case 'WARNING': return 'amber';
-    default: return 'grey';
+    case "CRITICAL":
+      return "#E74C3C";
+    case "HIGH":
+      return "orange";
+    case "MEDIUM":
+      return "grey-darken-1";
+    case "WARNING":
+      return "amber";
+    default:
+      return "grey";
   }
 };
 </script>
 
 <style>
 .card-title {
-  font-family: 'Fira Sans', sans-serif;
+  font-family: "Fira Sans", sans-serif;
   font-size: 1rem;
   font-weight: 700;
-  color: #000B23;
+  color: #000b23;
 }
 .incidents-table {
-  font-family: 'Fira Sans', sans-serif;
-  background-color: #FFFFFF;
+  font-family: "Fira Sans", sans-serif;
+  background-color: #ffffff;
 }
 .incidents-table .v-data-table-header__content {
   font-weight: 700 !important;
@@ -73,10 +96,10 @@ const priorityColor = (priority: Incident['priority']) => {
   color: #333;
 }
 .code-font {
-  font-family: 'Fira Code', monospace;
+  font-family: "Fira Code", monospace;
 }
 .priority-chip {
-  font-family: 'Fira Code', monospace;
+  font-family: "Fira Code", monospace;
   font-weight: 700;
 }
 </style>

@@ -26,9 +26,7 @@
     <div ref="historyBodyRef" class="history-body">
       <template v-if="history.length > 0">
         <!-- Marqueur de début de session -->
-        <div class="timeline-marker">
-          APPEL DÉMARRÉ À {{ startTime }}
-        </div>
+        <div class="timeline-marker">APPEL DÉMARRÉ À {{ startTime }}</div>
 
         <HistoryMessageBubble
           v-for="msg in history"
@@ -47,33 +45,36 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
-import HistoryMessageBubble from './HistoryMessageBubble.vue'
+import { ref, computed, watch, nextTick } from "vue";
+import HistoryMessageBubble from "./HistoryMessageBubble.vue";
 
 const props = defineProps({
-  history:     { type: Array,  default: () => []                        },
-  channelMeta: { type: Object, default: () => ({ channel: '', sessionId: '' }) },
-  isLoading:   { type: Boolean, default: false                          },
-})
+  history: { type: Array, default: () => [] },
+  channelMeta: {
+    type: Object,
+    default: () => ({ channel: "", sessionId: "" }),
+  },
+  isLoading: { type: Boolean, default: false },
+});
 
-const historyBodyRef = ref(null)
+const historyBodyRef = ref(null);
 
 const startTime = computed(() =>
-  props.history.length > 0 ? props.history[0].time : '—'
-)
+  props.history.length > 0 ? props.history[0].time : "—",
+);
 
 // Auto-scroll vers le bas à chaque nouveau message
 watch(
   () => props.history.length,
   async () => {
-    await nextTick()
+    await nextTick();
     if (historyBodyRef.value) {
-      historyBodyRef.value.scrollTop = historyBodyRef.value.scrollHeight
+      historyBodyRef.value.scrollTop = historyBodyRef.value.scrollHeight;
     }
-  }
-)
+  },
+);
 </script>
 
 <script>
-export default { name: 'CommunicationHistoryPanel' }
+export default { name: "CommunicationHistoryPanel" };
 </script>

@@ -99,8 +99,12 @@
                   <th class="sv-th" style="width: 34%">Site</th>
                   <th class="sv-th" style="width: 20%">Contact</th>
                   <th class="sv-th" style="width: 20%">Ville / Code postal</th>
-                  <th class="sv-th" style="width: 16%; text-align: center">Statut</th>
-                  <th class="sv-th" style="width: 100px; text-align: right">Actions</th>
+                  <th class="sv-th" style="width: 16%; text-align: center">
+                    Statut
+                  </th>
+                  <th class="sv-th" style="width: 100px; text-align: right">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -123,7 +127,9 @@
                             class="sv-group-row__dot"
                             :style="{ background: group.color }"
                           ></span>
-                          <span class="sv-group-row__name">{{ group.name }}</span>
+                          <span class="sv-group-row__name">{{
+                            group.name
+                          }}</span>
                           <span class="sv-group-row__count">{{
                             group.items.length
                           }}</span>
@@ -146,29 +152,50 @@
                       >
                         <td class="sv-td sv-td--site">
                           <div class="sv-name-cell">
-                            <span class="sv-type-icon" :style="{ background: group.color }">
+                            <span
+                              class="sv-type-icon"
+                              :style="{ background: group.color }"
+                            >
                               <v-icon size="14" color="#fff">mdi-domain</v-icon>
                             </span>
                             <div class="sv-name-text-block">
                               <span class="sv-titre">{{ item.nom }}</span>
                               <span class="sv-name-sub">
-                                <span class="sv-client-dot" :style="{ background: group.color }"></span>
+                                <span
+                                  class="sv-client-dot"
+                                  :style="{ background: group.color }"
+                                ></span>
                                 {{ item.client?.nom ?? "Sans client" }}
-                                <template v-if="item.ville"> · {{ item.ville }}</template>
+                                <template v-if="item.ville">
+                                  · {{ item.ville }}</template
+                                >
                               </span>
                             </div>
                           </div>
                         </td>
                         <td class="sv-td">
-                          <span class="sv-nature-badge">{{ item.code_site }}</span>
-                          <div class="sv-cat-sub">{{ item.telephone || "—" }}</div>
+                          <span class="sv-nature-badge">{{
+                            item.code_site
+                          }}</span>
+                          <div class="sv-cat-sub">
+                            {{ item.telephone || "—" }}
+                          </div>
                         </td>
                         <td class="sv-td sv-td--date">
                           {{ item.ville || "—" }}
-                          <div class="sv-date-sub">{{ item.code_postal || "—" }}</div>
+                          <div class="sv-date-sub">
+                            {{ item.code_postal || "—" }}
+                          </div>
                         </td>
                         <td class="sv-td" style="text-align: center">
-                          <span :class="['sv-statut-chip', item.is_active ? 'sv-statut-chip--actif' : 'sv-statut-chip--inactif']">
+                          <span
+                            :class="[
+                              'sv-statut-chip',
+                              item.is_active
+                                ? 'sv-statut-chip--actif'
+                                : 'sv-statut-chip--inactif',
+                            ]"
+                          >
                             <span class="sv-statut-chip__dot"></span>
                             {{ item.is_active ? "Actif" : "Inactif" }}
                           </span>
@@ -207,15 +234,31 @@
                   <tr v-for="item in sites" :key="item.id" class="sv-data-row">
                     <td class="sv-td sv-td--site">
                       <div class="sv-name-cell">
-                        <span class="sv-type-icon" :style="{ background: avatarColor(item.client?.nom ?? 'Sans client') }">
+                        <span
+                          class="sv-type-icon"
+                          :style="{
+                            background: avatarColor(
+                              item.client?.nom ?? 'Sans client',
+                            ),
+                          }"
+                        >
                           <v-icon size="14" color="#fff">mdi-domain</v-icon>
                         </span>
                         <div class="sv-name-text-block">
                           <span class="sv-titre">{{ item.nom }}</span>
                           <span class="sv-name-sub">
-                            <span class="sv-client-dot" :style="{ background: avatarColor(item.client?.nom ?? 'Sans client') }"></span>
+                            <span
+                              class="sv-client-dot"
+                              :style="{
+                                background: avatarColor(
+                                  item.client?.nom ?? 'Sans client',
+                                ),
+                              }"
+                            ></span>
                             {{ item.client?.nom ?? "Sans client" }}
-                            <template v-if="item.ville"> · {{ item.ville }}</template>
+                            <template v-if="item.ville">
+                              · {{ item.ville }}</template
+                            >
                           </span>
                         </div>
                       </div>
@@ -226,10 +269,19 @@
                     </td>
                     <td class="sv-td sv-td--date">
                       {{ item.ville || "—" }}
-                      <div class="sv-date-sub">{{ item.code_postal || "—" }}</div>
+                      <div class="sv-date-sub">
+                        {{ item.code_postal || "—" }}
+                      </div>
                     </td>
                     <td class="sv-td" style="text-align: center">
-                      <span :class="['sv-statut-chip', item.is_active ? 'sv-statut-chip--actif' : 'sv-statut-chip--inactif']">
+                      <span
+                        :class="[
+                          'sv-statut-chip',
+                          item.is_active
+                            ? 'sv-statut-chip--actif'
+                            : 'sv-statut-chip--inactif',
+                        ]"
+                      >
                         <span class="sv-statut-chip__dot"></span>
                         {{ item.is_active ? "Actif" : "Inactif" }}
                       </span>
@@ -423,7 +475,9 @@
                   <option value="industriel">Industriel</option>
                   <option value="autre">Autre</option>
                 </select>
-                <v-icon size="13" color="#888" class="select-caret">mdi-chevron-down</v-icon>
+                <v-icon size="13" color="#888" class="select-caret"
+                  >mdi-chevron-down</v-icon
+                >
               </div>
             </div>
             <div class="form-row">
@@ -925,8 +979,12 @@ watch(
 }
 
 /* Ligne de groupe accordéon */
-.sv-group-row { cursor: pointer; }
-.sv-group-row:hover .sv-group-row__cell { background: rgba(0, 168, 168, 0.04); }
+.sv-group-row {
+  cursor: pointer;
+}
+.sv-group-row:hover .sv-group-row__cell {
+  background: rgba(0, 168, 168, 0.04);
+}
 
 .sv-group-row__cell {
   padding: 7px 12px;
@@ -946,7 +1004,9 @@ watch(
   transition: transform 0.18s;
   flex-shrink: 0;
 }
-.sv-group-row__chevron--open { transform: rotate(90deg); }
+.sv-group-row__chevron--open {
+  transform: rotate(90deg);
+}
 
 .sv-group-row__dot {
   width: 10px;
@@ -977,7 +1037,9 @@ watch(
   color: #555;
 }
 
-.sv-group-row__spacer { flex: 1; }
+.sv-group-row__spacer {
+  flex: 1;
+}
 
 .sv-group-row__link {
   display: inline-flex;
@@ -998,8 +1060,12 @@ watch(
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   transition: background 0.1s;
 }
-.sv-data-row:hover { background: rgba(0, 168, 168, 0.025); }
-.sv-data-row:last-child { border-bottom: none; }
+.sv-data-row:hover {
+  background: rgba(0, 168, 168, 0.025);
+}
+.sv-data-row:last-child {
+  border-bottom: none;
+}
 
 .sv-td {
   padding: 10px 12px;
@@ -1008,29 +1074,67 @@ watch(
   vertical-align: top;
 }
 
-.sv-td--site { max-width: 0; }
+.sv-td--site {
+  max-width: 0;
+}
 .sv-td--date {
   font-family: "Fira Code", monospace;
   font-size: 13px;
   color: #333;
   white-space: nowrap;
 }
-.sv-date-sub { font-family: "Fira Sans", sans-serif; font-size: 10.5px; color: #9aa0aa; margin-top: 2px; }
-.sv-cat-sub { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; margin-top: 4px; color: #9aa0aa; }
-.sv-muted { color: #9aa0aa; font-size: 13px; }
+.sv-date-sub {
+  font-family: "Fira Sans", sans-serif;
+  font-size: 10.5px;
+  color: #9aa0aa;
+  margin-top: 2px;
+}
+.sv-cat-sub {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-top: 4px;
+  color: #9aa0aa;
+}
+.sv-muted {
+  color: #9aa0aa;
+  font-size: 13px;
+}
 
 /* Cellule "Site" (icône + titre + client/ville + statut) */
-.sv-name-cell { display: flex; align-items: flex-start; gap: 10px; }
+.sv-name-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
 .sv-type-icon {
-  width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center;
-  justify-content: center; flex-shrink: 0; margin-top: 1px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
 }
-.sv-name-text-block { min-width: 0; }
+.sv-name-text-block {
+  min-width: 0;
+}
 .sv-name-sub {
-  display: flex; align-items: center; gap: 4px; font-size: 13px; color: #9aa0aa;
-  margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #9aa0aa;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.sv-name-status { margin-top: 5px; }
+.sv-name-status {
+  margin-top: 5px;
+}
 
 .sv-cell-flex {
   display: flex;
@@ -1039,9 +1143,21 @@ watch(
   overflow: hidden;
 }
 
-.sv-client-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.sv-client-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
 
-.sv-titre { font-weight: 600; color: #000b23; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.sv-titre {
+  font-weight: 600;
+  color: #000b23;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
 
 /* Badge "Contact" (code site) */
 .sv-nature-badge {
@@ -1071,12 +1187,27 @@ watch(
   font-weight: 600;
   white-space: nowrap;
 }
-.sv-statut-chip__dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
-.sv-statut-chip--actif   { background: rgba(39, 174, 96, 0.1); color: #27ae60; }
-.sv-statut-chip--inactif { background: rgba(0, 0, 0, 0.06);   color: #95a5a6; }
+.sv-statut-chip__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.sv-statut-chip--actif {
+  background: rgba(39, 174, 96, 0.1);
+  color: #27ae60;
+}
+.sv-statut-chip--inactif {
+  background: rgba(0, 0, 0, 0.06);
+  color: #95a5a6;
+}
 
 /* Pile d'avatars "Contacts" */
-.sv-avatar-stack { display: flex; align-items: center; }
+.sv-avatar-stack {
+  display: flex;
+  align-items: center;
+}
 .sv-avatar {
   display: inline-flex;
   align-items: center;
@@ -1091,11 +1222,21 @@ watch(
   color: #000b23;
   flex-shrink: 0;
 }
-.sv-avatar--stack { margin-left: -7px; border: 2px solid #fff; }
-.sv-avatar--stack:first-child { margin-left: 0; }
+.sv-avatar--stack {
+  margin-left: -7px;
+  border: 2px solid #fff;
+}
+.sv-avatar--stack:first-child {
+  margin-left: 0;
+}
 
 /* Actions de ligne */
-.sv-row-actions { display: inline-flex; align-items: center; gap: 4px; justify-content: flex-end; }
+.sv-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+}
 .sv-action-btn {
   display: inline-flex;
   align-items: center;
@@ -1107,8 +1248,12 @@ watch(
   background: transparent;
   cursor: pointer;
   color: #ccc;
-  transition: background 0.1s, color 0.1s;
+  transition:
+    background 0.1s,
+    color 0.1s;
 }
-.sv-action-btn:hover { background: rgba(0, 0, 0, 0.06); color: #555; }
+.sv-action-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #555;
+}
 </style>
-

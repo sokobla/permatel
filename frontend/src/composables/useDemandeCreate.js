@@ -25,7 +25,8 @@ export function useDemandeCreate(emit) {
       emit("submitted", demande);
       return demande;
     } catch (err) {
-      submitError.value = err?.response?.data?.error ?? "Erreur lors de la création.";
+      submitError.value =
+        err?.response?.data?.error ?? "Erreur lors de la création.";
       return null;
     } finally {
       submitting.value = false;

@@ -193,8 +193,12 @@ export const useAuthStore = defineStore("auth", {
     async selectTenant(tenantId) {
       try {
         const response = await authService.selectTenant(tenantId);
-        const { access_token, refresh_token, active_tenant_id, is_tenant_admin } =
-          response.data;
+        const {
+          access_token,
+          refresh_token,
+          active_tenant_id,
+          is_tenant_admin,
+        } = response.data;
 
         this.accessToken = access_token;
         this.refreshToken = refresh_token;
@@ -225,7 +229,8 @@ export const useAuthStore = defineStore("auth", {
       } catch (error) {
         return {
           success: false,
-          error: error.response?.data?.error || "Echec du chargement des tenants.",
+          error:
+            error.response?.data?.error || "Echec du chargement des tenants.",
         };
       }
     },

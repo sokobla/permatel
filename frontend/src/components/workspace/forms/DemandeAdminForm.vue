@@ -1,9 +1,7 @@
 <template>
   <div class="df-root">
-
     <!-- ══ HEADER ════════════════════════════════════════════════════ -->
     <div class="ad-hdr">
-
       <p class="ad-ctx">
         <span>WORKSPACE</span>
         <span class="ad-ctx__sep">›</span>
@@ -52,7 +50,6 @@
 
     <!-- ══ CORPS ════════════════════════════════════════════════════ -->
     <div class="ad-body">
-
       <!-- ─ Section : INFORMATIONS GÉNÉRALES ── -->
       <section class="ad-sec">
         <header class="ad-sec-hdr">
@@ -80,7 +77,11 @@
           </div>
           <div class="form-group">
             <label class="form-label" for="ad-categorie">CATÉGORIE</label>
-            <select id="ad-categorie" v-model="form.categorie" class="form-input">
+            <select
+              id="ad-categorie"
+              v-model="form.categorie"
+              class="form-input"
+            >
               <option value="">— Sélectionner —</option>
               <option value="ressources_humaines">Ressources humaines</option>
               <option value="comptabilite">Comptabilité</option>
@@ -112,7 +113,11 @@
         <div class="ad-grid">
           <div class="form-group">
             <label class="form-label" for="ad-doctype">TYPE DE DOCUMENT</label>
-            <select id="ad-doctype" v-model="form.document_type" class="form-input">
+            <select
+              id="ad-doctype"
+              v-model="form.document_type"
+              class="form-input"
+            >
               <option value="">— Sélectionner —</option>
               <option value="contrat">Contrat</option>
               <option value="facture">Facture</option>
@@ -146,12 +151,15 @@
           </div>
         </div>
       </section>
-
     </div>
 
     <!-- ══ FOOTER ════════════════════════════════════════════════════ -->
     <div class="df-footer">
-      <button class="df-btn-cancel" :disabled="submitting" @click="emit('cancel')">
+      <button
+        class="df-btn-cancel"
+        :disabled="submitting"
+        @click="emit('cancel')"
+      >
         ANNULER
       </button>
       <button class="btn-submit" :disabled="submitting" @click="submit">
@@ -159,7 +167,6 @@
         ENREGISTRER
       </button>
     </div>
-
   </div>
 </template>
 
@@ -172,7 +179,11 @@ import ContactSelectWithAdd from "@/components/workspace/ContactSelectWithAdd.vu
 const props = defineProps({ contactId: { type: Number, default: null } });
 const emit = defineEmits(["submitted", "cancel"]);
 
-const { submitting, submitError, submit: submitDemande } = useDemandeCreate(emit);
+const {
+  submitting,
+  submitError,
+  submit: submitDemande,
+} = useDemandeCreate(emit);
 
 function onClientSelected(client) {
   form.value.client_id = client.id;
@@ -239,7 +250,9 @@ export default { name: "DemandeAdminForm" };
   margin: 0 0 8px;
 }
 
-.ad-ctx__sep { color: #e0e0e0; }
+.ad-ctx__sep {
+  color: #e0e0e0;
+}
 
 .ad-ctx__active {
   color: #8e44ad;
@@ -317,7 +330,9 @@ export default { name: "DemandeAdminForm" };
   cursor: pointer;
   outline: none;
 }
-.ad-meta-select:focus { border-color: rgba(142, 68, 173, 0.4); }
+.ad-meta-select:focus {
+  border-color: rgba(142, 68, 173, 0.4);
+}
 
 .ad-titre-row {
   display: flex;
@@ -352,8 +367,14 @@ export default { name: "DemandeAdminForm" };
   outline: none;
   transition: border-bottom-color 0.15s;
 }
-.ad-titre-input:focus { border-bottom-color: #8e44ad; }
-.ad-titre-input::placeholder { color: #d0d0d0; font-size: 13px; font-weight: 400; }
+.ad-titre-input:focus {
+  border-bottom-color: #8e44ad;
+}
+.ad-titre-input::placeholder {
+  color: #d0d0d0;
+  font-size: 13px;
+  font-weight: 400;
+}
 
 /* ══ CORPS ════════════════════════════════════════════════════════ */
 
@@ -366,8 +387,13 @@ export default { name: "DemandeAdminForm" };
   gap: 16px;
 }
 
-.ad-body::-webkit-scrollbar { width: 4px; }
-.ad-body::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.12); border-radius: 2px; }
+.ad-body::-webkit-scrollbar {
+  width: 4px;
+}
+.ad-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 2px;
+}
 
 /* ══ SECTIONS ══════════════════════════════════════════════════════ */
 
@@ -390,7 +416,9 @@ export default { name: "DemandeAdminForm" };
   flex-shrink: 0;
 }
 
-.ad-sec-mark--purple { background: #8e44ad; }
+.ad-sec-mark--purple {
+  background: #8e44ad;
+}
 
 .ad-sec-lbl {
   font-family: "Fira Sans", sans-serif;
@@ -416,7 +444,9 @@ export default { name: "DemandeAdminForm" };
   gap: 10px 16px;
 }
 
-.ad-full { grid-column: 1 / -1; }
+.ad-full {
+  grid-column: 1 / -1;
+}
 
 .ad-textarea {
   resize: vertical;

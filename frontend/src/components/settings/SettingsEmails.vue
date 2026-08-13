@@ -21,7 +21,9 @@
         >
           Personnalisé
         </v-chip>
-        <v-chip v-else size="small" color="#9aa0aa" variant="tonal">Par défaut</v-chip>
+        <v-chip v-else size="small" color="#9aa0aa" variant="tonal"
+          >Par défaut</v-chip
+        >
       </div>
 
       <v-divider />
@@ -55,7 +57,9 @@
             class="mb-3"
           />
 
-          <label class="se-label">Corps (HTML) <span class="se-req">*</span></label>
+          <label class="se-label"
+            >Corps (HTML) <span class="se-req">*</span></label
+          >
           <v-textarea
             v-model="drafts[key].body_html"
             variant="outlined"
@@ -120,12 +124,23 @@
     <v-dialog v-model="previewOpen" max-width="640">
       <v-card class="se-preview-card" rounded="lg">
         <v-card-item class="se-preview-head">
-          <v-card-title class="se-preview-title">Aperçu — {{ preview.subject }}</v-card-title>
-          <v-btn icon="mdi-close" variant="text" size="small" @click="previewOpen = false" />
+          <v-card-title class="se-preview-title"
+            >Aperçu — {{ preview.subject }}</v-card-title
+          >
+          <v-btn
+            icon="mdi-close"
+            variant="text"
+            size="small"
+            @click="previewOpen = false"
+          />
         </v-card-item>
         <v-divider />
         <v-card-text class="se-preview-body">
-          <iframe :srcdoc="preview.body_html" sandbox="" class="se-preview-frame" />
+          <iframe
+            :srcdoc="preview.body_html"
+            sandbox=""
+            class="se-preview-frame"
+          />
         </v-card-text>
       </v-card>
     </v-dialog>
@@ -144,8 +159,10 @@ const LABELS = {
 };
 
 const HINTS = {
-  onboarding_welcome: "Envoyé lors de la création d'un utilisateur avec activation par email.",
-  password_reset: "Envoyé lorsqu'un utilisateur demande la réinitialisation de son mot de passe.",
+  onboarding_welcome:
+    "Envoyé lors de la création d'un utilisateur avec activation par email.",
+  password_reset:
+    "Envoyé lorsqu'un utilisateur demande la réinitialisation de son mot de passe.",
 };
 
 const loading = ref(true);
@@ -194,7 +211,9 @@ async function load() {
       };
     });
   } catch {
-    TEMPLATE_KEYS.forEach((key) => setFeedback(key, "error", "Impossible de charger le gabarit."));
+    TEMPLATE_KEYS.forEach((key) =>
+      setFeedback(key, "error", "Impossible de charger le gabarit."),
+    );
   } finally {
     loading.value = false;
   }
@@ -204,7 +223,9 @@ async function onSave(key) {
   saving[key] = true;
   setFeedback(key, "success", "");
   try {
-    const { data } = await emailTemplatesService.updateTemplate(key, { ...drafts[key] });
+    const { data } = await emailTemplatesService.updateTemplate(key, {
+      ...drafts[key],
+    });
     templates[key] = data.template;
     drafts[key] = {
       subject: data.template.subject || "",
@@ -212,14 +233,19 @@ async function onSave(key) {
     };
     setFeedback(key, "success", data.message || "Gabarit enregistré.");
   } catch (err) {
-    setFeedback(key, "error", err?.response?.data?.error || "Échec de l'enregistrement.");
+    setFeedback(
+      key,
+      "error",
+      err?.response?.data?.error || "Échec de l'enregistrement.",
+    );
   } finally {
     saving[key] = false;
   }
 }
 
 async function onReset(key) {
-  if (!window.confirm("Réinitialiser ce gabarit au contenu par défaut ?")) return;
+  if (!window.confirm("Réinitialiser ce gabarit au contenu par défaut ?"))
+    return;
   saving[key] = true;
   setFeedback(key, "success", "");
   try {
@@ -231,7 +257,11 @@ async function onReset(key) {
     };
     setFeedback(key, "success", data.message || "Gabarit réinitialisé.");
   } catch (err) {
-    setFeedback(key, "error", err?.response?.data?.error || "Échec de la réinitialisation.");
+    setFeedback(
+      key,
+      "error",
+      err?.response?.data?.error || "Échec de la réinitialisation.",
+    );
   } finally {
     saving[key] = false;
   }
@@ -241,12 +271,18 @@ async function onPreview(key) {
   previewing[key] = true;
   setFeedback(key, "success", "");
   try {
-    const { data } = await emailTemplatesService.previewTemplate(key, { ...drafts[key] });
+    const { data } = await emailTemplatesService.previewTemplate(key, {
+      ...drafts[key],
+    });
     preview.subject = data.subject;
     preview.body_html = data.body_html;
     previewOpen.value = true;
   } catch (err) {
-    setFeedback(key, "error", err?.response?.data?.error || "Échec de l'aperçu.");
+    setFeedback(
+      key,
+      "error",
+      err?.response?.data?.error || "Échec de l'aperçu.",
+    );
   } finally {
     previewing[key] = false;
   }
@@ -256,23 +292,98 @@ onMounted(load);
 </script>
 
 <style scoped>
-.se-wrap { display: flex; flex-direction: column; gap: 20px; font-family: "Fira Sans", sans-serif; }
-.se-card { font-family: "Fira Sans", sans-serif; }
-.se-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; }
-.se-title { font-size: 17px; font-weight: 700; color: #000b23; margin: 0; }
-.se-sub { font-size: 12.5px; color: #6b7280; margin: 2px 0 0; }
-.se-body { padding: 18px 20px; }
-.se-loading { display: flex; align-items: center; gap: 10px; color: #6b7280; font-size: 15px; padding: 18px 0; }
-.se-label { display: block; font-size: 14px; font-weight: 600; color: #15223a; margin-bottom: 4px; }
-.se-req { color: #e74c3c; }
-.se-actions { padding: 12px 16px; }
-.se-vars { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-.se-vars__label { font-size: 11.5px; font-weight: 600; color: #6b7280; margin-right: 4px; }
-.se-var-chip { cursor: pointer; font-family: "Fira Code", monospace; font-size: 13px; }
+.se-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  font-family: "Fira Sans", sans-serif;
+}
+.se-card {
+  font-family: "Fira Sans", sans-serif;
+}
+.se-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+}
+.se-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #000b23;
+  margin: 0;
+}
+.se-sub {
+  font-size: 12.5px;
+  color: #6b7280;
+  margin: 2px 0 0;
+}
+.se-body {
+  padding: 18px 20px;
+}
+.se-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #6b7280;
+  font-size: 15px;
+  padding: 18px 0;
+}
+.se-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #15223a;
+  margin-bottom: 4px;
+}
+.se-req {
+  color: #e74c3c;
+}
+.se-actions {
+  padding: 12px 16px;
+}
+.se-vars {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.se-vars__label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-right: 4px;
+}
+.se-var-chip {
+  cursor: pointer;
+  font-family: "Fira Code", monospace;
+  font-size: 13px;
+}
 
-.se-preview-card { font-family: "Fira Sans", sans-serif; }
-.se-preview-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; }
-.se-preview-title { font-size: 16px; font-weight: 700; color: #000b23; padding: 0; }
-.se-preview-body { padding: 0; }
-.se-preview-frame { width: 100%; height: 420px; border: none; background: #fff; }
+.se-preview-card {
+  font-family: "Fira Sans", sans-serif;
+}
+.se-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+}
+.se-preview-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #000b23;
+  padding: 0;
+}
+.se-preview-body {
+  padding: 0;
+}
+.se-preview-frame {
+  width: 100%;
+  height: 420px;
+  border: none;
+  background: #fff;
+}
 </style>

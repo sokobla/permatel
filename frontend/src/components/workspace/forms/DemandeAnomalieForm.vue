@@ -1,9 +1,7 @@
 <template>
   <div class="df-root">
-
     <!-- ══ HEADER ══════════════════════════════════════════════════════ -->
     <div class="ja-hdr">
-
       <!-- Fil d'Ariane contextuel -->
       <p class="ja-ctx">
         <span>WORKSPACE</span>
@@ -56,7 +54,6 @@
 
     <!-- ══ CORPS ════════════════════════════════════════════════════════ -->
     <div class="ja-body">
-
       <!-- ─ Section 1 : DÉTAILS DE L'ANOMALIE ──────────────────────── -->
       <section class="ja-sec">
         <header class="ja-sec-hdr">
@@ -78,9 +75,17 @@
 
           <div class="form-group">
             <label class="form-label" for="an-cat">CATÉGORIE D'ANOMALIE</label>
-            <select id="an-cat" v-model="form.nature_anomalie" class="form-input">
+            <select
+              id="an-cat"
+              v-model="form.nature_anomalie"
+              class="form-input"
+            >
               <option value="">— Sélectionner —</option>
-              <option v-for="opt in natureOptions" :key="opt.value" :value="opt.value">
+              <option
+                v-for="opt in natureOptions"
+                :key="opt.value"
+                :value="opt.value"
+              >
                 {{ opt.label }}
               </option>
             </select>
@@ -105,7 +110,9 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label">CONTACT <span class="ja-optional">optionnel</span></label>
+            <label class="form-label"
+              >CONTACT <span class="ja-optional">optionnel</span></label
+            >
             <ContactSelectWithAdd
               v-model="form.contact_id"
               :client-id="form.client_id"
@@ -115,7 +122,9 @@
 
           <!-- Ligne 3 : Agent concerné + Site -->
           <div class="form-group">
-            <label class="form-label">AGENT CONCERNÉ <span class="ja-optional">optionnel</span></label>
+            <label class="form-label"
+              >AGENT CONCERNÉ <span class="ja-optional">optionnel</span></label
+            >
             <AgentSelect
               @agent-selected="onAgentSelected"
               @agent-cleared="onAgentCleared"
@@ -123,7 +132,9 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label">SITE <span class="ja-optional">optionnel</span></label>
+            <label class="form-label"
+              >SITE <span class="ja-optional">optionnel</span></label
+            >
             <SiteSelect
               :client-id="form.client_id"
               @site-selected="onSiteSelected"
@@ -144,7 +155,9 @@
 
           <!-- Ligne 4 : Description (pleine largeur) -->
           <div class="form-group ja-full">
-            <label class="form-label" for="an-desc">DESCRIPTION DÉTAILLÉE</label>
+            <label class="form-label" for="an-desc"
+              >DESCRIPTION DÉTAILLÉE</label
+            >
             <textarea
               id="an-desc"
               v-model="form.description"
@@ -165,7 +178,6 @@
         </header>
 
         <div class="ja-treat-layout">
-
           <!-- Colonne gauche : PEC + Main courante -->
           <div class="ja-treat-main">
             <div class="form-group">
@@ -199,7 +211,6 @@
               STATUT FINAL
             </div>
             <div class="ja-statut-body">
-
               <div class="form-group">
                 <label class="form-label" for="an-statut">STATUT</label>
                 <select id="an-statut" v-model="form.statut" class="form-input">
@@ -223,18 +234,19 @@
                   Impact sécurité
                 </label>
               </div>
-
             </div>
           </div>
-
         </div>
       </section>
-
     </div>
 
     <!-- ══ FOOTER ══════════════════════════════════════════════════════ -->
     <div class="df-footer">
-      <button class="df-btn-cancel" :disabled="submitting" @click="emit('cancel')">
+      <button
+        class="df-btn-cancel"
+        :disabled="submitting"
+        @click="emit('cancel')"
+      >
         ANNULER
       </button>
       <button class="btn-submit" :disabled="submitting" @click="submit">
@@ -242,7 +254,6 @@
         ENREGISTRER
       </button>
     </div>
-
   </div>
 </template>
 
@@ -268,7 +279,10 @@ const DEFAULT_NATURE_OPTIONS = [
   { value: "remplacement_permutation", label: "Remplacement / permutation" },
   { value: "modification_vacation", label: "Modification vacation" },
   { value: "probleme_technique", label: "Problème technique" },
-  { value: "site_prestataire_injoignable", label: "Site / prestataire injoignable" },
+  {
+    value: "site_prestataire_injoignable",
+    label: "Site / prestataire injoignable",
+  },
   { value: "blocage_outil_rh", label: "Blocage outil / RH" },
   { value: "demande_de_renfort", label: "Demande de renfort" },
   { value: "anomalie_facturation", label: "Anomalie facturation" },
@@ -303,7 +317,11 @@ const permanencierLabel = computed(() => {
 });
 
 // ─── État ────────────────────────────────────────────────────────────────────
-const { submitting, submitError, submit: submitDemande } = useDemandeCreate(emit);
+const {
+  submitting,
+  submitError,
+  submit: submitDemande,
+} = useDemandeCreate(emit);
 
 function onClientSelected(client) {
   form.value.client_id = client.id;
@@ -406,7 +424,9 @@ export default { name: "DemandeAnomalieForm" };
   margin: 0 0 8px;
 }
 
-.ja-ctx__sep { color: #e0e0e0; }
+.ja-ctx__sep {
+  color: #e0e0e0;
+}
 
 .ja-ctx__active {
   color: #e74c3c;
@@ -543,9 +563,16 @@ export default { name: "DemandeAnomalieForm" };
   gap: 16px;
 }
 
-.ja-body::-webkit-scrollbar { width: 4px; }
-.ja-body::-webkit-scrollbar-track { background: transparent; }
-.ja-body::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.12); border-radius: 2px; }
+.ja-body::-webkit-scrollbar {
+  width: 4px;
+}
+.ja-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ja-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 2px;
+}
 
 /* ══ SECTIONS ══════════════════════════════════════════════════════ */
 
@@ -569,8 +596,12 @@ export default { name: "DemandeAnomalieForm" };
   flex-shrink: 0;
 }
 
-.ja-sec-mark--red  { background: #e74c3c; }
-.ja-sec-mark--teal { background: #00a8a8; }
+.ja-sec-mark--red {
+  background: #e74c3c;
+}
+.ja-sec-mark--teal {
+  background: #00a8a8;
+}
 
 .ja-sec-lbl {
   font-family: "Fira Sans", sans-serif;
@@ -597,7 +628,9 @@ export default { name: "DemandeAnomalieForm" };
   gap: 10px 16px;
 }
 
-.ja-full { grid-column: 1 / -1; }
+.ja-full {
+  grid-column: 1 / -1;
+}
 
 /* ══ TEXTAREA ══════════════════════════════════════════════════════ */
 

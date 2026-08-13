@@ -1,9 +1,7 @@
 <template>
   <div class="df-root">
-
     <!-- ══ HEADER ════════════════════════════════════════════════════ -->
     <div class="pl-hdr">
-
       <p class="pl-ctx">
         <span>WORKSPACE</span>
         <span class="pl-ctx__sep">›</span>
@@ -15,7 +13,9 @@
       <div class="pl-title-row">
         <div class="pl-title-left">
           <span class="pl-marker"></span>
-          <h2 class="pl-title">GESTION PLANNING — MODIFICATION OPÉRATIONNELLE</h2>
+          <h2 class="pl-title">
+            GESTION PLANNING — MODIFICATION OPÉRATIONNELLE
+          </h2>
         </div>
         <div class="pl-title-right">
           <div class="pl-meta-field">
@@ -52,7 +52,6 @@
 
     <!-- ══ CORPS ════════════════════════════════════════════════════ -->
     <div class="pl-body">
-
       <!-- ─ Section : INFORMATIONS GÉNÉRALES ── -->
       <section class="pl-sec">
         <header class="pl-sec-hdr">
@@ -80,7 +79,11 @@
           </div>
           <div class="form-group">
             <label class="form-label" for="pl-type">TYPE DE MODIFICATION</label>
-            <select id="pl-type" v-model="form.type_modification" class="form-input">
+            <select
+              id="pl-type"
+              v-model="form.type_modification"
+              class="form-input"
+            >
               <option value="">— Sélectionner —</option>
               <option value="absence">Absence</option>
               <option value="conge">Congé</option>
@@ -123,7 +126,9 @@
             />
           </div>
           <div class="form-group">
-            <label class="form-label" for="pl-remplacant">ID AGENT REMPLAÇANT</label>
+            <label class="form-label" for="pl-remplacant"
+              >ID AGENT REMPLAÇANT</label
+            >
             <input
               id="pl-remplacant"
               v-model.number="form.agent_remplacant_id"
@@ -163,12 +168,15 @@
           </div>
         </div>
       </section>
-
     </div>
 
     <!-- ══ FOOTER ════════════════════════════════════════════════════ -->
     <div class="df-footer">
-      <button class="df-btn-cancel" :disabled="submitting" @click="emit('cancel')">
+      <button
+        class="df-btn-cancel"
+        :disabled="submitting"
+        @click="emit('cancel')"
+      >
         ANNULER
       </button>
       <button class="btn-submit" :disabled="submitting" @click="submit">
@@ -176,7 +184,6 @@
         ENREGISTRER
       </button>
     </div>
-
   </div>
 </template>
 
@@ -189,7 +196,11 @@ import ContactSelectWithAdd from "@/components/workspace/ContactSelectWithAdd.vu
 const props = defineProps({ contactId: { type: Number, default: null } });
 const emit = defineEmits(["submitted", "cancel"]);
 
-const { submitting, submitError, submit: submitDemande } = useDemandeCreate(emit);
+const {
+  submitting,
+  submitError,
+  submit: submitDemande,
+} = useDemandeCreate(emit);
 
 function onClientSelected(client) {
   form.value.client_id = client.id;
@@ -258,7 +269,9 @@ export default { name: "DemandePlanningForm" };
   margin: 0 0 8px;
 }
 
-.pl-ctx__sep { color: #e0e0e0; }
+.pl-ctx__sep {
+  color: #e0e0e0;
+}
 
 .pl-ctx__active {
   color: #3498db;
@@ -336,7 +349,9 @@ export default { name: "DemandePlanningForm" };
   cursor: pointer;
   outline: none;
 }
-.pl-meta-select:focus { border-color: rgba(52, 152, 219, 0.4); }
+.pl-meta-select:focus {
+  border-color: rgba(52, 152, 219, 0.4);
+}
 
 .pl-titre-row {
   display: flex;
@@ -371,8 +386,14 @@ export default { name: "DemandePlanningForm" };
   outline: none;
   transition: border-bottom-color 0.15s;
 }
-.pl-titre-input:focus { border-bottom-color: #3498db; }
-.pl-titre-input::placeholder { color: #d0d0d0; font-size: 13px; font-weight: 400; }
+.pl-titre-input:focus {
+  border-bottom-color: #3498db;
+}
+.pl-titre-input::placeholder {
+  color: #d0d0d0;
+  font-size: 13px;
+  font-weight: 400;
+}
 
 /* ══ CORPS ════════════════════════════════════════════════════════ */
 
@@ -385,8 +406,13 @@ export default { name: "DemandePlanningForm" };
   gap: 16px;
 }
 
-.pl-body::-webkit-scrollbar { width: 4px; }
-.pl-body::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.12); border-radius: 2px; }
+.pl-body::-webkit-scrollbar {
+  width: 4px;
+}
+.pl-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 2px;
+}
 
 /* ══ SECTIONS ══════════════════════════════════════════════════════ */
 
@@ -409,7 +435,9 @@ export default { name: "DemandePlanningForm" };
   flex-shrink: 0;
 }
 
-.pl-sec-mark--blue { background: #3498db; }
+.pl-sec-mark--blue {
+  background: #3498db;
+}
 
 .pl-sec-lbl {
   font-family: "Fira Sans", sans-serif;
@@ -435,7 +463,9 @@ export default { name: "DemandePlanningForm" };
   gap: 10px 16px;
 }
 
-.pl-full { grid-column: 1 / -1; }
+.pl-full {
+  grid-column: 1 / -1;
+}
 
 .pl-textarea {
   resize: vertical;
