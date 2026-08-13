@@ -67,12 +67,80 @@ L'intégration Odoo requiert l'ajout de nouveaux modèles dans PERMATEL pour s'a
 * `odoo_employees` : Mapping RH (`tenant_id`, `agent_id`, `odoo_employee_id`).
 * `odoo_sync_queue` : File de retry (`flux`, `payload` JSONB, `status: pending|in_flight|done|failed`, `locked_at`/`locked_until` — cf. §2.4).
 * `odoo_factures` : Copie locale en lecture seule des factures Odoo (Pull).
+* `odoo_planning_slots` : Mapping des vacations planifiées PERMATEL vers `planning.slot` Odoo (`tenant_id`, `vacation_id`, `odoo_slot_id`) — cf. §4.2.
 
 Chaque modèle Odoo cible porte en complément un champ custom `x_permatel_ref` (cf. §2.4) — c'est la clé d'idempotence de la synchro, indépendante des colonnes `odoo_*_id` ci-dessus qui ne sont que le cache local du mapping une fois établi.
 
 ---
 
-## 4. Phasage de l'implémentation (Alignement des Études)
+## 4. Modules RH natifs PERMATEL (prérequis aux Phases 9 et 10)
+
+Deux briques décidées le 13/08, natives à PERMATEL (indépendantes d'Odoo pour leur fonctionnement, mais alimentant la Phase 9 pour les documents et poussées vers Odoo Planning pour le planning). Motivation : un agent recruté doit fournir des documents dont la validité expire, et sa planification (aujourd'hui inexistante — `DemandePlanning` est un ticket de signalement, pas un calendrier de vacations) doit pouvoir être bloquée si ses documents obligatoires sont expirés.
+
+### 4.0 Prérequis technique commun
+`agents_securite` n'a aujourd'hui aucune contrainte unique sur `(tenant_id, id)` (seulement sur `(tenant_id, matricule)`), nécessaire pour poser une `ForeignKeyConstraint` composite depuis une nouvelle table (même contrainte qu'a dû poser `prestataires` pour `AgentSecurite.prestataire_id`). Une migration l'ajoute avant les modèles ci-dessous, partagée par §4.1 et §4.2.
+
+### 4.1 Gestion documentaire des agents
+
+**Modèle** :
+* `document_types` (ou `ReferenceValue.family="type_document_agent"`, motif déjà en place pour `qualification_agent`) : catalogue des types de documents (carte pro, CQP, SSIAP, visite médicale, permis…), par tenant.
+* `qualification_document_requirements` : mapping — pour chaque code `ReferenceValue.family="qualification_agent"`, quels `document_types` sont obligatoires. Piloté par la config tenant, pas codé en dur.
+* `agent_documents` : `tenant_id`, `agent_id` (FK composite → `agents_securite`), `document_type_id`, `chemin_fichier` (**chiffré au repos**, motif `EmailAttachment` + `encrypt_bytes()`/`decrypt_bytes()` — pas le motif `Fichier`, non chiffré), `date_delivrance`, `date_expiration` (nullable), `is_current`, `replaced_at`, `uploaded_by_id`, `expiry_warning_notified`, `expiry_breach_notified`.
+
+**Rétention** : un nouvel upload pour le même `(agent_id, document_type_id)` ne supprime rien — il marque l'ancienne ligne `is_current=False`/`replaced_at=now()` et insère la nouvelle en `is_current=True`. Seule la ligne courante compte pour la validité ; l'historique reste consultable dans la fiche agent.
+
+**Upload** : `POST /api/agents/<id>/documents`, `@tenant_required` sans restriction de rôle au-delà — PERMANENCIER et MANAGER autorisés (pas réservé à ADMIN).
+
+**Suivi de validité** : `document_sweep()` calqué sur `sla_sweep()` (`backend/app/services/sla.py`) — requête les lignes `is_current=True` dont `date_expiration` approche/est dépassée, `notify()` avec flags `expiry_warning_notified`/`expiry_breach_notified` pour ne jamais alerter deux fois. Nouvelle commande CLI `flask documents-sweep`, même cadence cron que `sla-sweep`.
+
+**Blocage configurable** : `Tenant.document_blocking_expired` (bool, défaut `False`) — cf. §4.3. Le point d'application du blocage est l'**affectation d'un agent à une vacation** (§4.2), pas la prise de service : si activé et que l'agent a un document obligatoire manquant/expiré, l'affectation est refusée (409) avec le détail des documents en cause.
+
+### 4.2 Planning agents (calendrier de vacations)
+
+Nouvelle entité, distincte de `PriseDeService` (qui reste l'unique source de vérité des heures réellement travaillées — aucun changement sur ce point).
+
+**Modèle `vacations_planifiees`** :
+```
+tenant_id, agent_id (FK composite → agents_securite, NULLABLE — créneau non affecté),
+client_id, site_id, date_debut_prevue, date_fin_prevue (nullable),
+prise_de_service_id (FK nullable, posée au pointage effectif si correspondance),
+planifie_par_id (manager), no_show_notified (bool),
+created_at, updated_at
+```
+
+**Statut affiché — dérivé, jamais stocké**, même motif que `sla_state(demande)` (déjà en place, `backend/app/routes/demandes.py`) :
+
+```python
+def vacation_state(v):
+    if v.prise_de_service_id:
+        retard = v.prise_de_service.date_debut - v.date_debut_prevue
+        return "honoree" if retard <= seuil else "honoree_retard"   # vert / orange
+    if v.agent_id is None:
+        return "non_affectee"                                       # gris
+    if utcnow() >= v.date_debut_prevue + seuil:
+        return "non_honoree"                                        # rouge
+    return "affectee"                                                # bleu
+```
+`seuil` = `Tenant.vacation_delay_threshold_minutes` (cf. §4.3) — **un seul réglage** pour la distinction honorée/honorée-en-retard *et* pour le déclenchement de l'alerte no-show, pour n'avoir qu'une constante métier. Une alerte no-show déjà envoyée n'est jamais "retirée" si l'agent finit par pointer en retard — seul l'affichage se corrige de rouge à orange.
+
+**Rattachement à la prise de service** : au `POST /api/prises-de-service/start`, recherche d'une `vacation_planifiee` correspondante (même agent, fenêtre horaire proche) → si trouvée, pose `prise_de_service_id`. Comportement des prises de service non planifiées inchangé.
+
+**Alerte no-show** : sweep calqué sur `sla_sweep()`/`notify()` — `vacations_planifiees` où `date_debut_prevue + seuil < now()`, `agent_id` non nul, `prise_de_service_id` nul, `no_show_notified=False` → notifie via `tenant_members(tenant_id, roles={MANAGER}, membership_admin=True)` (helper déjà utilisé par les alertes SLA, `backend/app/services/sla.py`), email automatique via le pipeline `notify()` → `EmailOutbox` → `dispatch_emails()` déjà opérationnel. Nouvelle commande CLI `flask vacations-no-show-sweep`.
+
+**Frontend** : 3 vues (Jour / Semaine / Mois). Recommandé : grille custom légère, pas de dépendance calendrier tierce — les vacations sont des évènements ponctuels (une heure de début, pas des plages multi-jours à glisser/redimensionner), donc une lib pensée pour ces cas apporte plus de poids que de valeur ; cohérent avec le choix `xmlrpc.client` plutôt qu'une lib tierce pour Odoo (§2.2). Vue Jour/Semaine = tableau (lignes agents, colonnes heures/jours) ; vue Mois = grille de jours avec puces colorées par agent.
+
+**Push Odoo** : à la création/affectation/annulation d'une vacation, push vers `planning.slot` (app Odoo Planning, dans le périmètre du §1), même mécanique d'idempotence que le reste du plan (§2.4) — champ miroir `x_permatel_ref` sur `planning.slot`, mapping dans `odoo_planning_slots` (§3.B). Les références `agent_id` → `hr.employee` (Phase 9) et `client_id`/`site_id` → `project.project`/`project.task` (Phase 7) sont réutilisées telles quelles, aucun nouveau mapping requis à part la table de correspondance des créneaux.
+
+### 4.3 Nouveaux réglages tenant
+
+Toggles tenant-wide en colonnes directes sur `Tenant` (motif `channel_telephonie`/`email`/`chat`), mais éditables par l'**admin du tenant** (`@tenant_admin_required`) et non l'admin global — nuance par rapport aux toggles `channel_*` existants (`PUT /api/tenants/<id>`, réservé ADMIN global) : ce sont des politiques métier propres au tenant, exposées dans `SettingsGeneral.vue` via une nouvelle route tenant-scopée.
+
+* `document_blocking_expired` (bool, défaut `False`) — §4.1.
+* `vacation_delay_threshold_minutes` (int, défaut `15`) — §4.2.
+
+---
+
+## 5. Phasage de l'implémentation (Alignement des Études)
 
 Le détail des tâches est géré dans le fichier de suivi Excel (Phases 6 à 10). Voici l'alignement entre ces phases et les études architecturales (Parties 1, 2 et 3) :
 
@@ -83,6 +151,7 @@ Le détail des tâches est géré dans le fichier de suivi Excel (Phases 6 à 10
 * Service XML-RPC `odoo_client.py` (client injecté, `execute_kw` avec `company_id` systématique — §2.2/2.3) et script CLI `flask odoo-sync-dispatch`.
 * `tests/fakes/fake_odoo_client.py` pour la suite pytest (§2.5).
 * Commande CLI de backfill initial, sur le modèle de `seed-prestataires`/`seed-agents` (§2.6).
+* Réglages tenant `document_blocking_expired` et `vacation_delay_threshold_minutes` (§4.3) — indépendants d'Odoo mais posés dès cette phase, prérequis des Phases 9/10.
 
 ### Phase 7 : Gestion des Partenaires (Partie 1 : CRM)
 * **Client PERMATEL** → Odoo `res.partner(is_company=True)` + `project.project`.
@@ -96,9 +165,12 @@ Le détail des tâches est géré dans le fichier de suivi Excel (Phases 6 à 10
 3. **Facturation (Pull)** : Le cron PERMATEL récupère l'état des factures (`account.move`) depuis Odoo pour les afficher aux managers.
 
 ### Phase 9 : Agents & Temps (Partie 3 : RH/Analytique)
+* **Prérequis** : contrainte unique `(tenant_id, id)` sur `agents_securite` (§4.0), gestion documentaire des agents (§4.1) — le blocage d'affectation (Phase 10) en dépend.
 * **Agent** → Mapping vers `hr.employee`. (Les agents sous-traitants reçoivent une étiquette/tag Odoo spécifique pour les différencier).
-* **Vacations** : À la **clôture** exacte d'une `PriseDeService` dans PERMATEL, le script calcule la durée en heures et l'injecte comme feuille de temps (`account.analytic.line`) sur le Projet (Client) et la Tâche (Site) Odoo. 
+* **Vacations (feuilles de temps)** : À la **clôture** exacte d'une `PriseDeService` dans PERMATEL, le script calcule la durée en heures et l'injecte comme feuille de temps (`account.analytic.line`) sur le Projet (Client) et la Tâche (Site) Odoo.
 * *Note : Les vacations chevauchant minuit sont scindées en deux feuilles de temps.*
 
-### Phase 10 : Planning agents
-* Synchronisation en lecture du planning Odoo (si utilisé) et actions d'affectation. (À détailler après stabilisation de la phase 9).
+### Phase 10 : Planning agents (§4.2 — remplace l'hypothèse initiale "lecture depuis Odoo")
+* **PERMATEL est la source du planning** (cohérent avec la philosophie du §1 — pas une lecture depuis Odoo comme envisagé initialement) : les managers créent/affectent les vacations planifiées dans PERMATEL (calendrier Jour/Semaine/Mois, §4.2), Odoo Planning (`planning.slot`) reçoit le **push**.
+* Blocage d'affectation configurable par tenant (§4.1/§4.3) si l'agent a un document obligatoire expiré/manquant.
+* Statuts dérivés (vert/bleu/gris/rouge/orange) + alerte no-show aux managers (§4.2) — fonctionnent indépendamment de l'activation d'Odoo pour ce tenant ; le push vers `planning.slot` est un enrichissement, pas une dépendance dure.
