@@ -4,7 +4,7 @@
 **Date** : 13 Août 2026
 **Suivi des tâches** : `docs/suivi_taches_permatel.xlsx` 
 
-*(Note contextuelle : Les Phases 1 à 5 du projet global concernaient le développement du cœur de PERMATEL. L'intégration Odoo constitue le deuxième grand bloc du projet, s'étalant historiquement des Phases 6 à 10 dans le document de suivi).*
+*(Note contextuelle : Les Phases 1 à 5 du projet global concernaient le développement du cœur de PERMATEL. L'intégration ERP constitue le deuxième grand bloc du projet, s'étalant historiquement des Phases 6 à 10 dans le document de suivi).*
 
 ---
 
@@ -14,37 +14,37 @@ L'intégration d'Odoo 18 Community agit comme un service ERP additionnel (CRM/Ve
 
 **Philosophie de synchronisation :**
 - PERMATEL est l'unique interface de saisie opérationnelle (Master).
-- Odoo assure le traitement financier et RH (Moteur backend).
-- Les suppressions PERMATEL se traduisent TOUJOURS par un **Archivage (Soft Delete)** dans Odoo (`active=False`) pour préserver l'intégrité comptable.
+- ERP assure le traitement financier et RH (Moteur backend).
+- Les suppressions PERMATEL se traduisent TOUJOURS par un **Archivage (Soft Delete)** dans ERP (`active=False`) pour préserver l'intégrité comptable.
 
 ---
 
 ## 2. Décisions d'architecture technique
 
-### 2.1 Orchestration : Cron + `odoo_sync_queue`
-Après le commit d'une action, tentative **synchrone à timeout court (2-3s)** vers Odoo via XML-RPC. Succès → terminé. Échec/timeout → insertion dans `odoo_sync_queue`, reprise par `flask odoo-sync-dispatch` sur cron. Aucun broker Celery n'est requis.
+### 2.1 Orchestration : Cron + `erp_sync_queue`
+Après le commit d'une action, tentative **synchrone à timeout court (2-3s)** vers ERP via XML-RPC. Succès → terminé. Échec/timeout → insertion dans `erp_sync_queue`, reprise par `flask erp-sync-dispatch` sur cron. Aucun broker Celery n'est requis.
 
-### 2.2 Client Odoo
-Utilisation de `xmlrpc.client` (stdlib Python), encapsulé dans `app/services/odoo_client.py`, exposant une méthode bas niveau unique (`execute_kw`). Le client est **injecté par paramètre** dans les services de synchro plutôt qu'importé en singleton — nécessaire pour le mock en test (cf. §2.5).
+### 2.2 Client ERP
+Utilisation de `xmlrpc.client` (stdlib Python), encapsulé dans `app/services/erp_client.py`, exposant une méthode bas niveau unique (`execute_kw`). Le client est **injecté par paramètre** dans les services de synchro plutôt qu'importé en singleton — nécessaire pour le mock en test (cf. §2.5).
 
-### 2.3 Topologie Odoo : instance partagée, scoping par société
-Une **seule instance Odoo**, partagée entre tenants, scopée via `res.company` (une société Odoo par tenant PERMATEL). `OdooConfig` (par tenant) ne stocke donc pas des credentials de connexion différents, mais l'URL/DB commune + le `company_id` Odoo cible.
+### 2.3 Topologie ERP : instance partagée, scoping par société
+Une **seule instance ERP**, partagée entre tenants, scopée via `res.company` (une société ERP par tenant PERMATEL). `ErpConfig` (par tenant) ne stocke donc pas des credentials de connexion différents, mais l'URL/DB commune + le `company_id` ERP cible.
 
-Conséquence directe sur le client : chaque appel `execute_kw` doit être émis avec `with_context(allowed_company_ids=[company_id], company_id=company_id)` pour que le filtrage multi-société d'Odoo fasse l'isolation — ce n'est pas automatique, à coder explicitement dans `odoo_client.py` (un paramètre `company_id` obligatoire sur chaque méthode du service, jamais un défaut implicite).
+Conséquence directe sur le client : chaque appel `execute_kw` doit être émis avec `with_context(allowed_company_ids=[company_id], company_id=company_id)` pour que le filtrage multi-société d'ERP fasse l'isolation — ce n'est pas automatique, à coder explicitement dans `erp_client.py` (un paramètre `company_id` obligatoire sur chaque méthode du service, jamais un défaut implicite).
 
-### 2.4 Idempotence de la synchronisation : champ miroir côté Odoo
-Chaque modèle Odoo synchronisé (`res.partner`, `project.project`, `sale.order`, `hr.employee`, …) reçoit un champ custom **`x_permatel_ref`** (string, indexé), rempli avec `"{tenant_id}:{modele_permatel}:{id}"`.
+### 2.4 Idempotence de la synchronisation : champ miroir côté ERP
+Chaque modèle ERP synchronisé (`res.partner`, `project.project`, `sale.order`, `hr.employee`, …) reçoit un champ custom **`x_permatel_ref`** (string, indexé), rempli avec `"{tenant_id}:{modele_permatel}:{id}"`.
 
 Toute écriture passe par **search-then-write**, jamais un `create` en aveugle :
-1. `search_read` sur `x_permatel_ref` — si trouvé, `write` sur l'id retourné ; sinon `create`, puis persistance immédiate de l'`odoo_id` obtenu dans la table de mapping correspondante (`odoo_partners`, `odoo_employees`, …).
-2. Une fois le mapping connu, les synchros suivantes écrivent directement par `odoo_id` (le `search_read` par `x_permatel_ref` ne sert qu'à la toute première création, ou en secours si la table de mapping locale a été perdue/désynchronisée).
+1. `search_read` sur `x_permatel_ref` — si trouvé, `write` sur l'id retourné ; sinon `create`, puis persistance immédiate de l'`erp_id` obtenu dans la table de mapping correspondante (`erp_partners`, `erp_employees`, …).
+2. Une fois le mapping connu, les synchros suivantes écrivent directement par `erp_id` (le `search_read` par `x_permatel_ref` ne sert qu'à la toute première création, ou en secours si la table de mapping locale a été perdue/désynchronisée).
 
-Ce mécanisme rend un retry sans effet de bord : si un appel précédent a réussi côté Odoo mais que la ligne de `odoo_sync_queue` n'a pas pu être marquée `done` (crash, timeout réseau après écriture), le retry suivant retrouve l'enregistrement existant via `x_permatel_ref` au lieu d'en créer un doublon.
+Ce mécanisme rend un retry sans effet de bord : si un appel précédent a réussi côté ERP mais que la ligne de `erp_sync_queue` n'a pas pu être marquée `done` (crash, timeout réseau après écriture), le retry suivant retrouve l'enregistrement existant via `x_permatel_ref` au lieu d'en créer un doublon.
 
-**État de la ligne de queue** (`odoo_sync_queue.status`) : `pending → in_flight → done | failed`, avec un `locked_at`/`locked_until` court pour qu'un run de `flask odoo-sync-dispatch` qui prend du retard ne se fasse pas doubler par le suivant (même logique de verrouillage que `sessions-sweep`).
+**État de la ligne de queue** (`erp_sync_queue.status`) : `pending → in_flight → done | failed`, avec un `locked_at`/`locked_until` court pour qu'un run de `flask erp-sync-dispatch` qui prend du retard ne se fasse pas doubler par le suivant (même logique de verrouillage que `sessions-sweep`).
 
-### 2.5 Tests : mock du client Odoo (pas de vraie instance en CI)
-La suite pytest tourne sur SQLite en mémoire, sans Odoo réel disponible. Le découplage du §2.2 (client injecté, pas de singleton) permet de fournir en test un **faux client en mémoire** — `tests/fakes/fake_odoo_client.py`, un dict Python implémentant juste `create`/`write`/`search_read` pour les modèles concernés — suffisant pour vérifier la logique de mapping/idempotence côté PERMATEL sans dépendre d'un vrai serveur Odoo ni mocker XML-RPC au niveau transport.
+### 2.5 Tests : mock du client ERP (pas de vraie instance en CI)
+La suite pytest tourne sur SQLite en mémoire, sans ERP réel disponible. Le découplage du §2.2 (client injecté, pas de singleton) permet de fournir en test un **faux client en mémoire** — `tests/fakes/fake_erp_client.py`, un dict Python implémentant juste `create`/`write`/`search_read` pour les modèles concernés — suffisant pour vérifier la logique de mapping/idempotence côté PERMATEL sans dépendre d'un vrai serveur ERP ni mocker XML-RPC au niveau transport.
 
 ### 2.6 Backfill initial
 Les clients/sites/contacts/agents déjà existants en base au moment de l'activation du flag `integrations.erp` pour un tenant ne sont pas synchronisés rétroactivement par le flux événementiel (qui ne couvre que les créations/modifications futures). Une commande CLI dédiée gère l'amorçage initial, sur le modèle de `flask seed-prestataires`/`seed-agents` déjà existants : dry-run par défaut, `--tenant-code <CODE> --no-dry-run --yes` pour appliquer, un tenant à la fois.
@@ -64,29 +64,29 @@ Le rôle global (PERMANENCIER/MANAGER/ADMIN) et l'admin de tenant seul sont trop
 
 ## 3. Évolution du Modèle de données (PERMATEL)
 
-L'intégration Odoo requiert l'ajout de nouveaux modèles dans PERMATEL pour s'aligner sur les standards ERP.
+L'intégration ERP requiert l'ajout de nouveaux modèles dans PERMATEL pour s'aligner sur les standards ERP.
 
 ### A. Modèles Opérationnels (Nouveaux et Modifiés)
 * **`Produit`** : Nouveau catalogue de prestations. Remplacera l'enum statique `type_commande`.
 * **`TarifClient`** : Nouvelle grille tarifaire négociée par client.
 * **`DemandeCommande`** : Modifié. Conserve son rôle de "demande brute" (avec choix multiple de prestations via tableau/JSON).
-* **`Devis` / `DevisLigne`** : Nouveaux modèles. Créés par un Manager à partir d'une commande. Miroir exact du `sale.order` et `sale.order.line` d'Odoo.
+* **`Devis` / `DevisLigne`** : Nouveaux modèles. Créés par un Manager à partir d'une commande. Miroir exact du `sale.order` et `sale.order.line` d'ERP.
 
-### B. Tables de Mapping Odoo (`backend/app/models/odoo.py`)
-* `odoo_config` : Par tenant — pas des credentials de connexion distincts (instance partagée, cf. §2.3), mais le `company_id` Odoo cible pour ce tenant.
-* `odoo_partners` : Mapping CRM (`tenant_id`, type, `permatel_id`, `odoo_partner_id`, `odoo_project_id`, `odoo_task_id`).
-* `odoo_employees` : Mapping RH (`tenant_id`, `agent_id`, `odoo_employee_id`).
-* `odoo_sync_queue` : File de retry (`flux`, `payload` JSONB, `status: pending|in_flight|done|failed`, `locked_at`/`locked_until` — cf. §2.4).
-* `odoo_factures` : Copie locale des factures Odoo — **1—N par `Devis`** (facturation partielle possible : acompte/solde), colonnes `tenant_id`, `devis_id`, `odoo_invoice_id`, `numero_facture`, `montant_ht`, `montant_ttc`, `statut` (`brouillon|validee|payee|annulee`, Pull), `date_facture`, `date_echeance`, `updated_at` — cf. Phase 8.
-* `odoo_planning_slots` : Mapping des postes de vacation PERMATEL vers `planning.slot` Odoo (`tenant_id`, `vacation_poste_id`, `odoo_slot_id` — un `planning.slot` par poste, pas par vacation, cf. §4.2).
+### B. Tables de Mapping ERP (`backend/app/models/erp.py`)
+* `erp_config` : Par tenant — pas des credentials de connexion distincts (instance partagée, cf. §2.3), mais le `company_id` ERP cible pour ce tenant.
+* `erp_partners` : Mapping CRM (`tenant_id`, type, `permatel_id`, `erp_partner_id`, `erp_project_id`, `erp_task_id`).
+* `erp_employees` : Mapping RH (`tenant_id`, `agent_id`, `erp_employee_id`).
+* `erp_sync_queue` : File de retry (`flux`, `payload` JSONB, `status: pending|in_flight|done|failed`, `locked_at`/`locked_until` — cf. §2.4).
+* `erp_factures` : Copie locale des factures ERP — **1—N par `Devis`** (facturation partielle possible : acompte/solde), colonnes `tenant_id`, `devis_id`, `erp_invoice_id`, `numero_facture`, `montant_ht`, `montant_ttc`, `statut` (`brouillon|validee|payee|annulee`, Pull), `date_facture`, `date_echeance`, `updated_at` — cf. Phase 8.
+* `erp_planning_slots` : Mapping des postes de vacation PERMATEL vers `planning.slot` ERP (`tenant_id`, `vacation_poste_id`, `erp_slot_id` — un `planning.slot` par poste, pas par vacation, cf. §4.2).
 
-Chaque modèle Odoo cible porte en complément un champ custom `x_permatel_ref` (cf. §2.4) — c'est la clé d'idempotence de la synchro, indépendante des colonnes `odoo_*_id` ci-dessus qui ne sont que le cache local du mapping une fois établi.
+Chaque modèle ERP cible porte en complément un champ custom `x_permatel_ref` (cf. §2.4) — c'est la clé d'idempotence de la synchro, indépendante des colonnes `erp_*_id` ci-dessus qui ne sont que le cache local du mapping une fois établi.
 
 ---
 
 ## 4. Modules RH natifs PERMATEL (prérequis aux Phases 9 et 10)
 
-Deux briques décidées le 13/08, natives à PERMATEL (indépendantes d'Odoo pour leur fonctionnement, mais alimentant la Phase 9 pour les documents et poussées vers Odoo Planning pour le planning). Motivation : un agent recruté doit fournir des documents dont la validité expire, et sa planification (aujourd'hui inexistante — `DemandePlanning` est un ticket de signalement, pas un calendrier de vacations) doit pouvoir être bloquée si ses documents obligatoires sont expirés.
+Deux briques décidées le 13/08, natives à PERMATEL (indépendantes d'ERP pour leur fonctionnement, mais alimentant la Phase 9 pour les documents et poussées vers Planning (ERP) pour le planning). Motivation : un agent recruté doit fournir des documents dont la validité expire, et sa planification (aujourd'hui inexistante — `DemandePlanning` est un ticket de signalement, pas un calendrier de vacations) doit pouvoir être bloquée si ses documents obligatoires sont expirés.
 
 ### 4.0 Prérequis technique commun
 `agents_securite` n'a aujourd'hui aucune contrainte unique sur `(tenant_id, id)` (seulement sur `(tenant_id, matricule)`), nécessaire pour poser une `ForeignKeyConstraint` composite depuis une nouvelle table (même contrainte qu'a dû poser `prestataires` pour `AgentSecurite.prestataire_id`). Une migration l'ajoute avant les modèles ci-dessous, partagée par §4.1 et §4.2.
@@ -163,9 +163,9 @@ Ce statut agrégé est un indicateur de couverture au niveau du créneau (utile 
 
 **Alerte no-show** : sweep calqué sur `sla_sweep()`/`notify()` — `vacation_postes` où `date_debut_prevue + seuil < now()` (via la vacation parente), `agent_id` non nul, `prise_de_service_id` nul, `no_show_notified=False` → notifie via `tenant_members(tenant_id, roles={MANAGER}, membership_admin=True)` (helper déjà utilisé par les alertes SLA, `backend/app/services/sla.py`), email automatique via le pipeline `notify()` → `EmailOutbox` → `dispatch_emails()` déjà opérationnel. Nouvelle commande CLI `flask vacations-no-show-sweep`.
 
-**Frontend** : 3 vues (Jour / Semaine / Mois). Recommandé : grille custom légère, pas de dépendance calendrier tierce — les vacations sont des évènements ponctuels (une heure de début, pas des plages multi-jours à glisser/redimensionner), donc une lib pensée pour ces cas apporte plus de poids que de valeur ; cohérent avec le choix `xmlrpc.client` plutôt qu'une lib tierce pour Odoo (§2.2). Vue Jour/Semaine = tableau (lignes agents, colonnes heures/jours) ; vue Mois = grille de jours avec, par vacation, la couleur agrégée de couverture et le détail des postes au clic.
+**Frontend** : 3 vues (Jour / Semaine / Mois). Recommandé : grille custom légère, pas de dépendance calendrier tierce — les vacations sont des évènements ponctuels (une heure de début, pas des plages multi-jours à glisser/redimensionner), donc une lib pensée pour ces cas apporte plus de poids que de valeur ; cohérent avec le choix `xmlrpc.client` plutôt qu'une lib tierce pour ERP (§2.2). Vue Jour/Semaine = tableau (lignes agents, colonnes heures/jours) ; vue Mois = grille de jours avec, par vacation, la couleur agrégée de couverture et le détail des postes au clic.
 
-**Push Odoo** : à la création/affectation/annulation d'un poste, push vers `planning.slot` (app Odoo Planning, dans le périmètre du §1) — **un `planning.slot` par poste**, pas par vacation (Odoo Planning est structuré par ressource), tous partageant le même site/horaire. Même mécanique d'idempotence que le reste du plan (§2.4) — champ miroir `x_permatel_ref` sur `planning.slot`, mapping dans `odoo_planning_slots` (§3.B). Les références `agent_id` → `hr.employee` (Phase 9) et `client_id`/`site_id` → `project.project`/`project.task` (Phase 7) sont réutilisées telles quelles, aucun nouveau mapping requis à part la table de correspondance des postes.
+**Push ERP** : à la création/affectation/annulation d'un poste, push vers `planning.slot` (module Planning de l'ERP, dans le périmètre du §1) — **un `planning.slot` par poste**, pas par vacation (le module Planning de l'ERP est structuré par ressource), tous partageant le même site/horaire. Même mécanique d'idempotence que le reste du plan (§2.4) — champ miroir `x_permatel_ref` sur `planning.slot`, mapping dans `erp_planning_slots` (§3.B). Les références `agent_id` → `hr.employee` (Phase 9) et `client_id`/`site_id` → `project.project`/`project.task` (Phase 7) sont réutilisées telles quelles, aucun nouveau mapping requis à part la table de correspondance des postes.
 
 ### 4.3 Nouveaux réglages tenant
 
@@ -174,19 +174,19 @@ Toggles tenant-wide en colonnes directes sur `Tenant` (motif `channel_telephonie
 * `document_blocking_expired` (bool, défaut `False`) — §4.1.
 * `vacation_delay_threshold_minutes` (int, défaut `15`) — §4.2.
 
-### 4.4 Accès direct Odoo (support/admin)
+### 4.4 Accès direct ERP (support/admin)
 
-Pas une porte dérobée au sens littéral (accès caché, non tracé, contournant l'authentification) — un accès restreint au rôle et **audité**, pour que l'ADMIN global puisse ouvrir Odoo directement en cas de besoin de support, sans passer par le flux normal PERMATEL.
+Pas une porte dérobée au sens littéral (accès caché, non tracé, contournant l'authentification) — un accès restreint au rôle et **audité**, pour que l'ADMIN global puisse ouvrir ERP directement en cas de besoin de support, sans passer par le flux normal PERMATEL.
 
-**Stockage** : nouveaux champs sur `odoo_config` (ou table dédiée `odoo_admin_access`) — `url_odoo`, `admin_username`, `admin_password` — chiffrés au repos via `EncryptedText` (motif déjà utilisé pour `Email.subject`/`body_text`, `backend/app/utils/crypto.py` ; pas le pattern manuel `SmtpSetting`, pour rester cohérent avec la recommandation déjà actée dans CLAUDE.md : `EncryptedText` pour toute nouvelle colonne chiffrée).
+**Stockage** : nouveaux champs sur `erp_config` (ou table dédiée `erp_admin_access`) — `url_erp`, `admin_username`, `admin_password` — chiffrés au repos via `EncryptedText` (motif déjà utilisé pour `Email.subject`/`body_text`, `backend/app/utils/crypto.py` ; pas le pattern manuel `SmtpSetting`, pour rester cohérent avec la recommandation déjà actée dans CLAUDE.md : `EncryptedText` pour toute nouvelle colonne chiffrée).
 
-**Endpoint** : `GET /api/odoo/direct-access` — `@role_required(UserRole.ADMIN)` (rôle global, pas l'admin de tenant — même distinction qu'au §4.3). Retourne l'URL + les identifiants déchiffrés à la demande.
+**Endpoint** : `GET /api/erp/direct-access` — `@role_required(UserRole.ADMIN)` (rôle global, pas l'admin de tenant — même distinction qu'au §4.3). Retourne l'URL + les identifiants déchiffrés à la demande.
 
-**Traçabilité** : chaque appel écrit une ligne `AuditLog` (`backend/app/models/audit_log.py`, motif déjà utilisé pour `SESSION_REVOKED` dans `auth.py`) — action `ODOO_DIRECT_ACCESS_VIEWED`, avec `actor_id`, `tenant_id`, timestamp, IP. Un identifiant technique partagé reste un point faible (pas de traçabilité *côté Odoo* de qui l'a utilisé), mais côté PERMATEL on sait toujours qui a demandé l'accès et quand.
+**Traçabilité** : chaque appel écrit une ligne `AuditLog` (`backend/app/models/audit_log.py`, motif déjà utilisé pour `SESSION_REVOKED` dans `auth.py`) — action `ERP_DIRECT_ACCESS_VIEWED`, avec `actor_id`, `tenant_id`, timestamp, IP. Un identifiant technique partagé reste un point faible (pas de traçabilité *côté ERP* de qui l'a utilisé), mais côté PERMATEL on sait toujours qui a demandé l'accès et quand.
 
-**Frontend** : bouton "Accès direct Odoo" visible uniquement pour l'ADMIN global (écran Support/Réglages plateforme, pas `SettingsGeneral.vue` qui est tenant-scopé) — ouvre l'URL Odoo dans un nouvel onglet, affiche les identifiants à copier.
+**Frontend** : bouton "Accès direct ERP" visible uniquement pour l'ADMIN global (écran Support/Réglages plateforme, pas `SettingsGeneral.vue` qui est tenant-scopé) — ouvre l'URL ERP dans un nouvel onglet, affiche les identifiants à copier.
 
-**Alternative plus forte (différée)** : flux SSO nominatif (l'admin PERMATEL s'authentifie sur Odoo en son nom propre, traçable des deux côtés) — nécessite un module Odoo additionnel pour émettre un jeton de connexion, plus d'effort. À envisager seulement si un vrai besoin de traçabilité par personne côté Odoo apparaît ; l'identifiant partagé + audit PERMATEL suffit pour démarrer.
+**Alternative plus forte (différée)** : flux SSO nominatif (l'admin PERMATEL s'authentifie sur ERP en son nom propre, traçable des deux côtés) — nécessite un module ERP additionnel pour émettre un jeton de connexion, plus d'effort. À envisager seulement si un vrai besoin de traçabilité par personne côté ERP apparaît ; l'identifiant partagé + audit PERMATEL suffit pour démarrer.
 
 ---
 
@@ -196,35 +196,35 @@ Le détail des tâches est géré dans le fichier de suivi Excel (Phases 6 à 10
 
 ### Phase 6 : Fondations transverses
 * Flag `integrations.erp` activable par tenant.
-* Création de `OdooConfig` (référence au `company_id` Odoo du tenant, instance partagée — §2.3) et `odoo_sync_queue` (avec `status`/`locked_at` — §2.4).
-* Ajout du champ custom `x_permatel_ref` sur les modèles Odoo ciblés (`res.partner`, `project.project`, `sale.order`, `hr.employee`, …).
-* Service XML-RPC `odoo_client.py` (client injecté, `execute_kw` avec `company_id` systématique — §2.2/2.3) et script CLI `flask odoo-sync-dispatch`.
-* `tests/fakes/fake_odoo_client.py` pour la suite pytest (§2.5).
+* Création de `ErpConfig` (référence au `company_id` ERP du tenant, instance partagée — §2.3) et `erp_sync_queue` (avec `status`/`locked_at` — §2.4).
+* Ajout du champ custom `x_permatel_ref` sur les modèles ERP ciblés (`res.partner`, `project.project`, `sale.order`, `hr.employee`, …).
+* Service XML-RPC `erp_client.py` (client injecté, `execute_kw` avec `company_id` systématique — §2.2/2.3) et script CLI `flask erp-sync-dispatch`.
+* `tests/fakes/fake_erp_client.py` pour la suite pytest (§2.5).
 * Commande CLI de backfill initial, sur le modèle de `seed-prestataires`/`seed-agents` (§2.6).
-* Réglages tenant `document_blocking_expired` et `vacation_delay_threshold_minutes` (§4.3) — indépendants d'Odoo mais posés dès cette phase, prérequis des Phases 9/10.
-* Accès direct Odoo pour l'ADMIN global, audité (§4.4).
+* Réglages tenant `document_blocking_expired` et `vacation_delay_threshold_minutes` (§4.3) — indépendants d'ERP mais posés dès cette phase, prérequis des Phases 9/10.
+* Accès direct ERP pour l'ADMIN global, audité (§4.4).
 
 ### Phase 7 : Gestion des Partenaires (Partie 1 : CRM)
-* **Client PERMATEL** → Odoo `res.partner(is_company=True)` + `project.project`.
-* **Site PERMATEL** → Odoo `res.partner(delivery)` + `project.task`.
-* **Contact PERMATEL** → Odoo `res.partner(contact)` lié au client principal (résolution de la relation N:N).
+* **Client PERMATEL** → ERP `res.partner(is_company=True)` + `project.project`.
+* **Site PERMATEL** → ERP `res.partner(delivery)` + `project.task`.
+* **Contact PERMATEL** → ERP `res.partner(contact)` lié au client principal (résolution de la relation N:N).
 * *Phase 7.b (Catalogue)* : Synchronisation des `Produits` vers `product.product` et des `TarifsClient` vers `product.pricelist`.
 
 ### Phase 8 : Commandes et Facturation (Partie 2 : Ventes/Compta)
-1. **Création (Push, `permission_required("commerce")` — §2.7)** : Le Manager transforme une `DemandeCommande` en **Devis** dans PERMATEL. Cela pousse un `sale.order` (Brouillon) dans Odoo avec les bonnes lignes de produits.
-2. **Validation (Push, `permission_required("commerce")`)** : La validation du devis dans PERMATEL déclenche l'`action_confirm` dans Odoo (transformation en Bon de commande).
-3. **Facturer (Push, `permission_required("facturation")`)** : Sur un Bon de commande confirmé, action "Facturer" dans PERMATEL → `sale.order.action_invoice_create()` via `odoo_client.execute_kw`, crée une facture **brouillon** dans Odoo. Mapping stocké dans `odoo_factures` (`statut=brouillon`). **Facturation partielle possible** — une même commande peut générer plusieurs factures (acompte/solde), d'où `odoo_factures` en 1—N par `Devis` (§3.B).
-4. **Traitement (côté Odoo, hors PERMATEL)** : la validation/comptabilisation de la facture (passage en `posted`) se fait directement dans Odoo par la comptabilité — PERMATEL ne pousse pas cette étape, cohérent avec la délimitation du §1 (PERMATEL = saisie opérationnelle, Odoo = moteur financier).
-5. **Résultat (Pull)** : synchro régulière (`odoo-sync-dispatch`) de `account.move.state`/`payment_state` → `odoo_factures.statut` (brouillon/validée/payée/annulée) + montants HT/TTC, visibles dans PERMATEL sans repasser par Odoo.
-6. **Téléchargement PDF (Devis, Bon de commande, Facture)** : `GET /api/{devis,factures}/<id>/pdf` — appelle `ir.actions.report.render_qweb_pdf(report_name, [odoo_id])` via `odoo_client.execute_kw` et streame le PDF au navigateur. Motif déjà établi pour ce type de proxy-download : `downloadRecording` (`backend/app/routes/telephony.py`) et le téléchargement de pièces jointes email (`backend/app/routes/emails.py`), `responseType: "blob"` côté frontend — rien de nouveau architecturalement. Le nom exact du rapport QWeb (`sale.report_saleorder_document`, `account.report_invoice_with_payments`, …) dépend des modules Odoo installés côté client, à figer en config une fois l'instance connue.
+1. **Création (Push, `permission_required("commerce")` — §2.7)** : Le Manager transforme une `DemandeCommande` en **Devis** dans PERMATEL. Cela pousse un `sale.order` (Brouillon) dans ERP avec les bonnes lignes de produits.
+2. **Validation (Push, `permission_required("commerce")`)** : La validation du devis dans PERMATEL déclenche l'`action_confirm` dans ERP (transformation en Bon de commande).
+3. **Facturer (Push, `permission_required("facturation")`)** : Sur un Bon de commande confirmé, action "Facturer" dans PERMATEL → `sale.order.action_invoice_create()` via `erp_client.execute_kw`, crée une facture **brouillon** dans ERP. Mapping stocké dans `erp_factures` (`statut=brouillon`). **Facturation partielle possible** — une même commande peut générer plusieurs factures (acompte/solde), d'où `erp_factures` en 1—N par `Devis` (§3.B).
+4. **Traitement (côté ERP, hors PERMATEL)** : la validation/comptabilisation de la facture (passage en `posted`) se fait directement dans ERP par la comptabilité — PERMATEL ne pousse pas cette étape, cohérent avec la délimitation du §1 (PERMATEL = saisie opérationnelle, ERP = moteur financier).
+5. **Résultat (Pull)** : synchro régulière (`erp-sync-dispatch`) de `account.move.state`/`payment_state` → `erp_factures.statut` (brouillon/validée/payée/annulée) + montants HT/TTC, visibles dans PERMATEL sans repasser par ERP.
+6. **Téléchargement PDF (Devis, Bon de commande, Facture)** : `GET /api/{devis,factures}/<id>/pdf` — appelle `ir.actions.report.render_qweb_pdf(report_name, [erp_id])` via `erp_client.execute_kw` et streame le PDF au navigateur. Motif déjà établi pour ce type de proxy-download : `downloadRecording` (`backend/app/routes/telephony.py`) et le téléchargement de pièces jointes email (`backend/app/routes/emails.py`), `responseType: "blob"` côté frontend — rien de nouveau architecturalement. Le nom exact du rapport QWeb (`sale.report_saleorder_document`, `account.report_invoice_with_payments`, …) dépend des modules ERP installés côté client, à figer en config une fois l'instance connue.
 
 ### Phase 9 : Agents & Temps (Partie 3 : RH/Analytique)
 * **Prérequis** : contrainte unique `(tenant_id, id)` sur `agents_securite` (§4.0), gestion documentaire des agents (§4.1) — le blocage d'affectation (Phase 10) en dépend.
-* **Agent** → Mapping vers `hr.employee`. (Les agents sous-traitants reçoivent une étiquette/tag Odoo spécifique pour les différencier).
-* **Vacations (feuilles de temps)** : À la **clôture** exacte d'une `PriseDeService` dans PERMATEL, le script calcule la durée en heures et l'injecte comme feuille de temps (`account.analytic.line`) sur le Projet (Client) et la Tâche (Site) Odoo.
+* **Agent** → Mapping vers `hr.employee`. (Les agents sous-traitants reçoivent une étiquette/tag ERP spécifique pour les différencier).
+* **Vacations (feuilles de temps)** : À la **clôture** exacte d'une `PriseDeService` dans PERMATEL, le script calcule la durée en heures et l'injecte comme feuille de temps (`account.analytic.line`) sur le Projet (Client) et la Tâche (Site) ERP.
 * *Note : Les vacations chevauchant minuit sont scindées en deux feuilles de temps.*
 
-### Phase 10 : Planning agents (§4.2 — remplace l'hypothèse initiale "lecture depuis Odoo")
-* **PERMATEL est la source du planning** (cohérent avec la philosophie du §1 — pas une lecture depuis Odoo comme envisagé initialement) : les managers créent/affectent les vacations planifiées dans PERMATEL (calendrier Jour/Semaine/Mois, §4.2), Odoo Planning (`planning.slot`) reçoit le **push**.
+### Phase 10 : Planning agents (§4.2 — remplace l'hypothèse initiale "lecture depuis ERP")
+* **PERMATEL est la source du planning** (cohérent avec la philosophie du §1 — pas une lecture depuis ERP comme envisagé initialement) : les managers créent/affectent les vacations planifiées dans PERMATEL (calendrier Jour/Semaine/Mois, §4.2), le module Planning de l'ERP (`planning.slot`) reçoit le **push**.
 * Blocage d'affectation configurable par tenant (§4.1/§4.3) si l'agent a un document obligatoire expiré/manquant.
-* Statuts dérivés (vert/bleu/gris/rouge/orange) + alerte no-show aux managers (§4.2) — fonctionnent indépendamment de l'activation d'Odoo pour ce tenant ; le push vers `planning.slot` est un enrichissement, pas une dépendance dure.
+* Statuts dérivés (vert/bleu/gris/rouge/orange) + alerte no-show aux managers (§4.2) — fonctionnent indépendamment de l'activation d'ERP pour ce tenant ; le push vers `planning.slot` est un enrichissement, pas une dépendance dure.
