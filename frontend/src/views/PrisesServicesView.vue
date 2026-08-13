@@ -56,6 +56,9 @@
       <button v-if="activeFiltersCount > 0" class="psv-filter-reset" @click="resetFilters">
         <v-icon size="11">mdi-close</v-icon> Réinitialiser
       </button>
+      <button class="psv-export-btn" :disabled="filteredRows.length === 0" @click="exportCsv">
+        <v-icon size="13">mdi-tray-arrow-down</v-icon> Exporter CSV
+      </button>
     </div>
 
     <!-- ══ TABLE ══════════════════════════════════════════════════════════ -->
@@ -64,6 +67,8 @@
         <thead>
           <tr>
             <th class="psv-th">Agent</th>
+            <th class="psv-th">Client</th>
+            <th class="psv-th">Site</th>
             <th class="psv-th" style="width:140px">Début</th>
             <th class="psv-th" style="width:140px">Fin</th>
             <th class="psv-th" style="width:90px">Durée</th>
@@ -76,14 +81,11 @@
             <td class="psv-td">
               <div class="psv-cell-flex">
                 <span class="psv-avatar">{{ initials(row.agent_nom) }}</span>
-                <div>
-                  <div class="psv-agent-name">{{ row.agent_nom ?? '—' }}</div>
-                  <div v-if="row.client_nom || row.site_nom" class="psv-agent-meta">
-                    {{ [row.client_nom, row.site_nom].filter(Boolean).join(" · ") }}
-                  </div>
-                </div>
+                <div class="psv-agent-name">{{ row.agent_nom ?? '—' }}</div>
               </div>
             </td>
+            <td class="psv-td">{{ row.client_nom ?? '—' }}</td>
+            <td class="psv-td">{{ row.site_nom ?? '—' }}</td>
             <td class="psv-td psv-td--date">{{ formatDate(row.date_debut) }}</td>
             <td class="psv-td psv-td--date">{{ row.date_fin ? formatDate(row.date_fin) : '—' }}</td>
             <td class="psv-td psv-td--date">{{ formatDuration(row.duree_minutes, row.statut) }}</td>
@@ -107,7 +109,7 @@
           </tr>
 
           <tr v-if="loading">
-            <td colspan="6">
+            <td colspan="8">
               <div class="psv-empty">
                 <v-icon size="28" color="#e0e0e0" class="psv-spin">mdi-loading</v-icon>
                 <span>Chargement des prises de service…</span>
@@ -115,7 +117,7 @@
             </td>
           </tr>
           <tr v-else-if="loadError">
-            <td colspan="6">
+            <td colspan="8">
               <div class="psv-empty" style="color:#e74c3c">
                 <v-icon size="28" color="#e74c3c">mdi-alert-circle-outline</v-icon>
                 <span>{{ loadError }}</span>
@@ -123,7 +125,7 @@
             </td>
           </tr>
           <tr v-else-if="filteredRows.length === 0">
-            <td colspan="6">
+            <td colspan="8">
               <div class="psv-empty">
                 <v-icon size="36" color="#e0e0e0">mdi-clipboard-text-clock-outline</v-icon>
                 <span>Aucune prise de service ne correspond aux critères</span>
@@ -148,6 +150,7 @@ import {
   endPriseDeService,
 } from "@/services/priseDeServiceService";
 import PriseDeServiceForm from "@/components/prises/PriseDeServiceForm.vue";
+import { arrayToCsv } from "@/utils/downloadBlob";
 
 const STATUTS = [
   { value: "en_cours", label: "En cours" },
@@ -208,6 +211,17 @@ const filteredRows = computed(() => {
   }
   return list;
 });
+
+function exportCsv() {
+  arrayToCsv(
+    ["agent", "client", "site", "date_debut", "date_fin", "duree_minutes", "statut"],
+    filteredRows.value.map((r) => [
+      r.agent_nom, r.client_nom, r.site_nom,
+      r.date_debut, r.date_fin, r.duree_minutes, r.statut,
+    ]),
+    `prises_de_service_${new Date().toISOString().slice(0, 10)}.csv`,
+  );
+}
 
 function resetFilters() {
   fDate.value = "";
@@ -296,6 +310,12 @@ onMounted(loadData);
   display: inline-flex; align-items: center; gap: 4px; margin-left: auto; height: 22px; padding: 0 8px;
   border: none; border-radius: 3px; background: rgba(231,76,60,0.08); font-size: 12px; font-weight: 600; color: #e74c3c; cursor: pointer;
 }
+.psv-export-btn {
+  display: inline-flex; align-items: center; gap: 5px; margin-left: auto; height: 26px; padding: 0 10px;
+  border: none; border-radius: 3px; background: #00a8a8; font-size: 12px; font-weight: 600; color: #fff; cursor: pointer; transition: background .12s;
+}
+.psv-export-btn:hover:not(:disabled) { background: #008f8f; }
+.psv-export-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* Table */
 .psv-table-wrap { background: #fff; border: 1px solid rgba(0,0,0,0.08); border-radius: 3px; overflow: hidden; }
@@ -315,8 +335,6 @@ onMounted(loadData);
   background: rgba(0,168,168,0.12); font-family: "Fira Code", monospace; font-size: 10px; font-weight: 700; color: #00a8a8; flex-shrink: 0;
 }
 .psv-agent-name { font-weight: 600; color: #000b23; }
-.psv-agent-meta { font-size: 12px; color: #9aa0aa; margin-top: 1px; }
-.psv-site { display: inline-flex; align-items: center; gap: 4px; color: #777; }
 
 .psv-statut-chip { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
 .psv-statut-chip__dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
