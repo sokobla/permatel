@@ -49,6 +49,17 @@ La suite pytest tourne sur SQLite en mémoire, sans Odoo réel disponible. Le d�
 ### 2.6 Backfill initial
 Les clients/sites/contacts/agents déjà existants en base au moment de l'activation du flag `integrations.erp` pour un tenant ne sont pas synchronisés rétroactivement par le flux événementiel (qui ne couvre que les créations/modifications futures). Une commande CLI dédiée gère l'amorçage initial, sur le modèle de `flask seed-prestataires`/`seed-agents` déjà existants : dry-run par défaut, `--tenant-code <CODE> --no-dry-run --yes` pour appliquer, un tenant à la fois.
 
+### 2.7 Droits granulaires par action (Planning / Commerce / Facturation)
+Le rôle global (PERMANENCIER/MANAGER/ADMIN) et l'admin de tenant seul sont trop grossiers pour ces actions : un tenant peut vouloir qu'un MANAGER précis ait le droit de facturer sans lui donner le droit sur le planning, ou l'inverse. Nouveau modèle **`tenant_user_permissions`** (`tenant_user_id` FK, `permission_code` String, `granted_by_id`, `granted_at`) — un code libre, pas un enum figé, cohérent avec la préférence déjà actée du projet pour `String` plutôt que Postgres `ENUM` sur une colonne amenée à grandir (`c5e10bf50c26_use_varchar_for_enums.py`). Codes prévus au démarrage : `planning`, `commerce`, `facturation` — liste appelée à grandir avec chaque nouveau module, jamais figée en code.
+
+**Bypass** : l'ADMIN global et l'admin du tenant (`membership_role='admin'`) ont toutes les permissions implicitement, sans ligne à créer — seuls les membres non-admin ont besoin d'une permission explicite.
+
+**Décorateur** `permission_required(code)` (`backend/app/utils/decorators.py`, motif `tenant_admin_required`) : contexte tenant chargé, puis `g.is_tenant_admin` OU existence d'une ligne `tenant_user_permissions` pour `(g.user.id, g.tenant_id, code)`.
+
+**Frontend** : extension de `TenantMembersView.vue` (gestion des membres du tenant, déjà existante) — éditeur de permissions par membre (cases à cocher Planning/Commerce/Facturation), `PUT /api/tenants/<tid>/users/<uid>/permissions`.
+
+**Application** : Facturer (§Phase 8) → `permission_required("facturation")` ; créer/valider un Devis (§Phase 8) → `permission_required("commerce")` ; créer/affecter une vacation planifiée (§4.2) → `permission_required("planning")`.
+
 ---
 
 ## 3. Évolution du Modèle de données (PERMATEL)
@@ -66,7 +77,7 @@ L'intégration Odoo requiert l'ajout de nouveaux modèles dans PERMATEL pour s'a
 * `odoo_partners` : Mapping CRM (`tenant_id`, type, `permatel_id`, `odoo_partner_id`, `odoo_project_id`, `odoo_task_id`).
 * `odoo_employees` : Mapping RH (`tenant_id`, `agent_id`, `odoo_employee_id`).
 * `odoo_sync_queue` : File de retry (`flux`, `payload` JSONB, `status: pending|in_flight|done|failed`, `locked_at`/`locked_until` — cf. §2.4).
-* `odoo_factures` : Copie locale en lecture seule des factures Odoo (Pull).
+* `odoo_factures` : Copie locale des factures Odoo — **1—N par `Devis`** (facturation partielle possible : acompte/solde), colonnes `tenant_id`, `devis_id`, `odoo_invoice_id`, `numero_facture`, `montant_ht`, `montant_ttc`, `statut` (`brouillon|validee|payee|annulee`, Pull), `date_facture`, `date_echeance`, `updated_at` — cf. Phase 8.
 * `odoo_planning_slots` : Mapping des vacations planifiées PERMATEL vers `planning.slot` Odoo (`tenant_id`, `vacation_id`, `odoo_slot_id`) — cf. §4.2.
 
 Chaque modèle Odoo cible porte en complément un champ custom `x_permatel_ref` (cf. §2.4) — c'est la clé d'idempotence de la synchro, indépendante des colonnes `odoo_*_id` ci-dessus qui ne sont que le cache local du mapping une fois établi.
@@ -125,6 +136,8 @@ def vacation_state(v):
 
 **Rattachement à la prise de service** : au `POST /api/prises-de-service/start`, recherche d'une `vacation_planifiee` correspondante (même agent, fenêtre horaire proche) → si trouvée, pose `prise_de_service_id`. Comportement des prises de service non planifiées inchangé.
 
+**Droits** : création/affectation d'une vacation planifiée → `permission_required("planning")` (§2.7), pas un simple rôle MANAGER — un tenant peut réserver ce droit à certains managers seulement.
+
 **Alerte no-show** : sweep calqué sur `sla_sweep()`/`notify()` — `vacations_planifiees` où `date_debut_prevue + seuil < now()`, `agent_id` non nul, `prise_de_service_id` nul, `no_show_notified=False` → notifie via `tenant_members(tenant_id, roles={MANAGER}, membership_admin=True)` (helper déjà utilisé par les alertes SLA, `backend/app/services/sla.py`), email automatique via le pipeline `notify()` → `EmailOutbox` → `dispatch_emails()` déjà opérationnel. Nouvelle commande CLI `flask vacations-no-show-sweep`.
 
 **Frontend** : 3 vues (Jour / Semaine / Mois). Recommandé : grille custom légère, pas de dépendance calendrier tierce — les vacations sont des évènements ponctuels (une heure de début, pas des plages multi-jours à glisser/redimensionner), donc une lib pensée pour ces cas apporte plus de poids que de valeur ; cohérent avec le choix `xmlrpc.client` plutôt qu'une lib tierce pour Odoo (§2.2). Vue Jour/Semaine = tableau (lignes agents, colonnes heures/jours) ; vue Mois = grille de jours avec puces colorées par agent.
@@ -175,9 +188,12 @@ Le détail des tâches est géré dans le fichier de suivi Excel (Phases 6 à 10
 * *Phase 7.b (Catalogue)* : Synchronisation des `Produits` vers `product.product` et des `TarifsClient` vers `product.pricelist`.
 
 ### Phase 8 : Commandes et Facturation (Partie 2 : Ventes/Compta)
-1. **Création (Push)** : Le Manager transforme une `DemandeCommande` en **Devis** dans PERMATEL. Cela pousse un `sale.order` (Brouillon) dans Odoo avec les bonnes lignes de produits.
-2. **Validation (Push)** : La validation du devis dans PERMATEL déclenche l'`action_confirm` dans Odoo (transformation en Bon de commande).
-3. **Facturation (Pull)** : Le cron PERMATEL récupère l'état des factures (`account.move`) depuis Odoo pour les afficher aux managers.
+1. **Création (Push, `permission_required("commerce")` — §2.7)** : Le Manager transforme une `DemandeCommande` en **Devis** dans PERMATEL. Cela pousse un `sale.order` (Brouillon) dans Odoo avec les bonnes lignes de produits.
+2. **Validation (Push, `permission_required("commerce")`)** : La validation du devis dans PERMATEL déclenche l'`action_confirm` dans Odoo (transformation en Bon de commande).
+3. **Facturer (Push, `permission_required("facturation")`)** : Sur un Bon de commande confirmé, action "Facturer" dans PERMATEL → `sale.order.action_invoice_create()` via `odoo_client.execute_kw`, crée une facture **brouillon** dans Odoo. Mapping stocké dans `odoo_factures` (`statut=brouillon`). **Facturation partielle possible** — une même commande peut générer plusieurs factures (acompte/solde), d'où `odoo_factures` en 1—N par `Devis` (§3.B).
+4. **Traitement (côté Odoo, hors PERMATEL)** : la validation/comptabilisation de la facture (passage en `posted`) se fait directement dans Odoo par la comptabilité — PERMATEL ne pousse pas cette étape, cohérent avec la délimitation du §1 (PERMATEL = saisie opérationnelle, Odoo = moteur financier).
+5. **Résultat (Pull)** : synchro régulière (`odoo-sync-dispatch`) de `account.move.state`/`payment_state` → `odoo_factures.statut` (brouillon/validée/payée/annulée) + montants HT/TTC, visibles dans PERMATEL sans repasser par Odoo.
+6. **Téléchargement PDF (Devis, Bon de commande, Facture)** : `GET /api/{devis,factures}/<id>/pdf` — appelle `ir.actions.report.render_qweb_pdf(report_name, [odoo_id])` via `odoo_client.execute_kw` et streame le PDF au navigateur. Motif déjà établi pour ce type de proxy-download : `downloadRecording` (`backend/app/routes/telephony.py`) et le téléchargement de pièces jointes email (`backend/app/routes/emails.py`), `responseType: "blob"` côté frontend — rien de nouveau architecturalement. Le nom exact du rapport QWeb (`sale.report_saleorder_document`, `account.report_invoice_with_payments`, …) dépend des modules Odoo installés côté client, à figer en config une fois l'instance connue.
 
 ### Phase 9 : Agents & Temps (Partie 3 : RH/Analytique)
 * **Prérequis** : contrainte unique `(tenant_id, id)` sur `agents_securite` (§4.0), gestion documentaire des agents (§4.1) — le blocage d'affectation (Phase 10) en dépend.
