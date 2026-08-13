@@ -26,7 +26,7 @@ from .audit_log import AuditLog, AuditAction
 from .token_blocklist import TokenBlocklist
 from .user_session import UserSession, SessionStatus
 from .telephony_event import TelephonyEvent
-from .pbx import PbxConnector, PbxConnectorDomain, PBX_TYPES
+from .pbx import PbxConnector, PbxConnectorDomain, PbxPauseCode, PBX_TYPES
 from .tenant import Tenant
 from .tenant_user import TenantUser, MEMBERSHIP_ADMIN, MEMBERSHIP_MEMBER
 from .tenant_invitation import TenantInvitation
@@ -71,7 +71,7 @@ __all__ = [
     'TokenBlocklist',
     'UserSession', 'SessionStatus',
     'TelephonyEvent',
-    'PbxConnector', 'PbxConnectorDomain', 'PBX_TYPES',
+    'PbxConnector', 'PbxConnectorDomain', 'PbxPauseCode', 'PBX_TYPES',
 
     # Prestataires
     'Prestataire',

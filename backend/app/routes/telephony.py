@@ -42,7 +42,7 @@ from flask import Blueprint, Response, current_app, g, jsonify, request
 from flask_cors import CORS
 
 from app import db, socketio
-from app.models import PbxConnector, PbxConnectorDomain, TelephonyEvent, TenantUser, User
+from app.models import PbxConnector, PbxConnectorDomain, PbxPauseCode, TelephonyEvent, TenantUser, User
 from app.utils.decorators import tenant_admin_required, tenant_required
 
 telephony_bp = Blueprint("telephony", __name__, url_prefix="/api/telephony")
@@ -135,6 +135,47 @@ def _publish_sync_signal(connector_id: int):
         r.publish(SYNC_CHANNEL, str(connector_id))
     except Exception as exc:  # noqa: BLE001
         logger.warning("Échec de publication du signal Sync (connector_id=%s) : %s", connector_id, exc)
+
+
+def _dispatch_pbx_job(tenant_id, job_type: str, agent_uuid: str, **payload) -> bool:
+    """Déclenche une exécution à distance côté connecteur (13/08) —
+    login/logout/changement de statut d'un agent sur FusionPBX.
+
+    Aucune table de jobs persistée : le connecteur maintient une connexion
+    ESL PERSISTANTE à FreeSWITCH, `self._esl.send(...)` est SYNCHRONE
+    (réponse `+OK`/`-ERR` immédiate) — contrairement à un système externe
+    joint en HTTP (ex. Odoo), il n'y a pas besoin de file de retry pour
+    fiabiliser un appel déjà quasi-instantané une fois reçu. Même canal
+    Redis que `_publish_sync_signal` (`SYNC_CHANNEL`), payload JSON au lieu
+    d'un entier brut — le listener côté connecteur distingue les deux
+    formats (cf. `connector/core_connector.py::_SyncListener._run`).
+
+    Si aucun connecteur actif n'est configuré pour ce tenant, ou si Redis
+    est injoignable (dégradation gracieuse déjà en place via `_get_redis`),
+    ou si le connecteur n'écoute pas Redis à cet instant précis : le job
+    est perdu silencieusement, sans retry — acceptable ici, ce sont des
+    actions rejouables par l'utilisateur (relancer un login, rechanger de
+    statut), pas des transactions à garantir. Retourne `True` si le job a
+    été publié (pas de garantie de réception/exécution), `False` sinon.
+    """
+    connector = PbxConnector.query.filter_by(tenant_id=tenant_id, is_active=True).first()
+    if connector is None:
+        return False
+    r = _get_redis()
+    if r is None:
+        return False
+    job = {
+        "connector_id": connector.id,
+        "job_type": job_type,
+        "agent_uuid": agent_uuid,
+        **payload,
+    }
+    try:
+        r.publish(SYNC_CHANNEL, json.dumps(job))
+        return True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Échec de publication du job PBX (%s, agent_uuid=%s) : %s", job_type, agent_uuid, exc)
+        return False
 
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -289,6 +330,7 @@ def ingest_event():
         agent_uuid=agent.get("uuid") or agent.get("login"),
         agent_station_extension=agent.get("station"),
         agent_status=agent.get("status"),
+        pause_code=agent.get("pause_code"),
         queue_id=queue.get("id"),
         duration=data.get("duration_seconds"),
         recording_url=data.get("recording_url"),
@@ -1396,6 +1438,137 @@ def agents_status():
 
 
 # ═════════════════════════════════════════════════════════════════════════
+#  Exécution à distance ESL (13/08) — login/logout/statut agent
+# ═════════════════════════════════════════════════════════════════════════
+
+VALID_AGENT_STATUSES = {"Available", "On Break", "Logged Out"}
+
+
+@telephony_bp.post("/agents/me/status")
+@tenant_required
+def set_my_agent_status():
+    """Self-service : l'utilisateur courant change son propre statut de
+    présence PBX (bouton "Statut" de la barre d'application). Nécessite
+    `User.agent_login` renseigné (l'uuid FusionPBX CC-Agent, cf.
+    `backend/app/models/user.py`) — 400 sinon (pas d'agent PBX associé à ce
+    compte).
+
+    Dispatch un job `agent_status_change` au connecteur (`_dispatch_pbx_job`).
+    Cette route ne retourne PAS de statut confirmé — la confirmation arrive
+    naturellement via l'`agent-status-change` que mod_callcenter émettra en
+    retour, ingéré par le pipeline habituel (cf. contexte du plan du 13/08 :
+    pas de mécanisme de validation dédié, le pipeline d'ingestion existant
+    suffit). `202 {"dispatched": bool}` : accusé de dispatch seulement, pas
+    de garantie d'exécution (connecteur injoignable, Redis indisponible…).
+    """
+    if not g.user.agent_login:
+        return jsonify({"error": "Aucun agent PBX associé à ce compte."}), 400
+
+    payload = request.get_json(silent=True) or {}
+    target_status = payload.get("status")
+    if target_status not in VALID_AGENT_STATUSES:
+        return jsonify({
+            "error": f"Statut invalide. Valeurs autorisées : {', '.join(sorted(VALID_AGENT_STATUSES))}.",
+        }), 400
+
+    pause_code = None
+    if target_status == "On Break":
+        pause_code = payload.get("pause_code") or "0"
+        if not isinstance(pause_code, str) or len(pause_code) != 1:
+            return jsonify({"error": "pause_code doit être un caractère unique."}), 400
+
+    dispatched = _dispatch_pbx_job(
+        g.tenant_id, "agent_status_change", g.user.agent_login,
+        target_status=target_status, pause_code=pause_code,
+    )
+    return jsonify({"dispatched": dispatched}), 202
+
+
+@telephony_bp.get("/pause-codes")
+@tenant_required
+def list_pause_codes():
+    """Codes de pause configurés pour le tenant actif — crée la ligne
+    protégée "0" à la volée si la table est encore vide pour ce tenant
+    (aucun seed en migration, cf. `backend/app/models/pbx.py::PbxPauseCode`)."""
+    codes = PbxPauseCode.query.filter_by(tenant_id=g.tenant_id).order_by(PbxPauseCode.digit).all()
+    if not codes:
+        default = PbxPauseCode(
+            tenant_id=g.tenant_id, digit="0", label="Non spécifié", is_protected=True,
+        )
+        db.session.add(default)
+        db.session.commit()
+        codes = [default]
+    return jsonify([c.to_dict() for c in codes]), 200
+
+
+@telephony_bp.post("/pause-codes")
+@tenant_admin_required
+def create_pause_code():
+    data = request.get_json(silent=True) or {}
+    digit = (data.get("digit") or "").strip()
+    label = (data.get("label") or "").strip()
+    if not digit or len(digit) != 1 or not label:
+        return jsonify({"error": "Champs 'digit' (1 caractère) et 'label' requis."}), 400
+
+    existing = PbxPauseCode.query.filter_by(tenant_id=g.tenant_id, digit=digit).first()
+    if existing:
+        return jsonify({"error": f"Le code '{digit}' existe déjà."}), 409
+
+    code = PbxPauseCode(tenant_id=g.tenant_id, digit=digit, label=label, is_protected=False)
+    db.session.add(code)
+    db.session.commit()
+    return jsonify(code.to_dict()), 201
+
+
+def _pause_code_or_404(code_id):
+    code = PbxPauseCode.query.filter_by(id=code_id, tenant_id=g.tenant_id).first()
+    if code is None:
+        return None
+    return code
+
+
+@telephony_bp.put("/pause-codes/<int:code_id>")
+@tenant_admin_required
+def update_pause_code(code_id):
+    code = _pause_code_or_404(code_id)
+    if code is None:
+        return jsonify({"error": "Code de pause introuvable."}), 404
+    if code.is_protected:
+        return jsonify({"error": "Ce code de pause est protégé, il ne peut pas être modifié."}), 409
+
+    data = request.get_json(silent=True) or {}
+    if "label" in data:
+        label = (data.get("label") or "").strip()
+        if not label:
+            return jsonify({"error": "'label' ne peut pas être vide."}), 400
+        code.label = label
+    if "digit" in data:
+        digit = (data.get("digit") or "").strip()
+        if not digit or len(digit) != 1:
+            return jsonify({"error": "'digit' doit être un caractère unique."}), 400
+        if digit != code.digit and PbxPauseCode.query.filter_by(tenant_id=g.tenant_id, digit=digit).first():
+            return jsonify({"error": f"Le code '{digit}' existe déjà."}), 409
+        code.digit = digit
+
+    db.session.commit()
+    return jsonify(code.to_dict()), 200
+
+
+@telephony_bp.delete("/pause-codes/<int:code_id>")
+@tenant_admin_required
+def delete_pause_code(code_id):
+    code = _pause_code_or_404(code_id)
+    if code is None:
+        return jsonify({"error": "Code de pause introuvable."}), 404
+    if code.is_protected:
+        return jsonify({"error": "Ce code de pause est protégé, il ne peut pas être supprimé."}), 409
+
+    db.session.delete(code)
+    db.session.commit()
+    return jsonify({"message": "Code de pause supprimé."}), 200
+
+
+# ═════════════════════════════════════════════════════════════════════════
 #  Historique des appels (Rapports > Téléphonie) — pagination/filtres/export
 # ═════════════════════════════════════════════════════════════════════════
 
@@ -1442,22 +1615,24 @@ def _query_calls_history(filters, *, recordings_only=False):
     (même approche que /kpis/summary). Retourne la liste triée par date de
     début décroissante — la pagination/l'export se font ensuite en mémoire
     sur ce résultat."""
+    # Correctif 13/08 : `agent_login`/`queue_id` NE DOIVENT PAS filtrer au
+    # niveau des lignes brutes ici — ces champs ne sont peuplés que sur une
+    # partie des événements d'un appel (ex. l'événement terminal
+    # CHANNEL_HANGUP_COMPLETE, issu du connecteur ESL, ne porte jamais
+    # agent_login/queue_id, cf. connector/normalizer.py `_base_payload`).
+    # Filtrer la requête SQL sur ces colonnes exclut donc l'événement
+    # terminal des appels concernés, qui perdent alors leur statut terminal
+    # après regroupement et se retrouvent traités comme "encore en cours"
+    # (cf. `if terminal is None: continue` plus bas) — l'appel disparaît
+    # entièrement de l'historique au lieu d'être simplement filtré. Ces deux
+    # filtres sont donc appliqués APRÈS regroupement, sur les valeurs
+    # fusionnées (comme call_status/direction/search déjà plus bas).
     query = TelephonyEvent.query.filter(
         TelephonyEvent.tenant_id == g.tenant_id,
         TelephonyEvent.created_at >= filters["dt_from"],
         TelephonyEvent.created_at <= filters["dt_to"],
         TelephonyEvent.call_uuid.isnot(None),
     )
-    if filters.get("agent_login"):
-        # Filtre reçu du frontend sous 'agent_login' (nom de paramètre
-        # historique) — accepte indifféremment une valeur uuid ou extension,
-        # les deux vocabulaires ayant coexisté dans agent_login par le passé.
-        query = query.filter(db.or_(
-            TelephonyEvent.agent_login == filters["agent_login"],
-            TelephonyEvent.agent_uuid == filters["agent_login"],
-        ))
-    if filters.get("queue_id"):
-        query = query.filter(TelephonyEvent.queue_id == filters["queue_id"])
 
     by_call = {}
     for e in query.all():
@@ -1494,6 +1669,10 @@ def _query_calls_history(filters, *, recordings_only=False):
         if filters.get("call_status") and terminal.call_status != filters["call_status"]:
             continue
         if filters.get("direction") and direction != filters["direction"]:
+            continue
+        if filters.get("agent_login") and filters["agent_login"] not in (agent_login, agent_uuid):
+            continue
+        if filters.get("queue_id") and queue_id != filters["queue_id"]:
             continue
         if filters.get("search"):
             needle = filters["search"].lower()

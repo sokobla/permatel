@@ -55,4 +55,27 @@ export const telephonyService = {
   regenerateCdrToken(connectorId) {
     return apiClient.post(`/telephony/connectors/${connectorId}/cdr-token/regenerate`);
   },
+
+  // ── Statut self-service (exécution à distance ESL, 13/08) ────────────────
+
+  /** Change le statut FusionPBX de l'utilisateur courant ({ status, pause_code? }). */
+  setMyStatus(payload) {
+    return apiClient.post("/telephony/agents/me/status", payload);
+  },
+  /** Codes de pause configurés pour le tenant actif (dont "0", protégé). */
+  getPauseCodes() {
+    return apiClient.get("/telephony/pause-codes");
+  },
+  /** Crée un nouveau code de pause (Paramètres > Téléphonie, admin tenant). */
+  createPauseCode(payload) {
+    return apiClient.post("/telephony/pause-codes", payload);
+  },
+  /** Modifie un code de pause existant — refusé (409) si protégé. */
+  updatePauseCode(id, payload) {
+    return apiClient.put(`/telephony/pause-codes/${id}`, payload);
+  },
+  /** Supprime un code de pause — refusé (409) si protégé. */
+  deletePauseCode(id) {
+    return apiClient.delete(`/telephony/pause-codes/${id}`);
+  },
 };

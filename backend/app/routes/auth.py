@@ -402,6 +402,22 @@ def login():
 
     db.session.commit()
 
+    # Exécution à distance ESL (13/08) : au login PERMATEL, si l'utilisateur
+    # est un agent connu côté téléphonie, déclenche le job "agent_login"
+    # (statut FusionPBX "On Break" + pause_code="0" par défaut, cf.
+    # ESLAdapter.execute_job). `user.agent_login` déjà chargé sur l'objet ORM
+    # (utilisé ligne 383), aucune requête supplémentaire. Best-effort : ne
+    # doit jamais faire échouer le login lui-même.
+    if user.agent_login and active_tenant_uuid:
+        try:
+            from app.routes.telephony import _dispatch_pbx_job
+            _dispatch_pbx_job(active_tenant_uuid, "agent_login", user.agent_login)
+        except Exception:  # noqa: BLE001
+            auth_logger.warning(
+                f"agent_login PBX dispatch échoué | user_id={user.id} | agent_login={user.agent_login}",
+                exc_info=True,
+            )
+
     auth_logger.info(
         f"LOGIN_SUCCESS | user_id={user.id} | username={user.username} "
         f"| role={user.role.value} | ip={ip} | session_id={session.id}"
@@ -767,6 +783,21 @@ def logout():
     }, tenant_id=tenant_id_for_log)
 
     db.session.commit()
+
+    # Exécution à distance ESL (13/08) : au logout PERMATEL, si la session
+    # fermée porte un agent PBX, déclenche le job "agent_logout" (statut
+    # FusionPBX "Logged Out"). `session.agent_login` déjà chargé sur l'objet
+    # `UserSession` en cours de fermeture — pas de requête `User`
+    # supplémentaire. Best-effort : ne doit jamais faire échouer le logout.
+    if session and session.agent_login and tenant_id_for_log:
+        try:
+            from app.routes.telephony import _dispatch_pbx_job
+            _dispatch_pbx_job(tenant_id_for_log, "agent_logout", session.agent_login)
+        except Exception:  # noqa: BLE001
+            auth_logger.warning(
+                f"agent_logout PBX dispatch échoué | user_id={user_id} | agent_login={session.agent_login}",
+                exc_info=True,
+            )
 
     auth_logger.info(
         f"LOGOUT_SUCCESS | user_id={user_id} "

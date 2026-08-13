@@ -46,6 +46,7 @@
         <v-spacer></v-spacer>
         <div class="app-bar-actions">
           <NotificationBell />
+          <AgentStatusMenu v-if="authStore.user?.agent_login" class="mr-2" />
           <v-avatar :src="profileAvatarUrl" size="32" class="mr-2"></v-avatar>
           <v-btn
             color="#000b23"
@@ -101,6 +102,7 @@ import { computed, watch } from "vue";
 import SideMenue from "@/components/Menu2.vue";
 import NotificationBell from "@/components/notifications/NotificationBell.vue";
 import CallCardBar from "@/components/supervision/CallCardBar.vue";
+import AgentStatusMenu from "@/components/supervision/AgentStatusMenu.vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/store/auth";
 import { useIdleLogout } from "@/composables/useIdleLogout";

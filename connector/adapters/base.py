@@ -39,6 +39,14 @@ class PBXAdapter:
         pas d'identité agent, ex. futur AMIAdapter avant implémentation)."""
         pass
 
+    def execute_job(self, job: dict):
+        """Exécution à distance (13/08) — login/logout/changement de statut
+        d'un agent, dispatché par PERMATEL via le signal Redis (cf.
+        CoreConnector._on_job_requested). Implémentation par défaut : no-op
+        (adapter ne supportant pas encore l'exécution à distance, ex. futur
+        AMIAdapter avant implémentation)."""
+        pass
+
     @property
     def is_connected(self) -> bool:
         """État live rapporté au heartbeat (POST /connectors/status)."""

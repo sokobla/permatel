@@ -390,6 +390,125 @@
       </template>
     </v-data-table>
 
+    <v-divider class="my-4" />
+
+    <!-- Codes de pause (exécution à distance ESL, 13/08) : sous-statut "En
+         pause" transmis directement par PERMATEL, pas de collecte DTMF en
+         phase 1. La ligne "0" est protégée (créée à la volée côté backend,
+         ne peut pas être modifiée/supprimée). -->
+    <div class="pc-section">
+      <div class="pc-head">
+        <div>
+          <span class="tel-domains-head__title">CODES DE PAUSE</span>
+          <p class="tel-cdr-hint">
+            Sous-statut transmis à FusionPBX au passage en « En pause »,
+            choisi par l'agent depuis le menu de statut self-service.
+          </p>
+        </div>
+        <v-btn
+          variant="text"
+          size="small"
+          class="text-none"
+          prepend-icon="mdi-plus"
+          @click="openCreatePauseCode"
+        >
+          Ajouter un code
+        </v-btn>
+      </div>
+
+      <table class="tel-domains-table">
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Libellé</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="!pauseCodes.length">
+            <td colspan="3" class="tel-muted">Aucun code configuré.</td>
+          </tr>
+          <tr v-for="c in pauseCodes" :key="c.id">
+            <td class="tel-mono">{{ c.digit }}</td>
+            <td>
+              {{ c.label }}
+              <v-chip v-if="c.is_protected" size="x-small" variant="tonal" class="ml-1">
+                Protégé
+              </v-chip>
+            </td>
+            <td class="tel-domains-table__actions">
+              <v-btn
+                icon="mdi-pencil-outline"
+                variant="text"
+                size="x-small"
+                :disabled="c.is_protected"
+                :title="c.is_protected ? 'Code protégé — non modifiable' : ''"
+                @click="openEditPauseCode(c)"
+              />
+              <v-btn
+                icon="mdi-delete-outline"
+                variant="text"
+                size="x-small"
+                color="#e74c3c"
+                :disabled="c.is_protected"
+                :title="c.is_protected ? 'Code protégé — non supprimable' : ''"
+                @click="removePauseCode(c)"
+              />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Dialog création / édition code de pause -->
+    <v-dialog v-model="pauseCodeDialog" max-width="420">
+      <v-card rounded="lg">
+        <v-card-title class="tel-dlg-title">
+          {{ editingPauseCode ? "Modifier le code de pause" : "Nouveau code de pause" }}
+        </v-card-title>
+        <v-divider />
+        <v-card-text>
+          <v-alert
+            v-if="pauseCodeFormError"
+            type="error"
+            variant="tonal"
+            density="compact"
+            class="mb-3"
+          >
+            {{ pauseCodeFormError }}
+          </v-alert>
+          <v-text-field
+            v-model="pauseCodeForm.digit"
+            label="Code (1 caractère)"
+            maxlength="1"
+            variant="outlined"
+            density="comfortable"
+          />
+          <v-text-field
+            v-model="pauseCodeForm.label"
+            label="Libellé"
+            variant="outlined"
+            density="comfortable"
+          />
+        </v-card-text>
+        <v-divider />
+        <v-card-actions>
+          <v-btn variant="text" class="text-none" @click="pauseCodeDialog = false"
+            >Annuler</v-btn
+          >
+          <v-spacer />
+          <v-btn
+            :loading="savingPauseCode"
+            color="#00a8a8"
+            class="text-none"
+            @click="savePauseCode"
+          >
+            Enregistrer
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- Dialog création / édition connecteur -->
     <v-dialog v-model="connectorDialog" max-width="480">
       <v-card rounded="lg">
@@ -578,6 +697,7 @@
 import { ref, reactive, onMounted, onUnmounted } from "vue";
 import apiClient from "@/services/http/axios";
 import { useTelephonySocket } from "@/composables/useTelephonySocket";
+import { telephonyService } from "@/services/telephonyService";
 
 const connectors = ref([]);
 const domainsByConnector = reactive({});
@@ -1021,8 +1141,79 @@ async function removeDomain(connector, domain) {
   }
 }
 
+// ── Codes de pause (exécution à distance ESL, 13/08) ───────────────────────
+
+const pauseCodes = ref([]);
+const pauseCodeDialog = ref(false);
+const editingPauseCode = ref(null);
+const savingPauseCode = ref(false);
+const pauseCodeFormError = ref("");
+const pauseCodeForm = reactive({ digit: "", label: "" });
+
+async function fetchPauseCodes() {
+  try {
+    const { data } = await telephonyService.getPauseCodes();
+    pauseCodes.value = Array.isArray(data) ? data : [];
+  } catch (err) {
+    feedback.type = "error";
+    feedback.text = err?.response?.data?.error || "Impossible de charger les codes de pause.";
+  }
+}
+
+function openCreatePauseCode() {
+  editingPauseCode.value = null;
+  Object.assign(pauseCodeForm, { digit: "", label: "" });
+  pauseCodeFormError.value = "";
+  pauseCodeDialog.value = true;
+}
+
+function openEditPauseCode(code) {
+  editingPauseCode.value = code;
+  Object.assign(pauseCodeForm, { digit: code.digit, label: code.label });
+  pauseCodeFormError.value = "";
+  pauseCodeDialog.value = true;
+}
+
+async function savePauseCode() {
+  pauseCodeFormError.value = "";
+  const digit = pauseCodeForm.digit.trim();
+  const label = pauseCodeForm.label.trim();
+  if (!digit || digit.length !== 1 || !label) {
+    pauseCodeFormError.value = "Code (1 caractère) et libellé sont requis.";
+    return;
+  }
+  savingPauseCode.value = true;
+  try {
+    if (editingPauseCode.value) {
+      const { data } = await telephonyService.updatePauseCode(editingPauseCode.value.id, { digit, label });
+      const idx = pauseCodes.value.findIndex((c) => c.id === editingPauseCode.value.id);
+      if (idx !== -1) pauseCodes.value[idx] = data;
+    } else {
+      const { data } = await telephonyService.createPauseCode({ digit, label });
+      pauseCodes.value.push(data);
+    }
+    pauseCodeDialog.value = false;
+  } catch (err) {
+    pauseCodeFormError.value = err?.response?.data?.error || "Une erreur est survenue.";
+  } finally {
+    savingPauseCode.value = false;
+  }
+}
+
+async function removePauseCode(code) {
+  if (!window.confirm(`Supprimer le code de pause « ${code.label} » ?`)) return;
+  try {
+    await telephonyService.deletePauseCode(code.id);
+    pauseCodes.value = pauseCodes.value.filter((c) => c.id !== code.id);
+  } catch (err) {
+    feedback.type = "error";
+    feedback.text = err?.response?.data?.error || "La suppression a échoué.";
+  }
+}
+
 onMounted(() => {
   fetchConnectors();
+  fetchPauseCodes();
   telephonySocket.connect();
 });
 onUnmounted(() => {
@@ -1157,6 +1348,18 @@ onUnmounted(() => {
 .tel-domains-table__actions {
   white-space: nowrap;
   text-align: right;
+}
+
+/* ── Codes de pause ── */
+.pc-section {
+  padding: 0 20px 20px;
+}
+.pc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
 }
 
 /* ── Webhook CDR ── */

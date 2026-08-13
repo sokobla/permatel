@@ -259,3 +259,22 @@ def normalize_agent_status_change(
     payload["agent"]["status"] = headers.get("CC-Agent-Status")
     payload["queue"]["id"] = headers.get("CC-Queue")
     return payload
+
+
+def normalize_agent_pause_code(
+    headers: dict, pbx_domain: str, agent_login: str, pause_code: str | None,
+) -> dict:
+    """Événement CUSTOM `esl_adapter::agent_pause_code` (13/08) — INJECTÉ PAR
+    CE CONNECTEUR LUI-MÊME (`ESLAdapter._emit_pause_code_event`), pas un
+    événement FreeSWITCH natif : le connecteur l'émet au passage en
+    "On Break" puis le reçoit en retour via son abonnement ESL habituel,
+    exactement comme n'importe quel autre événement (même pipeline
+    d'ingestion, aucun traitement spécial). Même motif que
+    `normalize_agent_status_change` : pas de contexte de canal, `pbx_domain`
+    résolu en amont par `ESLAdapter` via l'annuaire agents."""
+    payload = _base_payload(headers, pbx_domain, "CALLCENTER_AGENT_PAUSE_CODE")
+    payload["call"]["status"] = "on_hold"
+    payload["agent"]["login"] = agent_login
+    payload["agent"]["uuid"] = agent_login
+    payload["agent"]["pause_code"] = pause_code
+    return payload

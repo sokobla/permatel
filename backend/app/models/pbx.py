@@ -134,3 +134,38 @@ class PbxConnectorDomain(Base):
 
     def __repr__(self):
         return f"<PbxConnectorDomain {self.pbx_domain} connector={self.pbx_connector_id}>"
+
+
+class PbxPauseCode(Base):
+    """Code de pause agent — sous-statut à 1 chiffre porté par le passage
+    en "On Break" (mod_callcenter), configurable par tenant (Paramètres >
+    Téléphonie). La ligne "0" est protégée (`is_protected=True`) : jamais
+    modifiable ni supprimable, créée à la volée au premier accès si absente
+    pour ce tenant (cf. `backend/app/routes/telephony.py`) plutôt que
+    seedée en migration — couvre aussi bien les tenants existants que
+    futurs sans dépendre d'un hook de création de tenant.
+    """
+    __tablename__ = "pbx_pause_codes"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "digit", name="uq_pbx_pause_code_tenant_digit"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    digit = Column(String(1), nullable=False)
+    label = Column(String(100), nullable=False)
+    is_protected = Column(Boolean, default=False, nullable=False)
+
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "digit": self.digit,
+            "label": self.label,
+            "is_protected": self.is_protected,
+        }
+
+    def __repr__(self):
+        return f"<PbxPauseCode {self.digit} ({self.label}) tenant={self.tenant_id}>"

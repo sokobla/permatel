@@ -1,8 +1,8 @@
 import pytest
 from datetime import datetime, timedelta
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
-from app.models import PbxConnector, PbxConnectorDomain, TelephonyEvent
+from app.models import PbxConnector, PbxConnectorDomain, PbxPauseCode, TelephonyEvent
 from app.models.tenant import Tenant
 
 
@@ -1695,6 +1695,67 @@ class TestCallsHistory:
         assert data["total"] == 1
         assert data["calls"][0]["call_uuid"] == "hist-missed"
 
+    def _seed_call_shape_connecteur_esl(self, db, tenant_id, call_uuid, agent_login, queue_id):
+        """Reproduit la forme réelle des événements issus du connecteur ESL
+        (`connector/normalizer.py::_base_payload`) : agent_login/queue_id ne
+        sont peuplés QUE sur l'événement CHANNEL_ANSWER (contexte
+        callcenter::info), jamais sur CHANNEL_CREATE ni sur l'événement
+        terminal CHANNEL_HANGUP_COMPLETE — contrairement à `_seed_completed_call`
+        (fixture existante) qui les pose à tort sur tous les événements."""
+        base = datetime.utcnow() - timedelta(minutes=10)
+        db.session.add(TelephonyEvent(
+            tenant_id=tenant_id, event_type="CHANNEL_CREATE", call_status="ringing",
+            call_uuid=call_uuid, caller_number="0611111111", callee_number="0622222222",
+            created_at=base,
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=tenant_id, event_type="CHANNEL_ANSWER", call_status="answered",
+            call_uuid=call_uuid, agent_login=agent_login, agent_uuid=agent_login,
+            queue_id=queue_id, created_at=base + timedelta(seconds=5),
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=tenant_id, event_type="CHANNEL_HANGUP_COMPLETE", call_status="ended",
+            call_uuid=call_uuid, duration=42, created_at=base + timedelta(seconds=50),
+        ))
+        db.session.commit()
+
+    def test_filtre_par_agent_n_exclut_pas_a_tort_l_appel(self, client, db, auth_headers, default_tenant):
+        """Régression du 13/08 : filtrer /calls par agent_login ne doit pas
+        faire disparaître un appel dont seul l'événement CHANNEL_ANSWER (pas
+        l'événement terminal) porte agent_login — forme réelle des données
+        issues du connecteur ESL. Avant le correctif, le filtre s'appliquait
+        au niveau SQL sur les lignes brutes, excluant l'événement terminal et
+        faisant passer l'appel pour "encore en cours" (donc absent de
+        l'historique) au lieu d'être simplement filtré."""
+        self._seed_call_shape_connecteur_esl(db, default_tenant.id, "hist-agent-esl", "agent-xyz", "queue-1")
+
+        resp = client.get("/api/telephony/calls", headers=auth_headers)
+        assert resp.get_json()["total"] == 1  # sans filtre : présent
+
+        resp = client.get("/api/telephony/calls?agent_login=agent-xyz", headers=auth_headers)
+        data = resp.get_json()
+        assert data["total"] == 1
+        assert data["calls"][0]["call_uuid"] == "hist-agent-esl"
+
+    def test_filtre_par_queue_n_exclut_pas_a_tort_l_appel(self, client, db, auth_headers, default_tenant):
+        """Même régression du 13/08, pour le filtre queue_id."""
+        self._seed_call_shape_connecteur_esl(db, default_tenant.id, "hist-queue-esl", "agent-xyz", "queue-1")
+
+        resp = client.get("/api/telephony/calls?queue_id=queue-1", headers=auth_headers)
+        data = resp.get_json()
+        assert data["total"] == 1
+        assert data["calls"][0]["call_uuid"] == "hist-queue-esl"
+
+    def test_filtre_par_agent_exclut_bien_les_autres_appels(self, client, db, auth_headers, default_tenant):
+        """Le filtre reste sélectif — il ne doit pas devenir un no-op."""
+        self._seed_call_shape_connecteur_esl(db, default_tenant.id, "hist-agent-a", "agent-a", "queue-1")
+        self._seed_call_shape_connecteur_esl(db, default_tenant.id, "hist-agent-b", "agent-b", "queue-1")
+
+        resp = client.get("/api/telephony/calls?agent_login=agent-a", headers=auth_headers)
+        data = resp.get_json()
+        assert data["total"] == 1
+        assert data["calls"][0]["call_uuid"] == "hist-agent-a"
+
     def test_pagination(self, client, db, auth_headers, default_tenant):
         for i in range(5):
             self._seed_completed_call(
@@ -1823,3 +1884,164 @@ class TestRecordings:
     def test_bulk_export_aucune_correspondance_retourne_404(self, client, db, auth_headers):
         resp = client.post("/api/telephony/recordings/export", json={}, headers=auth_headers)
         assert resp.status_code == 404
+
+
+class TestDispatchPbxJob:
+    """`_dispatch_pbx_job` — exécution à distance ESL (13/08), publication
+    Redis (aucune table de jobs, cf. plan du 13/08)."""
+
+    def test_sans_connecteur_actif_retourne_false(self, db, default_tenant):
+        from app.routes.telephony import _dispatch_pbx_job
+        assert _dispatch_pbx_job(default_tenant.id, "agent_login", "agent-uuid-1") is False
+
+    def test_redis_indisponible_degrade_gracieusement(self, db, default_tenant, pbx_connector):
+        from app.routes.telephony import _dispatch_pbx_job
+        with patch("app.routes.telephony._get_redis", return_value=None):
+            assert _dispatch_pbx_job(default_tenant.id, "agent_login", "agent-uuid-1") is False
+
+    def test_publie_le_payload_json_sur_le_canal_sync(self, db, default_tenant, pbx_connector):
+        import json
+        from app.routes.telephony import _dispatch_pbx_job, SYNC_CHANNEL
+        fake_redis = MagicMock()
+        with patch("app.routes.telephony._get_redis", return_value=fake_redis):
+            result = _dispatch_pbx_job(
+                default_tenant.id, "agent_status_change", "agent-uuid-1",
+                target_status="On Break", pause_code="3",
+            )
+        assert result is True
+        fake_redis.publish.assert_called_once()
+        channel, raw = fake_redis.publish.call_args[0]
+        assert channel == SYNC_CHANNEL
+        job = json.loads(raw)
+        assert job["connector_id"] == pbx_connector.id
+        assert job["job_type"] == "agent_status_change"
+        assert job["agent_uuid"] == "agent-uuid-1"
+        assert job["target_status"] == "On Break"
+        assert job["pause_code"] == "3"
+
+    def test_connecteur_inactif_ignore_retourne_false(self, db, default_tenant, pbx_connector):
+        pbx_connector.is_active = False
+        db.session.commit()
+        from app.routes.telephony import _dispatch_pbx_job
+        fake_redis = MagicMock()
+        with patch("app.routes.telephony._get_redis", return_value=fake_redis):
+            assert _dispatch_pbx_job(default_tenant.id, "agent_login", "agent-uuid-1") is False
+        fake_redis.publish.assert_not_called()
+
+
+class TestSelfServiceAgentStatus:
+    """POST /api/telephony/agents/me/status — statut self-service (13/08)."""
+
+    def test_sans_agent_login_retourne_400(self, client, db, auth_headers):
+        resp = client.post(
+            "/api/telephony/agents/me/status", json={"status": "Available"}, headers=auth_headers,
+        )
+        assert resp.status_code == 400
+
+    def test_statut_invalide_retourne_400(self, client, db, auth_headers, user_permanencier):
+        user_permanencier.agent_login = "agent-uuid-1"
+        db.session.commit()
+        resp = client.post(
+            "/api/telephony/agents/me/status", json={"status": "Bogus"}, headers=auth_headers,
+        )
+        assert resp.status_code == 400
+
+    def test_on_break_avec_pause_code_invalide_retourne_400(self, client, db, auth_headers, user_permanencier):
+        user_permanencier.agent_login = "agent-uuid-1"
+        db.session.commit()
+        resp = client.post(
+            "/api/telephony/agents/me/status",
+            json={"status": "On Break", "pause_code": "trop-long"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 400
+
+    def test_dispatch_reussi_retourne_202(self, client, db, auth_headers, user_permanencier, pbx_connector):
+        user_permanencier.agent_login = "agent-uuid-1"
+        db.session.commit()
+        fake_redis = MagicMock()
+        with patch("app.routes.telephony._get_redis", return_value=fake_redis):
+            resp = client.post(
+                "/api/telephony/agents/me/status",
+                json={"status": "On Break", "pause_code": "2"},
+                headers=auth_headers,
+            )
+        assert resp.status_code == 202
+        assert resp.get_json()["dispatched"] is True
+        fake_redis.publish.assert_called_once()
+
+
+class TestPauseCodesCrud:
+    """GET/POST/PUT/DELETE /api/telephony/pause-codes — codes de pause (13/08)."""
+
+    def test_get_cree_la_ligne_protegee_0_a_la_volee(self, client, db, auth_headers, default_tenant):
+        resp = client.get("/api/telephony/pause-codes", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data) == 1
+        assert data[0]["digit"] == "0"
+        assert data[0]["is_protected"] is True
+
+    def test_get_ne_duplique_pas_la_ligne_protegee_au_second_appel(self, client, db, auth_headers):
+        client.get("/api/telephony/pause-codes", headers=auth_headers)
+        resp = client.get("/api/telephony/pause-codes", headers=auth_headers)
+        assert len(resp.get_json()) == 1
+
+    def test_create_refuse_sans_droit_admin_tenant(self, client, db, auth_headers):
+        resp = client.post(
+            "/api/telephony/pause-codes", json={"digit": "1", "label": "Pause café"}, headers=auth_headers,
+        )
+        assert resp.status_code == 403
+
+    def test_create_avec_droit_admin_tenant(self, client, db, auth_headers_admin, default_tenant):
+        resp = client.post(
+            "/api/telephony/pause-codes", json={"digit": "1", "label": "Pause café"},
+            headers=auth_headers_admin,
+        )
+        assert resp.status_code == 201
+        data = resp.get_json()
+        assert data["digit"] == "1"
+        assert data["is_protected"] is False
+
+    def test_create_digit_duplique_est_rejete(self, client, db, auth_headers_admin, default_tenant):
+        db.session.add(PbxPauseCode(tenant_id=default_tenant.id, digit="1", label="Existant"))
+        db.session.commit()
+        resp = client.post(
+            "/api/telephony/pause-codes", json={"digit": "1", "label": "Doublon"},
+            headers=auth_headers_admin,
+        )
+        assert resp.status_code in (400, 409)
+
+    def test_update_ligne_protegee_retourne_409(self, client, db, auth_headers_admin, default_tenant):
+        code = PbxPauseCode(tenant_id=default_tenant.id, digit="0", label="Non spécifié", is_protected=True)
+        db.session.add(code)
+        db.session.commit()
+        resp = client.put(
+            f"/api/telephony/pause-codes/{code.id}", json={"label": "Modifié"}, headers=auth_headers_admin,
+        )
+        assert resp.status_code == 409
+
+    def test_update_ligne_non_protegee_reussit(self, client, db, auth_headers_admin, default_tenant):
+        code = PbxPauseCode(tenant_id=default_tenant.id, digit="1", label="Pause café")
+        db.session.add(code)
+        db.session.commit()
+        resp = client.put(
+            f"/api/telephony/pause-codes/{code.id}", json={"label": "Pause déjeuner"}, headers=auth_headers_admin,
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["label"] == "Pause déjeuner"
+
+    def test_delete_ligne_protegee_retourne_409(self, client, db, auth_headers_admin, default_tenant):
+        code = PbxPauseCode(tenant_id=default_tenant.id, digit="0", label="Non spécifié", is_protected=True)
+        db.session.add(code)
+        db.session.commit()
+        resp = client.delete(f"/api/telephony/pause-codes/{code.id}", headers=auth_headers_admin)
+        assert resp.status_code == 409
+
+    def test_delete_ligne_non_protegee_reussit(self, client, db, auth_headers_admin, default_tenant):
+        code = PbxPauseCode(tenant_id=default_tenant.id, digit="1", label="Pause café")
+        db.session.add(code)
+        db.session.commit()
+        resp = client.delete(f"/api/telephony/pause-codes/{code.id}", headers=auth_headers_admin)
+        assert resp.status_code == 200
+        assert PbxPauseCode.query.get(code.id) is None

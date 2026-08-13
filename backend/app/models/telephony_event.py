@@ -15,7 +15,7 @@ JSONB_VARIANT = JSONB().with_variant(PG_JSON(), "sqlite")
 # attendues aujourd'hui, validées côté application (routes/telephony.py) :
 #   event_type     : CHANNEL_CREATE | CHANNEL_PROGRESS_MEDIA | CHANNEL_ANSWER
 #                     | CHANNEL_HANGUP_COMPLETE | CALLCENTER_QUEUE_ENTER
-#                     | CALLCENTER_AGENT_STATE_CHANGE
+#                     | CALLCENTER_AGENT_STATE_CHANGE | CALLCENTER_AGENT_PAUSE_CODE
 #   call_direction  : inbound | outbound
 #   call_status     : ringing | early_media | answered | missed | abandoned
 #                     | technical_failure | on_hold | ended
@@ -58,6 +58,11 @@ class TelephonyEvent(Base):
     # donc prioritaire à l'affichage quand elle est présente.
     agent_station_extension = Column(String(20), nullable=True)
     agent_status = Column(String(50), nullable=True)  # brut FreeSWITCH (CC-Agent-Status), normalisé côté route
+    # Sous-statut de pause (1 chiffre), porté par l'événement CUSTOM
+    # `agent_pause_code` émis par le connecteur (subclass `esl_adapter`) au
+    # passage en "On Break" — transmis directement par PERMATEL dans le job
+    # de changement de statut, cf. `backend/app/routes/telephony.py`.
+    pause_code = Column(String(50), nullable=True)
     queue_id = Column(String(100), nullable=True, index=True)
     duration = Column(Integer, nullable=True)  # en secondes
     call_uuid = Column(String(100), nullable=True, index=True)
@@ -94,6 +99,7 @@ class TelephonyEvent(Base):
             "agent_uuid": self.agent_uuid,
             "agent_station_extension": self.agent_station_extension,
             "agent_status": self.agent_status,
+            "pause_code": self.pause_code,
             "queue_id": self.queue_id,
             "duration": self.duration,
             "call_uuid": self.call_uuid,

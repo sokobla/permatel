@@ -21,10 +21,13 @@ from adapters.base import PBXAdapter
 logger = logging.getLogger("connector.esl")
 
 # Formats FreeSWITCH bruts souscrits — CUSTOM callcenter::info regroupe les
-# événements de files d'attente (mod_callcenter).
+# événements de files d'attente (mod_callcenter). CUSTOM esl_adapter::
+# agent_pause_code (13/08) est injecté par CE connecteur lui-même (voir
+# _emit_pause_code_event) — souscrit ici pour le consommer en retour comme
+# n'importe quel autre événement, même pipeline d'ingestion.
 _SUBSCRIBE_CMD = (
     "event plain CHANNEL_CREATE CHANNEL_PROGRESS_MEDIA CHANNEL_ANSWER "
-    "CHANNEL_HANGUP_COMPLETE CUSTOM callcenter::info"
+    "CHANNEL_HANGUP_COMPLETE CUSTOM callcenter::info esl_adapter::agent_pause_code"
 )
 
 # Colonnes de `api callcenter_config agent list`, CONFIRMÉES contre une
@@ -247,6 +250,11 @@ class ESLAdapter(PBXAdapter):
         # Dispatché par greenswitch sous la clé Event-Subclass pour les
         # événements CUSTOM (voir process_events() dans greenswitch/esl.py).
         self._esl.register_handle("callcenter::info", self._on_callcenter_info)
+        # CUSTOM esl_adapter::agent_pause_code (13/08) — injecté par CE
+        # connecteur lui-même (_emit_pause_code_event), reçu en retour ici
+        # comme n'importe quel autre événement CUSTOM (même dispatch par
+        # Event-Subclass que callcenter::info, cf. commentaire ci-dessus).
+        self._esl.register_handle("esl_adapter::agent_pause_code", self._on_agent_pause_code_event)
 
         self._esl.send(_SUBSCRIBE_CMD)
         logger.info("[%s] Connecté et souscrit aux événements.", cfg["name"])
@@ -582,6 +590,28 @@ class ESLAdapter(PBXAdapter):
         payload = normalizer.normalize_agent_status_change(headers, entry["domain"], agent_uuid, entry["extension"])
         self.ingest_client.send(payload)
 
+    def _on_agent_pause_code_event(self, event):
+        """CUSTOM esl_adapter::agent_pause_code (13/08) — événement injecté
+        par CE connecteur lui-même (_emit_pause_code_event) au passage d'un
+        agent en "On Break", reçu ici en retour comme n'importe quel autre
+        événement CUSTOM (même motif de résolution de domaine/agent que
+        _on_agent_status_event, l'événement ne porte aucun contexte de
+        canal)."""
+        headers = event.headers
+        agent_uuid = headers.get("CC-Agent")
+        pause_code = headers.get("Agent-Pause-Code")
+        entry = self._agent_directory.get(agent_uuid)
+        if entry is None:
+            entry = self._retry_after_targeted_refresh(agent_uuid, None)
+        if entry is None:
+            logger.warning(
+                "[%s] agent_pause_code abandonné : agent uuid=%r absent de l'annuaire.",
+                self.connector_config["name"], agent_uuid,
+            )
+            return
+        payload = normalizer.normalize_agent_pause_code(headers, entry["domain"], agent_uuid, pause_code)
+        self.ingest_client.send(payload)
+
     def _on_member_enrichment_event(self, headers):
         """'agent-offering' — enrichit l'appel déjà connu (même call_uuid
         que le leg entrant, via CC-Member-Session-UUID) avec l'agent, la
@@ -696,3 +726,98 @@ class ESLAdapter(PBXAdapter):
             )
             return
         self.ingest_client.send(payload)
+
+    # ── Exécution à distance (13/08) — login/logout/statut agent ──────────
+
+    _VALID_TARGET_STATUSES = {"Available", "On Break", "Logged Out"}
+
+    def execute_job(self, job: dict):
+        """Job dispatché par PERMATEL (cf. CoreConnector._on_job_requested,
+        signal Redis JSON) — login/logout/changement de statut d'un agent.
+
+        `self._esl.send(...)` est SYNCHRONE (réponse `+OK`/`-ERR`
+        immédiate) : aucun mécanisme de confirmation dédié n'est nécessaire
+        ici — une fois la commande acceptée par FreeSWITCH, mod_callcenter
+        émet lui-même son 'agent-status-change', déjà consommé normalement
+        par ce connecteur (`_on_agent_status_event`) et remonté à PERMATEL
+        par le pipeline habituel."""
+        job_type = job.get("job_type")
+        agent_uuid = job.get("agent_uuid")
+        if not agent_uuid:
+            logger.warning(
+                "[%s] Job PBX sans agent_uuid (job_type=%r) — abandonné.",
+                self.connector_config["name"], job_type,
+            )
+            return
+        if not self.is_connected:
+            logger.warning(
+                "[%s] Job PBX abandonné (non connecté à FreeSWITCH) : job_type=%r, agent_uuid=%s.",
+                self.connector_config["name"], job_type, agent_uuid,
+            )
+            return
+
+        if job_type == "agent_login":
+            # Au login PERMATEL, l'agent est logué mais pas encore prêt à
+            # prendre des appels — statut "On Break"/pause_code="0" par
+            # défaut, pas "Available" (décision produit du 13/08).
+            self._set_agent_status(agent_uuid, "On Break")
+            self._emit_pause_code_event(agent_uuid, "0")
+        elif job_type == "agent_logout":
+            self._set_agent_status(agent_uuid, "Logged Out")
+        elif job_type == "agent_status_change":
+            target_status = job.get("target_status")
+            if target_status not in self._VALID_TARGET_STATUSES:
+                logger.warning(
+                    "[%s] Job agent_status_change avec target_status invalide (%r) — abandonné.",
+                    self.connector_config["name"], target_status,
+                )
+                return
+            self._set_agent_status(agent_uuid, target_status)
+            if target_status == "On Break":
+                self._emit_pause_code_event(agent_uuid, job.get("pause_code") or "0")
+        else:
+            logger.warning(
+                "[%s] Job PBX de type inconnu : %r — abandonné.",
+                self.connector_config["name"], job_type,
+            )
+
+    def _set_agent_status(self, agent_uuid: str, status: str):
+        command = f"api callcenter_config agent set status {agent_uuid} '{status}'"
+        try:
+            response = self._esl.send(command)
+        except Exception as exc:  # noqa: BLE001 - ne doit jamais tuer le process
+            logger.warning("[%s] Échec de la commande ESL (%s) : %s", self.connector_config["name"], command, exc)
+            return
+        raw = (getattr(response, "data", None) or "").strip()
+        logger.info("[%s] %s -> %r", self.connector_config["name"], command, raw)
+
+    def _emit_pause_code_event(self, agent_uuid: str, pause_code: str):
+        """Injecte un événement CUSTOM FreeSWITCH `agent_pause_code`
+        (subclass `esl_adapter`) — capacité NOUVELLE (13/08), jamais
+        utilisée dans ce connecteur avant ce jour (100% consommateur
+        d'événements jusque-là, jamais émetteur). Retombe ensuite dans le
+        pipeline de consommation normal de ce connecteur (comme n'importe
+        quel autre événement CUSTOM) pour remonter vers PERMATEL.
+
+        ⚠️ À VALIDER CONTRE UN FLUX FUSIONPBX RÉEL AVANT PRODUCTION — comme
+        le reste de ce fichier le documente systématiquement pour ses
+        propres hypothèses non confirmées (cf. `normalizer.py:18-21`) : la
+        syntaxe exacte de `sendevent` pour porter des en-têtes custom n'a
+        jamais été exercée dans ce connecteur. `self._esl.send(data)`
+        ajoute déjà lui-même la terminaison double-EOL requise par le
+        protocole ESL (`greenswitch.esl.ESLProtocol.send`, confirmé en
+        lisant la bibliothèque vendue) — ne pas en ajouter une soi-même ici.
+        """
+        command = (
+            "sendevent CUSTOM\n"
+            "Event-Subclass: esl_adapter::agent_pause_code\n"
+            f"CC-Agent: {agent_uuid}\n"
+            f"Agent-Pause-Code: {pause_code}"
+        )
+        try:
+            self._esl.send(command)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "[%s] Échec de l'injection de l'événement agent_pause_code (agent_uuid=%s, pause_code=%s) : %s",
+                self.connector_config["name"], agent_uuid, pause_code, exc,
+            )

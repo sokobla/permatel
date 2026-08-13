@@ -23,6 +23,7 @@ Boucle principale :
 from gevent import monkey
 monkey.patch_all()
 
+import json
 import logging
 import signal
 from pathlib import Path
@@ -50,10 +51,19 @@ class _SyncListener:
     "Sync" quasi instantanément, sans attendre le prochain sondage
     périodique. Best-effort : si Redis est absent/injoignable, le connecteur
     fonctionne quand même — le filet de secours (`sync_requested_at` dans le
-    payload de config, comparé à chaque cycle) prend le relais."""
+    payload de config, comparé à chaque cycle) prend le relais.
 
-    def __init__(self, on_sync_requested):
+    Porte aussi (13/08) le dispatch des jobs d'exécution à distance
+    (login/logout/changement de statut agent) — même canal, format de
+    payload différent : un entier brut (`str(connector_id)`, motif
+    historique du signal Sync) reste traité comme avant ; un objet JSON
+    avec `job_type` est dispatché vers `on_job_requested`. Pas de nouveau
+    canal Redis, pour ne rien changer côté backend au-delà du contenu déjà
+    publié sur `SYNC_CHANNEL`."""
+
+    def __init__(self, on_sync_requested, on_job_requested):
         self._on_sync_requested = on_sync_requested
+        self._on_job_requested = on_job_requested
         self._greenlet = None
 
     def start(self):
@@ -82,8 +92,23 @@ class _SyncListener:
                 for message in pubsub.listen():
                     if message.get("type") != "message":
                         continue
+                    raw = message["data"]
+                    # Payload job (JSON, objet avec 'job_type') vs signal Sync
+                    # historique (entier brut) — tenté dans cet ordre car un
+                    # entier brut n'est jamais un JSON d'objet valide, aucune
+                    # ambiguïté possible entre les deux formats.
+                    job = None
                     try:
-                        connector_id = int(message["data"])
+                        parsed = json.loads(raw)
+                        if isinstance(parsed, dict) and "job_type" in parsed:
+                            job = parsed
+                    except (TypeError, ValueError):
+                        pass
+                    if job is not None:
+                        self._on_job_requested(job)
+                        continue
+                    try:
+                        connector_id = int(raw)
                     except (TypeError, ValueError):
                         continue
                     self._on_sync_requested(connector_id)
@@ -98,7 +123,7 @@ class CoreConnector:
         self._running_adapters = {}  # connector_id -> (adapter, greenlet)
         self._last_sync_requested_at = {}  # connector_id -> dernière valeur vue
         self._stopping = False
-        self._sync_listener = _SyncListener(self._on_sync_requested)
+        self._sync_listener = _SyncListener(self._on_sync_requested, self._on_job_requested)
 
     def start(self):
         if not config.TELEPHONY_CONNECTOR_TOKEN:
@@ -135,6 +160,23 @@ class CoreConnector:
             return
         adapter, _greenlet = entry
         adapter.force_reconnect()
+
+    def _on_job_requested(self, job: dict):
+        """Callback du _SyncListener pour un job d'exécution à distance
+        (13/08) — login/logout/changement de statut d'un agent. Même
+        garantie que `_on_sync_requested` : greenlet séparée, best-effort,
+        job perdu silencieusement (journalisé) si le connecteur visé n'est
+        pas/plus en cours d'exécution ici."""
+        connector_id = job.get("connector_id")
+        entry = self._running_adapters.get(connector_id)
+        if entry is None:
+            logger.warning(
+                "Job PBX reçu pour un connecteur non actif ici (connector_id=%s, job_type=%s) — abandonné.",
+                connector_id, job.get("job_type"),
+            )
+            return
+        adapter, _greenlet = entry
+        adapter.execute_job(job)
 
     def _reconcile(self):
         try:
