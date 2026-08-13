@@ -138,6 +138,20 @@ Toggles tenant-wide en colonnes directes sur `Tenant` (motif `channel_telephonie
 * `document_blocking_expired` (bool, défaut `False`) — §4.1.
 * `vacation_delay_threshold_minutes` (int, défaut `15`) — §4.2.
 
+### 4.4 Accès direct Odoo (support/admin)
+
+Pas une porte dérobée au sens littéral (accès caché, non tracé, contournant l'authentification) — un accès restreint au rôle et **audité**, pour que l'ADMIN global puisse ouvrir Odoo directement en cas de besoin de support, sans passer par le flux normal PERMATEL.
+
+**Stockage** : nouveaux champs sur `odoo_config` (ou table dédiée `odoo_admin_access`) — `url_odoo`, `admin_username`, `admin_password` — chiffrés au repos via `EncryptedText` (motif déjà utilisé pour `Email.subject`/`body_text`, `backend/app/utils/crypto.py` ; pas le pattern manuel `SmtpSetting`, pour rester cohérent avec la recommandation déjà actée dans CLAUDE.md : `EncryptedText` pour toute nouvelle colonne chiffrée).
+
+**Endpoint** : `GET /api/odoo/direct-access` — `@role_required(UserRole.ADMIN)` (rôle global, pas l'admin de tenant — même distinction qu'au §4.3). Retourne l'URL + les identifiants déchiffrés à la demande.
+
+**Traçabilité** : chaque appel écrit une ligne `AuditLog` (`backend/app/models/audit_log.py`, motif déjà utilisé pour `SESSION_REVOKED` dans `auth.py`) — action `ODOO_DIRECT_ACCESS_VIEWED`, avec `actor_id`, `tenant_id`, timestamp, IP. Un identifiant technique partagé reste un point faible (pas de traçabilité *côté Odoo* de qui l'a utilisé), mais côté PERMATEL on sait toujours qui a demandé l'accès et quand.
+
+**Frontend** : bouton "Accès direct Odoo" visible uniquement pour l'ADMIN global (écran Support/Réglages plateforme, pas `SettingsGeneral.vue` qui est tenant-scopé) — ouvre l'URL Odoo dans un nouvel onglet, affiche les identifiants à copier.
+
+**Alternative plus forte (différée)** : flux SSO nominatif (l'admin PERMATEL s'authentifie sur Odoo en son nom propre, traçable des deux côtés) — nécessite un module Odoo additionnel pour émettre un jeton de connexion, plus d'effort. À envisager seulement si un vrai besoin de traçabilité par personne côté Odoo apparaît ; l'identifiant partagé + audit PERMATEL suffit pour démarrer.
+
 ---
 
 ## 5. Phasage de l'implémentation (Alignement des Études)
@@ -152,6 +166,7 @@ Le détail des tâches est géré dans le fichier de suivi Excel (Phases 6 à 10
 * `tests/fakes/fake_odoo_client.py` pour la suite pytest (§2.5).
 * Commande CLI de backfill initial, sur le modèle de `seed-prestataires`/`seed-agents` (§2.6).
 * Réglages tenant `document_blocking_expired` et `vacation_delay_threshold_minutes` (§4.3) — indépendants d'Odoo mais posés dès cette phase, prérequis des Phases 9/10.
+* Accès direct Odoo pour l'ADMIN global, audité (§4.4).
 
 ### Phase 7 : Gestion des Partenaires (Partie 1 : CRM)
 * **Client PERMATEL** → Odoo `res.partner(is_company=True)` + `project.project`.
