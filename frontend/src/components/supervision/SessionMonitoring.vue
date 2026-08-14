@@ -40,6 +40,7 @@
             <th class="sm-th">IP</th>
             <th class="sm-th">DÉBUT</th>
             <th class="sm-th">DERNIÈRE ACTIVITÉ</th>
+            <th class="sm-th">TEMPS (ACTIF / PAUSE)</th>
             <th class="sm-th sm-th--right">ACTIONS</th>
           </tr>
         </thead>
@@ -47,7 +48,7 @@
           <!-- Skeleton -->
           <template v-if="loading">
             <tr v-for="n in 4" :key="`sk-${n}`" class="sm-row">
-              <td v-for="c in 7" :key="c" class="sm-td">
+              <td v-for="c in 8" :key="c" class="sm-td">
                 <span class="sm-skel"></span>
               </td>
             </tr>
@@ -55,7 +56,7 @@
 
           <!-- Vide -->
           <tr v-else-if="sessions.length === 0" class="sm-row">
-            <td colspan="7">
+            <td colspan="8">
               <div class="sm-empty">
                 <p class="sm-empty__title">
                   Aucune session {{ scope === "live" ? "active" : "" }}.
@@ -100,6 +101,10 @@
             <td class="sm-td sm-mono">{{ formatDate(s.session_start) }}</td>
             <td class="sm-td sm-mono">
               {{ formatRelative(s.last_activity_at) }}
+            </td>
+            <td class="sm-td sm-mono">
+              {{ formatMinutes(s.active_minutes) }} /
+              {{ formatMinutes(s.pause_minutes) }}
             </td>
             <td class="sm-td sm-td--right">
               <template v-if="canRevoke(s)">
@@ -222,6 +227,14 @@ function formatDate(iso) {
     " " +
     d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
   );
+}
+
+function formatMinutes(min) {
+  if (min == null || Number.isNaN(min)) return "—";
+  const total = Math.round(min);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return h > 0 ? `${h}h${String(m).padStart(2, "0")}` : `${m}min`;
 }
 
 function formatRelative(iso) {

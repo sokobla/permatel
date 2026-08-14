@@ -3,7 +3,9 @@ import io
 from datetime import datetime, timedelta
 
 import pytest
+from app.models.telephony_event import TelephonyEvent
 from app.models.user_session import UserSession, SessionStatus
+from app.routes.auth import _session_status_durations
 
 
 @pytest.fixture
@@ -63,6 +65,7 @@ class TestSessionsMonitoringDateFilterAndExport:
         assert rows[0] == [
             "username", "full_name", "role", "status", "ip_address", "user_agent",
             "agent_login", "station_extension", "session_start", "last_activity_at", "session_end",
+            "active_minutes", "pause_minutes",
         ]
         assert len(rows) - 1 == 3  # 2 sessions échelonnées + la session de login du manager
 
@@ -118,3 +121,95 @@ class TestSessionsStatsSmoke:
         activity = resp.get_json()["activity"]
         assert activity["total_online_min"] == 75.0
         assert activity["avg_duration_min"] == 37.5
+
+    def test_sessions_stats_total_pause_et_active_min_decomposent_le_temps(
+        self, client, db, default_tenant, user_permanencier, auth_headers_manager_tenant,
+    ):
+        """Suivi des temps de login/pause (14/08) : total_active_min +
+        total_pause_min doit reconstituer total_online_min pour une session
+        dont l'historique de statut est connu."""
+        base = datetime.utcnow() - timedelta(days=1)
+        session = UserSession(
+            user_id=user_permanencier.id, active_tenant_id=default_tenant.id,
+            status=SessionStatus.ENDED, session_start=base, session_end=base + timedelta(minutes=60),
+        )
+        db.session.add(session)
+        db.session.commit()
+        # 0-20min : actif (implicite, avant le premier événement) ;
+        # 20-45min : pause ; 45-60min : actif.
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, user_session_id=session.id,
+            event_type="CALLCENTER_AGENT_STATE_CHANGE", agent_status="On Break",
+            agent_uuid="agent-uuid-1", created_at=base + timedelta(minutes=20),
+        ))
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, user_session_id=session.id,
+            event_type="CALLCENTER_AGENT_STATE_CHANGE", agent_status="Available",
+            agent_uuid="agent-uuid-1", created_at=base + timedelta(minutes=45),
+        ))
+        db.session.commit()
+
+        resp = client.get("/api/auth/sessions/stats", headers=auth_headers_manager_tenant)
+        activity = resp.get_json()["activity"]
+        assert activity["total_active_min"] == 35.0
+        assert activity["total_pause_min"] == 25.0
+
+
+class TestSessionStatusDurations:
+    """`_session_status_durations()` — reconstruction des minutes actif/pause
+    à partir de l'historique TelephonyEvent d'une session (14/08)."""
+
+    def test_sans_evenement_toute_la_session_est_active(self, db, default_tenant, user_permanencier):
+        base = datetime.utcnow()
+        session = UserSession(
+            user_id=user_permanencier.id, active_tenant_id=default_tenant.id,
+            status=SessionStatus.ENDED, session_start=base, session_end=base + timedelta(minutes=30),
+        )
+        db.session.add(session)
+        db.session.commit()
+
+        durations = _session_status_durations(session)
+        assert durations == {"active_min": 30.0, "pause_min": 0.0, "offline_min": 0.0}
+
+    def test_segments_pause_actif_et_deconnecte(self, db, default_tenant, user_permanencier):
+        base = datetime.utcnow() - timedelta(hours=1)
+        session = UserSession(
+            user_id=user_permanencier.id, active_tenant_id=default_tenant.id,
+            status=SessionStatus.ENDED, session_start=base, session_end=base + timedelta(minutes=40),
+        )
+        db.session.add(session)
+        db.session.commit()
+        # 0-10 actif (implicite) ; 10-25 pause ; 25-30 déconnecté (Logged
+        # Out, agent raccroché sans quitter PERMATEL) ; 30-40 actif.
+        for offset, status in [(10, "On Break"), (25, "Logged Out"), (30, "Available")]:
+            db.session.add(TelephonyEvent(
+                tenant_id=default_tenant.id, user_session_id=session.id,
+                event_type="CALLCENTER_AGENT_STATE_CHANGE", agent_status=status,
+                agent_uuid="agent-uuid-1", created_at=base + timedelta(minutes=offset),
+            ))
+        db.session.commit()
+
+        durations = _session_status_durations(session)
+        assert durations["active_min"] == 20.0
+        assert durations["pause_min"] == 15.0
+        assert durations["offline_min"] == 5.0
+
+    def test_session_encore_ouverte_bornee_a_now(self, db, default_tenant, user_permanencier):
+        base = datetime.utcnow() - timedelta(minutes=30)
+        session = UserSession(
+            user_id=user_permanencier.id, active_tenant_id=default_tenant.id,
+            status=SessionStatus.ACTIVE, session_start=base, session_end=None,
+        )
+        db.session.add(session)
+        db.session.commit()
+        db.session.add(TelephonyEvent(
+            tenant_id=default_tenant.id, user_session_id=session.id,
+            event_type="CALLCENTER_AGENT_STATE_CHANGE", agent_status="On Break",
+            agent_uuid="agent-uuid-1", created_at=base + timedelta(minutes=10),
+        ))
+        db.session.commit()
+
+        now = base + timedelta(minutes=30)
+        durations = _session_status_durations(session, now=now)
+        assert durations["active_min"] == 10.0
+        assert durations["pause_min"] == 20.0

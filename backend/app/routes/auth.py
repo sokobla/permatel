@@ -33,6 +33,7 @@ from app.models.user import User, UserRole
 from app.models.tenant import Tenant
 from app.models.tenant_user import TenantUser, MEMBERSHIP_ADMIN
 from app.models.user_session import SessionStatus, UserSession
+from app.models.telephony_event import TelephonyEvent
 from app.models.user_token import (
     UserToken, PURPOSE_PASSWORD_RESET, PASSWORD_RESET_TTL,
     STATUS_PENDING, STATUS_COMPLETED, STATUS_EXPIRED,
@@ -415,8 +416,12 @@ def login():
             # Persiste/diffuse tout de suite (correctif 14/08, même motif
             # que set_my_agent_status) : sinon le statut "On Break" implicite
             # du login n'apparaît nulle part tant que le round-trip
-            # connecteur/PBX n'a pas confirmé.
-            _record_and_broadcast_agent_status_event(active_tenant_uuid, user.agent_login, "On Break", "0")
+            # connecteur/PBX n'a pas confirmé. `session` = l'objet tout juste
+            # créé ci-dessus (ligne ~379) : synchronise UserSession.status en
+            # parallèle (PAUSED, cf. suivi des temps de login/pause du 14/08).
+            _record_and_broadcast_agent_status_event(
+                active_tenant_uuid, user.agent_login, "On Break", "0", session=session,
+            )
         except Exception:  # noqa: BLE001
             auth_logger.warning(
                 f"agent_login PBX dispatch échoué | user_id={user.id} | agent_login={user.agent_login}",
@@ -799,8 +804,14 @@ def logout():
             from app.routes.telephony import _dispatch_pbx_job, _record_and_broadcast_agent_status_event
             _dispatch_pbx_job(tenant_id_for_log, "agent_logout", session.agent_login)
             # Correctif 14/08, même motif qu'au login : persiste/diffuse
-            # tout de suite sans attendre la confirmation PBX.
-            _record_and_broadcast_agent_status_event(tenant_id_for_log, session.agent_login, "Logged Out")
+            # tout de suite sans attendre la confirmation PBX. `session` est
+            # déjà ENDED à ce point (statut posé plus haut, avant le commit)
+            # — no-op sur .status côté _record_and_broadcast_agent_status_event,
+            # mais stamp quand même user_session_id sur l'événement pour
+            # l'historique (suivi des temps de login/pause du 14/08).
+            _record_and_broadcast_agent_status_event(
+                tenant_id_for_log, session.agent_login, "Logged Out", session=session,
+            )
         except Exception:  # noqa: BLE001
             auth_logger.warning(
                 f"agent_logout PBX dispatch échoué | user_id={user_id} | agent_login={session.agent_login}",
@@ -908,6 +919,69 @@ def sessions():
 #  GET /api/auth/sessions/monitoring   (supervision — STAFF, tenant-scoped)    #
 # ─────────────────────────────────────────────────────────────────────────── #
 
+def _session_status_durations(session, now=None):
+    """Minutes actif/pause/déconnecté-PBX pour une session (14/08, suivi des
+    temps de login/pause) — reconstruites à partir de l'historique
+    `TelephonyEvent(user_session_id=session.id, event_type=
+    'CALLCENTER_AGENT_STATE_CHANGE')`, désormais alimenté en parallèle de
+    `UserSession.status` (cf. `_record_and_broadcast_agent_status_event`,
+    `app/routes/telephony.py`). Chaque intervalle est imputé au statut de
+    l'événement qui l'OUVRE ; le segment final est borné à
+    `session.session_end` (session terminée) ou `now` (session encore
+    ouverte). Bucketing aligné sur `_normalize_agent_presence`
+    (`app/routes/telephony.py:1364`) : Available→actif, On Break→pause,
+    Logged Out/statut inconnu→déconnecté. Sans historique d'événements
+    (session antérieure à ce chantier, ou jamais passée par un changement de
+    statut explicite), toute la durée de la session est comptée comme
+    active — comportement historique inchangé, pour ne pas fausser
+    rétroactivement les sessions déjà closes."""
+    from app.routes.telephony import _AGENT_PRESENCE_AWAY, _AGENT_PRESENCE_ONLINE
+
+    now = now or utcnow()
+    end = session.session_end or now
+    totals = {"active_min": 0.0, "pause_min": 0.0, "offline_min": 0.0}
+    if not session.session_start or end <= session.session_start:
+        return totals
+
+    events = (
+        TelephonyEvent.query
+        .filter_by(user_session_id=session.id, event_type="CALLCENTER_AGENT_STATE_CHANGE")
+        .order_by(TelephonyEvent.created_at)
+        .all()
+    )
+    if not events:
+        totals["active_min"] = (end - session.session_start).total_seconds() / 60
+        return totals
+
+    def _bucket(raw_status):
+        key = (raw_status or "").strip().lower()
+        if key in _AGENT_PRESENCE_ONLINE:
+            return "active_min"
+        if key in _AGENT_PRESENCE_AWAY:
+            return "pause_min"
+        return "offline_min"
+
+    # Segment avant le premier événement connu — normalement quasi nul :
+    # login() crée son événement "On Break" dans la même transaction que la
+    # session (cf. app/routes/auth.py::login()). Compté actif par défaut,
+    # cohérent avec le repli "sans historique" ci-dessus.
+    cursor = session.session_start
+    current_bucket = "active_min"
+    for event in events:
+        ts = min(event.created_at, end)
+        if ts > cursor:
+            totals[current_bucket] += (ts - cursor).total_seconds() / 60
+        cursor = ts
+        current_bucket = _bucket(event.agent_status)
+        if cursor >= end:
+            break
+
+    if cursor < end:
+        totals[current_bucket] += (end - cursor).total_seconds() / 60
+
+    return totals
+
+
 def _filtered_sessions_query(tenant_uuid):
     scope = request.args.get("status", "live")
     query = UserSession.query.filter(UserSession.active_tenant_id == tenant_uuid)
@@ -926,6 +1000,7 @@ def _filtered_sessions_query(tenant_uuid):
 
 def _serialize_session_row(s, caller_refresh_jti):
     u = s.user
+    durations = _session_status_durations(s)
     return {
         "id":               s.id,
         "user_id":          s.user_id,
@@ -941,6 +1016,10 @@ def _serialize_session_row(s, caller_refresh_jti):
         "last_activity_at": s.last_activity_at.isoformat() if s.last_activity_at else None,
         "session_end":      s.session_end.isoformat() if s.session_end else None,
         "is_current":       bool(caller_refresh_jti and s.jti == caller_refresh_jti),
+        # Suivi des temps de login/pause (14/08) — calcul live pour une
+        # session encore ouverte (borné à l'instant présent).
+        "active_minutes":   round(durations["active_min"], 1),
+        "pause_minutes":    round(durations["pause_min"], 1),
     }
 
 
@@ -991,11 +1070,13 @@ def export_sessions_monitoring_csv():
     header = [
         "username", "full_name", "role", "status", "ip_address", "user_agent",
         "agent_login", "station_extension", "session_start", "last_activity_at", "session_end",
+        "active_minutes", "pause_minutes",
     ]
     csv_rows = [
         [
             r["username"], r["full_name"], r["role"], r["status"], r["ip_address"], r["user_agent"],
             r["agent_login"], r["station_extension"], r["session_start"], r["last_activity_at"], r["session_end"],
+            r["active_minutes"], r["pause_minutes"],
         ]
         for r in rows_data
     ]
@@ -1161,6 +1242,17 @@ def sessions_stats():
     median_duration = round(median(durations_min), 1) if durations_min else 0
     total_online_min = round(sum(durations_min), 1) if durations_min else 0
 
+    # Suivi des temps de login/pause (14/08) — mêmes sessions que
+    # `durations_min` ci-dessus (terminées dans la période), décomposées en
+    # temps actif/pause via `_session_status_durations`.
+    status_durations = [
+        _session_status_durations(s)
+        for s in sessions
+        if s.session_end and s.session_start and dt_from <= s.session_end <= dt_to
+    ]
+    total_active_min = round(sum(d["active_min"] for d in status_durations), 1)
+    total_pause_min = round(sum(d["pause_min"] for d in status_durations), 1)
+
     # D.14 Répartition par rôle (sessions actives)
     by_role = {}
     for s in active_sessions:
@@ -1239,6 +1331,8 @@ def sessions_stats():
             "avg_duration_min": avg_duration,
             "median_duration_min": median_duration,
             "total_online_min": total_online_min,
+            "total_active_min": total_active_min,
+            "total_pause_min": total_pause_min,
             "peak_hours": peak_hours,
         },
         "security": {

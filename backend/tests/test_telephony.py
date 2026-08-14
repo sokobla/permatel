@@ -2,7 +2,7 @@ import pytest
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
-from app.models import PbxConnector, PbxConnectorDomain, PbxPauseCode, TelephonyEvent
+from app.models import PbxConnector, PbxConnectorDomain, PbxPauseCode, SessionStatus, TelephonyEvent, UserSession
 from app.models.tenant import Tenant
 
 
@@ -2022,6 +2022,82 @@ class TestSelfServiceAgentStatus:
         assert args[1]["agent_status"] == "Available"
         assert kwargs["room"] == str(default_tenant.id)
         assert kwargs["namespace"] == "/telephony"
+
+    def test_on_break_met_la_session_courante_en_pause(
+        self, client, db, auth_headers, user_permanencier, tokens_permanencier,
+    ):
+        """Suivi des temps de login/pause (14/08) : le statut self-service
+        "On Break" doit synchroniser UserSession.status en PAUSED pour la
+        session de la requête en cours."""
+        user_permanencier.agent_login = "agent-uuid-1"
+        db.session.commit()
+
+        resp = client.post(
+            "/api/telephony/agents/me/status",
+            json={"status": "On Break", "pause_code": "1"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 202
+
+        db.session.expire_all()
+        session = UserSession.query.get(tokens_permanencier["session_id"])
+        assert session.status == SessionStatus.PAUSED
+
+    def test_available_remet_la_session_active_et_bump_last_activity(
+        self, client, db, auth_headers, user_permanencier, tokens_permanencier,
+    ):
+        user_permanencier.agent_login = "agent-uuid-1"
+        db.session.commit()
+        client.post(
+            "/api/telephony/agents/me/status", json={"status": "On Break"}, headers=auth_headers,
+        )
+        db.session.expire_all()
+        paused_session = UserSession.query.get(tokens_permanencier["session_id"])
+        stale_activity = datetime.utcnow() - timedelta(hours=1)
+        paused_session.last_activity_at = stale_activity
+        db.session.commit()
+
+        resp = client.post(
+            "/api/telephony/agents/me/status", json={"status": "Available"}, headers=auth_headers,
+        )
+        assert resp.status_code == 202
+
+        db.session.expire_all()
+        session = UserSession.query.get(tokens_permanencier["session_id"])
+        assert session.status == SessionStatus.ACTIVE
+        assert session.last_activity_at > stale_activity
+
+    def test_logged_out_ne_touche_pas_le_statut_de_session(
+        self, client, db, auth_headers, user_permanencier, tokens_permanencier,
+    ):
+        """"Logged Out" est un raccroché côté PBX, pas une déconnexion
+        PERMATEL — la session doit rester ACTIVE."""
+        user_permanencier.agent_login = "agent-uuid-1"
+        db.session.commit()
+
+        resp = client.post(
+            "/api/telephony/agents/me/status", json={"status": "Logged Out"}, headers=auth_headers,
+        )
+        assert resp.status_code == 202
+
+        db.session.expire_all()
+        session = UserSession.query.get(tokens_permanencier["session_id"])
+        assert session.status == SessionStatus.ACTIVE
+
+    def test_evenement_porte_le_user_session_id(
+        self, client, db, auth_headers, user_permanencier, default_tenant, tokens_permanencier,
+    ):
+        user_permanencier.agent_login = "agent-uuid-1"
+        db.session.commit()
+
+        client.post(
+            "/api/telephony/agents/me/status", json={"status": "Available"}, headers=auth_headers,
+        )
+
+        event = TelephonyEvent.query.filter_by(
+            tenant_id=default_tenant.id, agent_uuid="agent-uuid-1",
+        ).order_by(TelephonyEvent.id.desc()).first()
+        assert event.user_session_id == tokens_permanencier["session_id"]
 
 
 class TestPauseCodesCrud:

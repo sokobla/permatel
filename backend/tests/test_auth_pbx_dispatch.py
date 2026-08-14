@@ -16,7 +16,7 @@ pour apparaître (Supervision temps réel, /agents/status).
 """
 from unittest.mock import patch
 
-from app.models import TelephonyEvent
+from app.models import SessionStatus, TelephonyEvent, UserSession
 
 LOGIN_URL = "/api/auth/login"
 LOGOUT_URL = "/api/auth/logout"
@@ -72,6 +72,27 @@ class TestLoginDispatchesAgentLoginJob:
         assert event.agent_status == "On Break"
         assert event.pause_code == "0"
 
+    def test_login_met_la_session_en_pause_et_stamp_user_session_id(
+        self, client, db, user_permanencier, default_tenant,
+    ):
+        """Suivi des temps de login/pause (14/08) : au login, la session
+        PERMATEL démarre en PAUSED (le statut "On Break" implicite du
+        login) — pas ACTIVE — et l'événement porte bien user_session_id."""
+        user_permanencier.agent_login = "agent-uuid-1"
+        db.session.commit()
+
+        resp = client.post(LOGIN_URL, json={"username": "permanencier1", "password": "Password123!"})
+        session_id = resp.get_json()["session_id"]
+
+        db.session.expire_all()
+        session = UserSession.query.get(session_id)
+        assert session.status == SessionStatus.PAUSED
+
+        event = TelephonyEvent.query.filter_by(
+            tenant_id=default_tenant.id, agent_uuid="agent-uuid-1",
+        ).order_by(TelephonyEvent.id.desc()).first()
+        assert event.user_session_id == session_id
+
 
 class TestLogoutDispatchesAgentLogoutJob:
     def test_logout_avec_agent_login_declenche_le_job(self, client, db, user_permanencier, default_tenant, tokens_permanencier):
@@ -125,3 +146,23 @@ class TestLogoutDispatchesAgentLogoutJob:
         ).order_by(TelephonyEvent.id.desc()).first()
         assert event is not None
         assert event.event_type == "CALLCENTER_AGENT_STATE_CHANGE"
+
+    def test_logout_ne_reouvre_pas_la_session_deja_terminee(
+        self, client, db, user_permanencier, default_tenant,
+    ):
+        """`_record_and_broadcast_agent_status_event` ne doit jamais
+        toucher `session.status` pour "Logged Out" — même en le passant
+        explicitement, la session déjà ENDED par logout() ne doit pas
+        repasser ACTIVE/PAUSED."""
+        user_permanencier.agent_login = "agent-uuid-1"
+        db.session.commit()
+        login_resp = client.post(LOGIN_URL, json={"username": "permanencier1", "password": "Password123!"})
+        access = login_resp.get_json()["access_token"]
+        session_id = login_resp.get_json()["session_id"]
+
+        client.post(LOGOUT_URL, headers=_auth(access))
+
+        db.session.expire_all()
+        session = UserSession.query.get(session_id)
+        assert session.status == SessionStatus.ENDED
+        assert session.session_end is not None

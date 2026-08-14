@@ -1872,6 +1872,20 @@ const sessionKpis = computed(() => {
       info: "Somme des durées de toutes les sessions terminées sur la période — charge de connexion cumulée, à distinguer de la durée moyenne/médiane par session.",
     },
     {
+      key: "total_active",
+      label: "Temps actif net",
+      icon: "mdi-account-check-outline",
+      value: fmtDuration(s.activity.total_active_min),
+      info: 'Temps total en ligne, hors pauses téléphoniques (statut PBX "On Break") — reconstruit à partir de l\'historique des changements de statut agent de chaque session terminée sur la période.',
+    },
+    {
+      key: "total_pause",
+      label: "Temps total en pause",
+      icon: "mdi-pause-circle-outline",
+      value: fmtDuration(s.activity.total_pause_min),
+      info: 'Somme des durées passées au statut PBX "On Break" (pause téléphonique) sur les sessions terminées de la période.',
+    },
+    {
       key: "fail_rate",
       label: "Taux d'échec connexion",
       icon: "mdi-alert-circle-outline",

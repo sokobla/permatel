@@ -40,9 +40,13 @@ from urllib.parse import unquote, unquote_plus, urlparse
 import requests
 from flask import Blueprint, Response, current_app, g, jsonify, request
 from flask_cors import CORS
+from flask_jwt_extended import get_jwt
 
 from app import db, socketio
-from app.models import PbxConnector, PbxConnectorDomain, PbxPauseCode, TelephonyEvent, TenantUser, User
+from app.models import (
+    PbxConnector, PbxConnectorDomain, PbxPauseCode, SessionStatus,
+    TelephonyEvent, TenantUser, User, UserSession,
+)
 from app.utils.decorators import tenant_admin_required, tenant_required
 
 telephony_bp = Blueprint("telephony", __name__, url_prefix="/api/telephony")
@@ -178,7 +182,7 @@ def _dispatch_pbx_job(tenant_id, job_type: str, agent_uuid: str, **payload) -> b
         return False
 
 
-def _record_and_broadcast_agent_status_event(tenant_id, agent_uuid, status, pause_code=None):
+def _record_and_broadcast_agent_status_event(tenant_id, agent_uuid, status, pause_code=None, session=None):
     """Persiste + diffuse immédiatement un changement de statut demandé
     localement (self-service, login/logout auto — cf. `set_my_agent_status`
     et `app/routes/auth.py`), indépendamment de la confirmation ESL/
@@ -190,11 +194,25 @@ def _record_and_broadcast_agent_status_event(tenant_id, agent_uuid, status, paus
     réémettra le même événement une fois la commande ESL réellement
     exécutée, écrasant celui-ci avec une valeur identique (no-op).
     La persistance doit réussir (l'appelant gère ses propres erreurs) ; seule
-    la diffusion WebSocket est best-effort."""
+    la diffusion WebSocket est best-effort.
+
+    `session` (14/08, suivi des temps de login/pause) : la `UserSession`
+    PERMATEL en cours pour cet agent, si connue par l'appelant — persistée
+    sur l'événement (`user_session_id`, colonne déjà présente au modèle,
+    jamais alimentée jusqu'ici) pour reconstruire l'historique pause/actif
+    d'une session (cf. `_session_status_durations` dans `app/routes/auth.py`),
+    ET synchronisée en parallèle avec `UserSession.status` : "On Break" met
+    la session en PAUSED, "Available" la remet en ACTIVE. "Logged Out" ne
+    touche PAS `session.status` — c'est un raccroché côté PBX, pas une
+    déconnexion PERMATEL ; la fermeture réelle de la session reste
+    exclusivement le rôle de `logout()`. Ignoré si la session est déjà
+    terminée (ENDED/EXPIRED/REVOKED), pour ne jamais rouvrir une session
+    close."""
     connector = PbxConnector.query.filter_by(tenant_id=tenant_id, is_active=True).first()
     event = TelephonyEvent(
         tenant_id=tenant_id,
         pbx_connector_id=connector.id if connector else None,
+        user_session_id=session.id if session else None,
         event_type="CALLCENTER_AGENT_STATE_CHANGE",
         call_status="on_hold",
         agent_login=agent_uuid,
@@ -204,6 +222,18 @@ def _record_and_broadcast_agent_status_event(tenant_id, agent_uuid, status, paus
         created_at=utcnow(),
     )
     db.session.add(event)
+
+    if session is not None and session.status in (SessionStatus.ACTIVE, SessionStatus.PAUSED):
+        if status == "On Break":
+            session.status = SessionStatus.PAUSED
+        elif status == "Available":
+            session.status = SessionStatus.ACTIVE
+            # Sinon une session réactivée après une longue pause peut
+            # sembler périmée au prochain passage du sweep d'inactivité,
+            # avant le prochain POST /api/auth/refresh du frontend (seul
+            # autre point qui bump last_activity_at, cf. auth.py:666).
+            session.last_activity_at = utcnow()
+
     db.session.commit()
     try:
         socketio.emit(
@@ -1481,6 +1511,29 @@ def agents_status():
 VALID_AGENT_STATUSES = {"Available", "On Break", "Logged Out"}
 
 
+def _resolve_current_user_session(user_id):
+    """Résout la `UserSession` de la requête en cours — même motif que
+    `logout()` (`app/routes/auth.py:715-756`) : d'abord via le `refresh_jti`
+    porté par l'access token courant (présent sur tous les tokens émis par
+    `login()`/`select-tenant`/`refresh()`), puis repli sur la session ACTIVE
+    la plus récente de l'utilisateur, puis PAUSED (ex. tokens plus anciens
+    sans `refresh_jti`). Retourne `None` si aucune session ouverte trouvée."""
+    claims = get_jwt()
+    refresh_jti = claims.get("refresh_jti")
+    session = None
+    if refresh_jti:
+        session = UserSession.query.filter_by(jti=refresh_jti).first()
+    if not session:
+        session = UserSession.query.filter_by(
+            user_id=user_id, status=SessionStatus.ACTIVE,
+        ).order_by(UserSession.session_start.desc()).first()
+    if not session:
+        session = UserSession.query.filter_by(
+            user_id=user_id, status=SessionStatus.PAUSED,
+        ).order_by(UserSession.session_start.desc()).first()
+    return session
+
+
 @telephony_bp.post("/agents/me/status")
 @tenant_required
 def set_my_agent_status():
@@ -1526,7 +1579,10 @@ def set_my_agent_status():
         g.tenant_id, "agent_status_change", g.user.agent_login,
         target_status=target_status, pause_code=pause_code,
     )
-    _record_and_broadcast_agent_status_event(g.tenant_id, g.user.agent_login, target_status, pause_code)
+    session = _resolve_current_user_session(g.user.id)
+    _record_and_broadcast_agent_status_event(
+        g.tenant_id, g.user.agent_login, target_status, pause_code, session=session,
+    )
 
     return jsonify({"dispatched": dispatched}), 202
 
