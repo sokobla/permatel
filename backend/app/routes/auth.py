@@ -410,8 +410,13 @@ def login():
     # doit jamais faire échouer le login lui-même.
     if user.agent_login and active_tenant_uuid:
         try:
-            from app.routes.telephony import _dispatch_pbx_job
+            from app.routes.telephony import _dispatch_pbx_job, _record_and_broadcast_agent_status_event
             _dispatch_pbx_job(active_tenant_uuid, "agent_login", user.agent_login)
+            # Persiste/diffuse tout de suite (correctif 14/08, même motif
+            # que set_my_agent_status) : sinon le statut "On Break" implicite
+            # du login n'apparaît nulle part tant que le round-trip
+            # connecteur/PBX n'a pas confirmé.
+            _record_and_broadcast_agent_status_event(active_tenant_uuid, user.agent_login, "On Break", "0")
         except Exception:  # noqa: BLE001
             auth_logger.warning(
                 f"agent_login PBX dispatch échoué | user_id={user.id} | agent_login={user.agent_login}",
@@ -791,8 +796,11 @@ def logout():
     # supplémentaire. Best-effort : ne doit jamais faire échouer le logout.
     if session and session.agent_login and tenant_id_for_log:
         try:
-            from app.routes.telephony import _dispatch_pbx_job
+            from app.routes.telephony import _dispatch_pbx_job, _record_and_broadcast_agent_status_event
             _dispatch_pbx_job(tenant_id_for_log, "agent_logout", session.agent_login)
+            # Correctif 14/08, même motif qu'au login : persiste/diffuse
+            # tout de suite sans attendre la confirmation PBX.
+            _record_and_broadcast_agent_status_event(tenant_id_for_log, session.agent_login, "Logged Out")
         except Exception:  # noqa: BLE001
             auth_logger.warning(
                 f"agent_logout PBX dispatch échoué | user_id={user_id} | agent_login={session.agent_login}",

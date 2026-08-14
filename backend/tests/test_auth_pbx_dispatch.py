@@ -7,8 +7,16 @@ de login()/logout()) pour éviter tout risque d'import circulaire avec
 app.routes.telephony — on patche donc directement
 `app.routes.telephony._dispatch_pbx_job`, la cible réellement résolue à
 l'exécution.
+Correctif 14/08 : login()/logout() persistent aussi immédiatement un
+`TelephonyEvent` (CALLCENTER_AGENT_STATE_CHANGE) via
+`_record_and_broadcast_agent_status_event` — même motif que
+`set_my_agent_status` — pour que le statut implicite déclenché par
+l'authentification PERMATEL n'attende pas le round-trip connecteur/PBX
+pour apparaître (Supervision temps réel, /agents/status).
 """
 from unittest.mock import patch
+
+from app.models import TelephonyEvent
 
 LOGIN_URL = "/api/auth/login"
 LOGOUT_URL = "/api/auth/logout"
@@ -47,6 +55,23 @@ class TestLoginDispatchesAgentLoginJob:
 
         assert resp.status_code == 200
 
+    def test_login_persiste_le_statut_on_break_meme_sans_connecteur(
+        self, client, db, user_permanencier, default_tenant,
+    ):
+        user_permanencier.agent_login = "agent-uuid-1"
+        db.session.commit()
+
+        resp = client.post(LOGIN_URL, json={"username": "permanencier1", "password": "Password123!"})
+        assert resp.status_code == 200
+
+        event = TelephonyEvent.query.filter_by(
+            tenant_id=default_tenant.id, agent_uuid="agent-uuid-1",
+        ).order_by(TelephonyEvent.id.desc()).first()
+        assert event is not None
+        assert event.event_type == "CALLCENTER_AGENT_STATE_CHANGE"
+        assert event.agent_status == "On Break"
+        assert event.pause_code == "0"
+
 
 class TestLogoutDispatchesAgentLogoutJob:
     def test_logout_avec_agent_login_declenche_le_job(self, client, db, user_permanencier, default_tenant, tokens_permanencier):
@@ -83,3 +108,20 @@ class TestLogoutDispatchesAgentLogoutJob:
             resp = client.post(LOGOUT_URL, headers=_auth(access))
 
         assert resp.status_code == 200
+
+    def test_logout_persiste_le_statut_logged_out_meme_sans_connecteur(
+        self, client, db, user_permanencier, default_tenant,
+    ):
+        user_permanencier.agent_login = "agent-uuid-1"
+        db.session.commit()
+        login_resp = client.post(LOGIN_URL, json={"username": "permanencier1", "password": "Password123!"})
+        access = login_resp.get_json()["access_token"]
+
+        resp = client.post(LOGOUT_URL, headers=_auth(access))
+        assert resp.status_code == 200
+
+        event = TelephonyEvent.query.filter_by(
+            tenant_id=default_tenant.id, agent_uuid="agent-uuid-1", agent_status="Logged Out",
+        ).order_by(TelephonyEvent.id.desc()).first()
+        assert event is not None
+        assert event.event_type == "CALLCENTER_AGENT_STATE_CHANGE"

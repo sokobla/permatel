@@ -178,6 +178,43 @@ def _dispatch_pbx_job(tenant_id, job_type: str, agent_uuid: str, **payload) -> b
         return False
 
 
+def _record_and_broadcast_agent_status_event(tenant_id, agent_uuid, status, pause_code=None):
+    """Persiste + diffuse immédiatement un changement de statut demandé
+    localement (self-service, login/logout auto — cf. `set_my_agent_status`
+    et `app/routes/auth.py`), indépendamment de la confirmation ESL/
+    mod_callcenter (correctif 14/08 : sans ceci, un statut demandé alors que
+    le connecteur/Redis/le PBX est injoignable n'apparaissait NULLE PART —
+    ni persisté, ni diffusé aux superviseurs connectés — donnant l'illusion
+    d'un bouton qui "oublie" son état à chaque rechargement de page). Le
+    round-trip PBX reste la source de vérité EFFECTIVE : mod_callcenter
+    réémettra le même événement une fois la commande ESL réellement
+    exécutée, écrasant celui-ci avec une valeur identique (no-op).
+    La persistance doit réussir (l'appelant gère ses propres erreurs) ; seule
+    la diffusion WebSocket est best-effort."""
+    connector = PbxConnector.query.filter_by(tenant_id=tenant_id, is_active=True).first()
+    event = TelephonyEvent(
+        tenant_id=tenant_id,
+        pbx_connector_id=connector.id if connector else None,
+        event_type="CALLCENTER_AGENT_STATE_CHANGE",
+        call_status="on_hold",
+        agent_login=agent_uuid,
+        agent_uuid=agent_uuid,
+        agent_status=status,
+        pause_code=pause_code,
+        created_at=utcnow(),
+    )
+    db.session.add(event)
+    db.session.commit()
+    try:
+        socketio.emit(
+            "telephony_event", event.to_dict(),
+            room=str(tenant_id), namespace="/telephony",
+        )
+    except Exception:
+        current_app.logger.exception("Échec de diffusion WebSocket du statut agent")
+    return event
+
+
 # ═════════════════════════════════════════════════════════════════════════
 #  Bootstrap config + heartbeat (Core Connector — jeton technique, pas de JWT)
 # ═════════════════════════════════════════════════════════════════════════
@@ -1453,13 +1490,21 @@ def set_my_agent_status():
     `backend/app/models/user.py`) — 400 sinon (pas d'agent PBX associé à ce
     compte).
 
-    Dispatch un job `agent_status_change` au connecteur (`_dispatch_pbx_job`).
-    Cette route ne retourne PAS de statut confirmé — la confirmation arrive
-    naturellement via l'`agent-status-change` que mod_callcenter émettra en
-    retour, ingéré par le pipeline habituel (cf. contexte du plan du 13/08 :
-    pas de mécanisme de validation dédié, le pipeline d'ingestion existant
-    suffit). `202 {"dispatched": bool}` : accusé de dispatch seulement, pas
-    de garantie d'exécution (connecteur injoignable, Redis indisponible…).
+    Dispatch un job `agent_status_change` au connecteur (`_dispatch_pbx_job`)
+    ET enregistre immédiatement l'événement (correctif 14/08) : la version
+    initiale ne comptait QUE sur le round-trip connecteur → FreeSWITCH →
+    mod_callcenter → ré-ingestion pour que ce changement apparaisse quelque
+    part — si un maillon de cette chaîne est absent/lent (Redis, connecteur
+    non redéployé, PBX injoignable), le statut demandé n'était jamais
+    persisté ni diffusé, donnant l'impression que le bouton "ne retient
+    rien" après un rechargement de page et que la supervision temps réel ne
+    bougeait jamais. On enregistre donc ici la même forme de
+    `TelephonyEvent` que produirait l'ingestion normale (agent_uuid =
+    `User.agent_login`, comme partout ailleurs) et on diffuse sur le socket
+    exactement comme `ingest_event()` — le round-trip PBX reste la source de
+    vérité EFFECTIVE (mod_callcenter réémettra le même évènement une fois la
+    commande ESL réellement exécutée), mais l'intention de l'utilisateur est
+    désormais visible sans dépendre de lui.
     """
     if not g.user.agent_login:
         return jsonify({"error": "Aucun agent PBX associé à ce compte."}), 400
@@ -1481,6 +1526,8 @@ def set_my_agent_status():
         g.tenant_id, "agent_status_change", g.user.agent_login,
         target_status=target_status, pause_code=pause_code,
     )
+    _record_and_broadcast_agent_status_event(g.tenant_id, g.user.agent_login, target_status, pause_code)
+
     return jsonify({"dispatched": dispatched}), 202
 
 

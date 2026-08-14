@@ -1970,6 +1970,59 @@ class TestSelfServiceAgentStatus:
         assert resp.get_json()["dispatched"] is True
         fake_redis.publish.assert_called_once()
 
+    def test_persiste_le_statut_meme_si_le_dispatch_pbx_echoue(
+        self, client, db, auth_headers, user_permanencier, default_tenant,
+    ):
+        """Correctif 14/08 : le statut demandé doit être persisté et visible
+        via /agents/status même si aucun connecteur actif n'existe (donc
+        _dispatch_pbx_job retourne False) — sinon le bouton self-service
+        "oublie" son état à chaque rechargement de page tant que le
+        round-trip PBX n'a pas confirmé quoi que ce soit."""
+        user_permanencier.agent_login = "agent-uuid-1"
+        db.session.commit()
+
+        resp = client.post(
+            "/api/telephony/agents/me/status",
+            json={"status": "On Break", "pause_code": "2"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 202
+        assert resp.get_json()["dispatched"] is False
+
+        event = TelephonyEvent.query.filter_by(
+            tenant_id=default_tenant.id, agent_uuid="agent-uuid-1",
+        ).order_by(TelephonyEvent.id.desc()).first()
+        assert event is not None
+        assert event.event_type == "CALLCENTER_AGENT_STATE_CHANGE"
+        assert event.agent_status == "On Break"
+        assert event.pause_code == "2"
+
+        status_resp = client.get("/api/telephony/agents/status", headers=auth_headers)
+        rows = status_resp.get_json()["agents"]
+        mine = next(a for a in rows if a["agent_uuid"] == "agent-uuid-1")
+        assert mine["raw_status"] == "On Break"
+        assert mine["presence"] == "away"
+
+    def test_diffuse_le_statut_sur_le_websocket(
+        self, client, db, auth_headers, user_permanencier, default_tenant,
+    ):
+        user_permanencier.agent_login = "agent-uuid-1"
+        db.session.commit()
+
+        with patch("app.routes.telephony.socketio.emit") as emit_mock:
+            resp = client.post(
+                "/api/telephony/agents/me/status", json={"status": "Available"}, headers=auth_headers,
+            )
+        assert resp.status_code == 202
+        emit_mock.assert_called_once()
+        args, kwargs = emit_mock.call_args
+        assert args[0] == "telephony_event"
+        assert args[1]["event_type"] == "CALLCENTER_AGENT_STATE_CHANGE"
+        assert args[1]["agent_uuid"] == "agent-uuid-1"
+        assert args[1]["agent_status"] == "Available"
+        assert kwargs["room"] == str(default_tenant.id)
+        assert kwargs["namespace"] == "/telephony"
+
 
 class TestPauseCodesCrud:
     """GET/POST/PUT/DELETE /api/telephony/pause-codes — codes de pause (13/08)."""
