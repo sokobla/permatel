@@ -3,7 +3,13 @@
 *(Complète `ODOO_INTEGRATION_PLAN.md`, qui fixe l'architecture — ce document
 transforme cette architecture en tâches élémentaires séquencées, pour un
 impact disruptif minimal et zéro perte de données existantes. Rédigé le
-13/08, statut : à revoir/valider avant tout démarrage d'implémentation.)*
+13/08, statut : à revoir/valider avant tout démarrage d'implémentation.
+Mis à jour le 15/08 : ajout de la **Phase G.5 — Moteur de majoration
+(TimeSplitter)**, qui détaille et corrige `ODOO_TIMESHEETS_MAJORATIONS.md`
+suite à son évaluation critique du même jour — voir ce document pour le
+contexte métier d'origine, `ODOO_TIMESHEETS_MAJORATIONS.md` porte
+désormais une note renvoyant ici pour le détail d'implémentation
+faisant foi.)*
 
 ## Contexte
 
@@ -306,14 +312,128 @@ supprime pas `type_commande`** : coexistence, pas de bascule forcée.
 4. Push : `Produit` → `product.product`, `TarifClient` → `product.pricelist`.
 5. Tests, vérification suite complète.
 
+## Phase G.5 — Moteur de majoration (TimeSplitter)
+
+*(Détaille et corrige `ODOO_TIMESHEETS_MAJORATIONS.md`, dont le statut est
+mis à jour en conséquence — voir note en tête de ce document. Insérée
+entre G et H car H (facturation multi-lignes) et I (paie RH) en dépendent
+tous les deux, mais elle ne dépend elle-même que de l'existant
+(`PriseDeService`, `Tenant`) : peut être livrée dès que G est fusionné,
+sans attendre l'infra ERP (D.0) ni aucun push réel.)*
+
+**Décisions architecturales actées (corrigent le document d'origine)** :
+- **Majorations cumulatives, pas des catégories exclusives** : un segment
+  porte un *ensemble* de majorations applicables (ex. `{nuit, ferie}`),
+  chacune avec son taux, plutôt qu'une seule catégorie composite figée —
+  évite l'explosion combinatoire de lignes de devis (jusqu'à 8+ lignes
+  pour couvrir toutes les combinaisons Jour/Nuit×WE×Férié).
+- **Moteur unique partagé facturation ET paie** : `time_splitter.py`
+  produit une segmentation temporelle neutre (bornes + majorations
+  applicables) ; Phase H (facturation, taux client négociés) et Phase I
+  (paie, taux légaux/conventionnels) appliquent chacune leurs propres
+  règles sur la même segmentation de base — élimine le risque de
+  divergence entre deux implémentations séparées identifié dans
+  l'évaluation du 15/08.
+- **Règles effectives-datées** (`valid_from`/`valid_to`) : éditer une
+  règle n'affecte jamais rétroactivement une vacation déjà close (dont le
+  découpage est figé en JSON à la clôture, jamais recalculé après coup).
+- **Repli explicite si aucune correspondance** : un segment sans ligne de
+  devis/majoration correspondante ne doit jamais être facturé sur la
+  mauvaise ligne — passe par `erp_sync_queue` (`status=failed`, message
+  explicite) et notifie le Manager (motif `notify()` déjà utilisé pour les
+  alertes SLA/no-show), jamais un échec silencieux.
+- **Hors périmètre explicite de cette phase** : l'exclusion des pauses à
+  l'intérieur d'une vacation (`PriseDeService` n'a aujourd'hui aucun
+  tracking de pause interne, contrairement à `UserSession.status` côté
+  téléphonie — les deux ne sont pas reliés) — à réévaluer seulement si un
+  besoin réel émerge, pas anticipé ici pour ne pas complexifier sans
+  cas d'usage confirmé.
+
+1. Migration additive : table `tenant_majoration_rules` (`tenant_id`,
+   `code` String — pas d'Enum natif, motif `c5e10bf50c26` —, `label`,
+   `heure_debut`/`heure_fin` (nullable, règle horaire type "Nuit") ou
+   `jour_semaine` (nullable, règle calendaire type "Week-end"),
+   `taux_pct` (Numeric), `valid_from`/`valid_to` (DateTime, `valid_to`
+   NULL = toujours active), `priority` (Integer, ordre d'affichage/tri
+   seulement — les majorations se cumulent, `priority` ne sert pas à
+   choisir entre elles). Migration additive : table optionnelle
+   `tenant_jours_feries` (`tenant_id`, `date`, `label`) — surcharge/ajout
+   pour les tenants DOM-TOM ou Alsace-Moselle (jours fériés
+   supplémentaires) ; si vide pour un tenant, repli sur le calendrier
+   métropolitain calculé en pur Python (Pâques via l'algorithme de
+   Meeus/Jones/Butcher + dates fixes), aucune dépendance externe.
+2. Migration additive : colonne nullable `PriseDeService.majoration_segments`
+   (JSON) — snapshot immuable du découpage au moment de la clôture, motif
+   déjà retenu au §4.3 du document d'origine, jamais recalculé après
+   écriture (garantit la valeur probatoire en cas de litige même si les
+   règles changent ensuite). Colonne `Tenant.majoration_arrondi_minutes`
+   (Integer, défaut `1` = pas d'arrondi) — arrondit la **durée totale**
+   avant répartition proportionnelle entre segments, jamais segment par
+   segment (évite l'accumulation d'erreurs d'arrondi indépendantes).
+3. Modèle `backend/app/models/majoration.py` (`MajorationRule`, `JourFerie`).
+4. Service pur `backend/app/services/time_splitter.py` :
+   `split_time_range(start, end, rules, holidays) -> list[Segment]`,
+   `Segment = {start, end, duration_minutes, majorations: [{code, taux_pct}]}`.
+   Datetimes **timezone-aware** (`zoneinfo("Europe/Paris")`) de bout en
+   bout — sans quoi les deux nuits de changement d'heure produisent un
+   découpage faux. Fonction pure, testable en isolation sans DB.
+5. Backend : hook dans la clôture de `PriseDeService`
+   (`backend/app/routes/prises_de_service.py::end_current_prise()`/`end_prise()`,
+   lignes 168/189) — appelle `split_time_range()`, persiste le résultat
+   dans `majoration_segments`. Additif : ne change pas la forme de
+   réponse existante au-delà de ce nouveau champ.
+6. CLI `flask timesplitter-preview --prise-id <ID>` (lecture seule,
+   affiche le découpage calculé sans écrire) — permet de valider une
+   nouvelle règle contre des vacations historiques avant mise en
+   production, motif déjà établi pour les autres commandes CLI du projet
+   (`--dry-run` par défaut ailleurs, ici intrinsèquement non-écrivant).
+7. Frontend :
+   - Nouvelle vue Settings "Règles de majoration" (motif
+     `SettingsReferenceValues.vue`) : CRUD `tenant_majoration_rules`,
+     gestion `tenant_jours_feries`, réglage `majoration_arrondi_minutes`.
+   - Bouton "Prévisualiser la ventilation" sur une prise de service en
+     cours (`PrisesServicesView.vue`) — appelle un endpoint de simulation
+     (mêmes règles, aucune écriture) avant clôture réelle, pour détecter
+     une règle mal configurée avant qu'elle ne produise une facturation
+     fausse.
+   - Détail des segments affiché dans le rapport "Prises de service"
+     existant (`ReportView.vue`, étendu Phase 16) — nouvelle section
+     dépliable par ligne, pas de nouveau tableau.
+8. Tests : composition cumulative (nuit+WE+férié simultanés), effet des
+   dates `valid_from`/`valid_to` (une règle modifiée n'affecte pas un
+   segment déjà figé), arrondi (total avant répartition, pas par
+   segment), les deux nuits de changement d'heure DST, CLI preview,
+   endpoint de simulation (aucune écriture).
+9. **Vérification** : migration up/down → suite complète → CLI exécutable
+   en local (`flask timesplitter-preview --prise-id <ID>` sur une donnée
+   de test) → lint+build frontend.
+
 ## Phase H — Commerce et Facturation
 
-Dépend de F (partenaires) et G (catalogue).
+Dépend de F (partenaires), G (catalogue) et **G.5** (segmentation par
+majoration — une commande peut désormais générer plusieurs lignes de
+feuille de temps par vacation, pas une seule).
 
-1. Migration additive : tables `Devis`, `DevisLigne`, `erp_factures`
-   (1—N par `Devis`, facturation partielle).
+1. Migration additive : tables `Devis`, `DevisLigne` (avec colonne
+   `majoration_code`, nullable — String, référence libre au `code` d'une
+   `MajorationRule`/`null` pour une ligne "Jour" non majorée, pas de FK
+   stricte pour rester tolérant à une règle supprimée après coup),
+   `erp_factures` (1—N par `Devis`, facturation partielle).
 2. Backend : création Devis depuis une `DemandeCommande`
    (`permission_required("commerce")`) → push `sale.order` brouillon.
+   Poussée des feuilles de temps (déclenchée à la clôture de
+   `PriseDeService`, cf. Phase I) : pour chaque segment de
+   `majoration_segments` (Phase G.5), recherche de la `DevisLigne`
+   correspondante par `majoration_code`, un appel `execute_kw` par
+   segment avec son propre `x_permatel_ref`
+   (`"{tenant_id}:vacation_segment:{prise_id}:{index}"`, motif §2.4
+   `ODOO_INTEGRATION_PLAN.md` — idempotence par segment, pas par
+   vacation entière, pour qu'un échec partiel sur 3 lignes ne duplique
+   pas les 2 déjà réussies au retry). **Repli explicite** si un segment
+   n'a aucune `DevisLigne` correspondante : entrée `erp_sync_queue`
+   `status=failed` avec message explicite (jamais poussé sur une ligne
+   au hasard) + notification Manager (motif `notify()`, déjà utilisé
+   pour les alertes SLA/no-show).
 3. Backend : validation devis (`permission_required("commerce")`) →
    `action_confirm` (Bon de commande).
 4. Backend : action "Facturer" (`permission_required("facturation")`) →
@@ -330,6 +450,9 @@ Dépend de F (partenaires) et G (catalogue).
      entités nouvelles, elles ont besoin d'un CRUD complet (création depuis
      une `DemandeCommande`, édition des lignes avant validation), pas
      seulement de boutons ajoutés sur la vue `DemandeCommande` existante.
+     Chaque `DevisLigne` propose un sélecteur `majoration_code` (liste des
+     `MajorationRule` du tenant + "Aucune majoration") — sans lui, le
+     mapping segment→ligne de Phase G.5/H reste impossible à configurer.
    - Sur cette vue détail : actions Valider (→ Bon de commande) et
      Facturer, liste des factures liées (1—N, facturation partielle) avec
      leur statut (brouillon/validée/payée/annulée) et montants.
@@ -338,19 +461,35 @@ Dépend de F (partenaires) et G (catalogue).
 
 ## Phase I — Agents & Temps (RH/Analytique)
 
-Dépend de D (fondations) et F (déjà `hr.employee` similaire au partner push).
+Dépend de D (fondations), F (déjà `hr.employee` similaire au partner push)
+et **G.5** (segmentation par majoration — remplace le découpage naïf
+"minuit uniquement" initialement envisagé).
 
 1. Migration additive : table `erp_employees`.
 2. Push : `AgentSecurite` → `hr.employee` (étiquette ERP spécifique pour
    les sous-traitants).
-3. Backend : à la **clôture** d'une `PriseDeService`, calcul de la durée →
-   push `account.analytic.line` (feuille de temps) ; vacations chevauchant
-   minuit scindées en deux feuilles.
+3. Backend : à la **clôture** d'une `PriseDeService`
+   (`majoration_segments` déjà calculé par Phase G.5, hook commun),
+   push d'une `account.analytic.line` (feuille de temps) **par segment**,
+   pas une ligne unique par vacation — remplace l'approche initialement
+   prévue ("vacations chevauchant minuit scindées en deux feuilles"),
+   devenue un cas particulier de la segmentation générale (un
+   chevauchement de minuit produit mécaniquement ≥2 segments dès que la
+   nuit est une catégorie de majoration). Taux de majoration **paie**
+   (légal/conventionnel) potentiellement différent du taux de
+   **facturation** client (Phase H) pour un même segment temporel — même
+   moteur de segmentation (G.5), jeux de règles/taux distincts appliqués
+   séparément par chaque phase. Idempotence par segment, même motif que
+   Phase H (`x_permatel_ref` dédié, ex.
+   `"{tenant_id}:vacation_segment_paie:{prise_id}:{index}"` — préfixe
+   distinct de celui de Phase H pour ne jamais confondre une ligne de
+   facturation et une ligne de paie partageant le même `prise_id`/index).
 4. Frontend : badge "Synchronisé ERP ✓/✗" sur `AgentView.vue` (même motif
    léger que Phase F pour Client/Site/Contact) — pas de nouvelle vue dédiée,
    le push est transparent.
-5. Tests (y compris le cas chevauchement minuit), vérification suite
-   complète.
+5. Tests (y compris le cas chevauchement minuit comme cas particulier de
+   la segmentation générale, taux paie ≠ taux facturation sur un même
+   segment), vérification suite complète.
 
 ---
 
