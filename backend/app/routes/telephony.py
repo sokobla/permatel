@@ -1702,13 +1702,22 @@ def _parse_history_filters():
     if (dt_to - dt_from).days > MAX_HISTORY_RANGE_DAYS:
         dt_from = dt_to - timedelta(days=MAX_HISTORY_RANGE_DAYS)
 
+    # agent_login/queue_id : multi-select côté frontend (14/08) — valeurs
+    # jointes par virgule (`agent_login=uuid1,uuid2`), pas de liste vide
+    # publiée en filtre (équivaut à "aucun filtre", pas à "aucun résultat").
+    def _parse_multi(raw):
+        if not raw:
+            return None
+        values = [v.strip() for v in raw.split(",") if v.strip()]
+        return values or None
+
     return {
         "dt_from": dt_from,
         "dt_to": dt_to,
         "call_status": request.args.get("call_status") or None,
         "direction": request.args.get("direction") or None,
-        "queue_id": request.args.get("queue_id") or None,
-        "agent_login": request.args.get("agent_login") or None,
+        "queue_id": _parse_multi(request.args.get("queue_id")),
+        "agent_login": _parse_multi(request.args.get("agent_login")),
         "search": (request.args.get("search") or "").strip() or None,
     }
 
@@ -1773,9 +1782,9 @@ def _query_calls_history(filters, *, recordings_only=False):
             continue
         if filters.get("direction") and direction != filters["direction"]:
             continue
-        if filters.get("agent_login") and filters["agent_login"] not in (agent_login, agent_uuid):
+        if filters.get("agent_login") and not ({agent_login, agent_uuid} & set(filters["agent_login"])):
             continue
-        if filters.get("queue_id") and queue_id != filters["queue_id"]:
+        if filters.get("queue_id") and queue_id not in filters["queue_id"]:
             continue
         if filters.get("search"):
             needle = filters["search"].lower()
@@ -1823,6 +1832,42 @@ def _query_calls_history(filters, *, recordings_only=False):
 
     rows.sort(key=lambda r: r["started_at"] or "", reverse=True)
     return rows
+
+
+@telephony_bp.get("/agents/roster")
+@tenant_required
+def agents_roster():
+    """Liste des agents PBX du tenant (14/08, filtre CDR multi-select) —
+    reformate `_agent_alias_lookup` (déjà utilisé pour habiller le CDR/le
+    monitoring temps réel) en liste triée, plutôt que d'inventer une
+    nouvelle requête."""
+    alias_lookup = _agent_alias_lookup(g.tenant_id)
+    agents = sorted(
+        ({"agent_login": login, "agent_name": info["name"]} for login, info in alias_lookup.items()),
+        key=lambda a: a["agent_name"] or a["agent_login"],
+    )
+    return jsonify({"agents": agents}), 200
+
+
+@telephony_bp.get("/queues/roster")
+@tenant_required
+def queues_roster():
+    """Liste des files PBX du tenant (14/08, filtre CDR multi-select) —
+    reformate `_queue_alias_lookup` (déjà utilisé pour habiller le CDR/le
+    monitoring temps réel) en liste triée. Les clés `_queue_alias_lookup`
+    portent le domaine (`"{id}@{domaine}"`) — on ne garde ici que l'id nu
+    et son alias, dédupliqués (une même file peut apparaître sur plusieurs
+    domaines d'un même connecteur)."""
+    alias_lookup = _queue_alias_lookup(g.tenant_id)
+    by_id = {}
+    for key, alias in alias_lookup.items():
+        queue_id = key.split("@", 1)[0]
+        by_id.setdefault(queue_id, alias)
+    queues = sorted(
+        ({"queue_id": qid, "alias": alias} for qid, alias in by_id.items()),
+        key=lambda q: q["alias"] or q["queue_id"],
+    )
+    return jsonify({"queues": queues}), 200
 
 
 @telephony_bp.get("/calls")

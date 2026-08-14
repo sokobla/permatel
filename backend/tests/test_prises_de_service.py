@@ -71,8 +71,8 @@ class TestPrisesDeServiceDateFilterAndExport:
         assert resp.mimetype == "text/csv"
         rows = list(csv.reader(io.StringIO(resp.get_data(as_text=True))))
         assert rows[0] == [
-            "agent_nom", "agent_matricule", "client_nom", "site_nom",
-            "date_debut", "date_fin", "duree_minutes", "statut", "created_at",
+            "date", "agent", "type_agent", "client", "site",
+            "heure_debut", "declare_debut_par", "heure_fin", "declare_fin_par", "duree_minutes",
         ]
         assert len(rows) - 1 == 3
 
@@ -81,3 +81,70 @@ class TestPrisesDeServiceDateFilterAndExport:
         resp = client.get(f"/api/prises-de-service/export?from={cutoff}", headers=auth_headers_tenant)
         rows = list(csv.reader(io.StringIO(resp.get_data(as_text=True))))
         assert len(rows) - 1 == 2
+
+
+class TestPrisesDeServiceDeclarants:
+    """Rapport détaillé (14/08) : `agent_type` + qui a déclaré le début/la
+    fin d'une vacation (nom/prénom PERMATEL)."""
+
+    def test_start_enregistre_created_by(
+        self, client, db, auth_headers_tenant, user_permanencier, agent_securite, client_pds,
+    ):
+        agent_securite.type_agent = "Chef d'équipe"
+        db.session.commit()
+        resp = client.post(
+            "/api/prises-de-service/start",
+            json={"agent_id": agent_securite.id, "client_id": client_pds.id},
+            headers=auth_headers_tenant,
+        )
+        assert resp.status_code == 201
+        data = resp.get_json()
+        assert data["agent_type"] == "Chef d'équipe"
+        assert data["created_by_name"] == f"{user_permanencier.prenom} {user_permanencier.nom}"
+        assert data["ended_by_name"] is None
+
+    def test_end_enregistre_ended_by(
+        self, client, db, auth_headers_tenant, user_permanencier, agent_securite, client_pds,
+    ):
+        client.post(
+            "/api/prises-de-service/start",
+            json={"agent_id": agent_securite.id, "client_id": client_pds.id},
+            headers=auth_headers_tenant,
+        )
+        resp = client.post(
+            "/api/prises-de-service/end", json={"agent_id": agent_securite.id}, headers=auth_headers_tenant,
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ended_by_name"] == f"{user_permanencier.prenom} {user_permanencier.nom}"
+
+    def test_end_by_id_enregistre_ended_by(
+        self, client, db, auth_headers_tenant, user_permanencier, agent_securite, client_pds,
+    ):
+        start_resp = client.post(
+            "/api/prises-de-service/start",
+            json={"agent_id": agent_securite.id, "client_id": client_pds.id},
+            headers=auth_headers_tenant,
+        )
+        pds_id = start_resp.get_json()["id"]
+        resp = client.post(f"/api/prises-de-service/{pds_id}/end", headers=auth_headers_tenant)
+        assert resp.status_code == 200
+        assert resp.get_json()["ended_by_name"] == f"{user_permanencier.prenom} {user_permanencier.nom}"
+
+    def test_declare_debut_par_et_fin_par_dans_le_csv(
+        self, client, db, auth_headers_tenant, user_permanencier, agent_securite, client_pds,
+    ):
+        client.post(
+            "/api/prises-de-service/start",
+            json={"agent_id": agent_securite.id, "client_id": client_pds.id},
+            headers=auth_headers_tenant,
+        )
+        client.post(
+            "/api/prises-de-service/end", json={"agent_id": agent_securite.id}, headers=auth_headers_tenant,
+        )
+        resp = client.get("/api/prises-de-service/export", headers=auth_headers_tenant)
+        rows = list(csv.reader(io.StringIO(resp.get_data(as_text=True))))
+        full_name = f"{user_permanencier.prenom} {user_permanencier.nom}"
+        row = rows[1]
+        assert row[6] == full_name  # declare_debut_par
+        assert row[8] == full_name  # declare_fin_par

@@ -1756,6 +1756,29 @@ class TestCallsHistory:
         assert data["total"] == 1
         assert data["calls"][0]["call_uuid"] == "hist-agent-a"
 
+    def test_filtre_agent_multi_valeurs_inclut_les_deux(self, client, db, auth_headers, default_tenant):
+        """Multi-select (14/08) : valeurs jointes par virgule, comportement OR."""
+        self._seed_call_shape_connecteur_esl(db, default_tenant.id, "hist-agent-a", "agent-a", "queue-1")
+        self._seed_call_shape_connecteur_esl(db, default_tenant.id, "hist-agent-b", "agent-b", "queue-1")
+        self._seed_call_shape_connecteur_esl(db, default_tenant.id, "hist-agent-c", "agent-c", "queue-1")
+
+        resp = client.get("/api/telephony/calls?agent_login=agent-a,agent-b", headers=auth_headers)
+        data = resp.get_json()
+        assert data["total"] == 2
+        uuids = {c["call_uuid"] for c in data["calls"]}
+        assert uuids == {"hist-agent-a", "hist-agent-b"}
+
+    def test_filtre_queue_multi_valeurs_inclut_les_deux(self, client, db, auth_headers, default_tenant):
+        self._seed_call_shape_connecteur_esl(db, default_tenant.id, "hist-q-1", "agent-x", "queue-1")
+        self._seed_call_shape_connecteur_esl(db, default_tenant.id, "hist-q-2", "agent-x", "queue-2")
+        self._seed_call_shape_connecteur_esl(db, default_tenant.id, "hist-q-3", "agent-x", "queue-3")
+
+        resp = client.get("/api/telephony/calls?queue_id=queue-1,queue-2", headers=auth_headers)
+        data = resp.get_json()
+        assert data["total"] == 2
+        uuids = {c["call_uuid"] for c in data["calls"]}
+        assert uuids == {"hist-q-1", "hist-q-2"}
+
     def test_pagination(self, client, db, auth_headers, default_tenant):
         for i in range(5):
             self._seed_completed_call(
@@ -1798,6 +1821,60 @@ class TestCallsHistory:
         assert call["agent_login"] == "agent-hist-uuid"
         assert call["agent_name"] == "Ibra Fall"
         assert call["agent_station"] == "22101099"
+
+
+class TestFilterRosters:
+    """GET /api/telephony/agents/roster, /api/telephony/queues/roster —
+    alimentent les filtres multi-select du CDR (14/08)."""
+
+    def test_agents_roster_liste_les_agents_pbx_du_tenant(self, client, db, auth_headers, default_tenant):
+        from app.models.user import User, UserRole
+
+        agent = User(
+            username="rosteragent", email="rosteragent@permatel.ma", nom="Diop", prenom="Awa",
+            role=UserRole.PERMANENCIER, is_active=True, agent_login="roster-uuid-1",
+        )
+        agent.set_password("Password123!")
+        agent.tenants.append(default_tenant)
+        db.session.add(agent)
+        db.session.commit()
+
+        resp = client.get("/api/telephony/agents/roster", headers=auth_headers)
+        assert resp.status_code == 200
+        agents = resp.get_json()["agents"]
+        assert {"agent_login": "roster-uuid-1", "agent_name": "Awa Diop"} in agents
+
+    def test_agents_roster_exclut_les_users_sans_agent_login(self, client, db, auth_headers, user_permanencier):
+        resp = client.get("/api/telephony/agents/roster", headers=auth_headers)
+        logins = [a["agent_login"] for a in resp.get_json()["agents"]]
+        assert None not in logins
+
+    def test_queues_roster_liste_les_files_configurees(self, client, db, auth_headers, pbx_domain):
+        pbx_domain.queue_ids = [{"id": "queue-support", "alias": "Support"}, "queue-brut"]
+        db.session.commit()
+
+        resp = client.get("/api/telephony/queues/roster", headers=auth_headers)
+        assert resp.status_code == 200
+        queues = resp.get_json()["queues"]
+        assert {"queue_id": "queue-support", "alias": "Support"} in queues
+        assert {"queue_id": "queue-brut", "alias": "queue-brut"} in queues
+
+    def test_queues_roster_isolation_cross_tenant(self, client, db, auth_headers, pbx_domain, default_tenant):
+        other_tenant = Tenant(code="OTHER4", nom="Autre Tenant 4", slug="other4")
+        db.session.add(other_tenant)
+        db.session.commit()
+        other_connector = PbxConnector(tenant_id=other_tenant.id, name="Autre", type="ESL", host="h", port=8021)
+        db.session.add(other_connector)
+        db.session.commit()
+        other_domain = PbxConnectorDomain(
+            pbx_connector_id=other_connector.id, pbx_domain="other.local", queue_ids=["queue-etrangere"],
+        )
+        db.session.add(other_domain)
+        db.session.commit()
+
+        resp = client.get("/api/telephony/queues/roster", headers=auth_headers)
+        queue_ids = [q["queue_id"] for q in resp.get_json()["queues"]]
+        assert "queue-etrangere" not in queue_ids
 
 
 class TestCallsExport:

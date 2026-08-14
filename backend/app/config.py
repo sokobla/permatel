@@ -52,6 +52,12 @@ class BaseConfig:
     # multi-worker Gunicorn — sans Redis le seuil de verrouillage est dilué
     # par le nombre de workers). Repli sur un compteur en mémoire si absent.
     REDIS_URL = os.environ.get("REDIS_URL")
+    # Géolocalisation IP (drapeau pays, Rapports > Sessions, 14/08) — base
+    # MaxMind GeoLite2-Country locale, lookup 100% offline (aucune IP
+    # envoyée à un tiers). Fichier .mmdb non fourni par le dépôt (licence
+    # MaxMind, obtention via compte gratuit) — absent = dégradation
+    # gracieuse, aucun drapeau affiché (cf. app/utils/geoip.py).
+    GEOIP_DB_PATH = os.environ.get("GEOIP_DB_PATH", "/app/geoip/GeoLite2-Country.mmdb")
     # Jeton technique partagé attendu sur l'en-tête X-Connector-Token par
     # POST /api/telephony/events/ingest (le connecteur PBX n'est pas un
     # utilisateur PERMATEL, pas d'authentification JWT sur cet endpoint).

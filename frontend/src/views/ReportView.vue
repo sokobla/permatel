@@ -433,6 +433,70 @@
           </v-card>
         </v-col>
       </v-row>
+
+      <!-- Détail des prises de service -->
+      <v-row>
+        <v-col cols="12">
+          <v-card elevation="0" class="rp-chart-card">
+            <div class="rp-chart-hdr">
+              <span class="rp-chart-title">DÉTAIL DES PRISES DE SERVICE</span>
+            </div>
+            <v-divider />
+            <v-card-text class="pa-0">
+              <div class="rp-table-wrap">
+                <table class="rp-table">
+                  <thead>
+                    <tr>
+                      <th class="rp-th">Date</th>
+                      <th class="rp-th">Agent</th>
+                      <th class="rp-th">Type</th>
+                      <th class="rp-th">Client</th>
+                      <th class="rp-th">Site</th>
+                      <th class="rp-th">Début</th>
+                      <th class="rp-th">Déclaré par (début)</th>
+                      <th class="rp-th">Fin</th>
+                      <th class="rp-th">Déclaré par (fin)</th>
+                      <th class="rp-th rp-th--r">Durée</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-if="!filteredPrises.length">
+                      <td colspan="10" class="rp-td-empty">
+                        Aucune prise de service sur la période
+                      </td>
+                    </tr>
+                    <tr v-for="p in filteredPrises" :key="p.id" class="rp-tr">
+                      <td class="rp-td rp-mono">
+                        {{ formatSessionDateTime(p.date_debut).split(" ")[0] }}
+                      </td>
+                      <td class="rp-td">{{ p.agent_nom || "—" }}</td>
+                      <td class="rp-td">{{ p.agent_type || "—" }}</td>
+                      <td class="rp-td">{{ p.client_nom || "—" }}</td>
+                      <td class="rp-td">{{ p.site_nom || "—" }}</td>
+                      <td class="rp-td rp-mono">
+                        {{ formatSessionDateTime(p.date_debut) }}
+                      </td>
+                      <td class="rp-td">{{ p.created_by_name || "—" }}</td>
+                      <td class="rp-td rp-mono">
+                        <span v-if="!p.date_fin" class="rp-role-badge"
+                          >En cours</span
+                        >
+                        <template v-else>{{
+                          formatSessionDateTime(p.date_fin)
+                        }}</template>
+                      </td>
+                      <td class="rp-td">{{ p.ended_by_name || "—" }}</td>
+                      <td class="rp-td rp-td--mono rp-td--r">
+                        {{ fmtDuration(p.duree_minutes) }}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
     </template>
 
     <!-- ══ AGENTS ══════════════════════════════════════════════════════════ -->
@@ -985,7 +1049,12 @@
                       <td class="rp-td">
                         {{ ROLE_LABELS[r.role] ?? r.role ?? "—" }}
                       </td>
-                      <td class="rp-td rp-mono">{{ r.ip_address || "—" }}</td>
+                      <td class="rp-td rp-mono">
+                        <span v-if="r.country_code">{{
+                          countryFlag(r.country_code)
+                        }}</span>
+                        {{ r.ip_address || "—" }}
+                      </td>
                       <td class="rp-td rp-mono">
                         {{ formatSessionDateTime(r.session_start) }}
                       </td>
@@ -1324,6 +1393,7 @@ import {
 import { agentKpiService } from "@/services/agentKpiService";
 import { settingsService } from "@/services/settingsService";
 import { useAuthStore } from "@/store/auth";
+import { countryFlag } from "@/utils/countryFlag";
 import ReportCdr from "@/components/reports/ReportCdr.vue";
 
 const authStore = useAuthStore();

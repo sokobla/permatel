@@ -44,6 +44,7 @@ class PriseDeService(Base):
     date_fin = Column(DateTime, nullable=True)
 
     created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    ended_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, nullable=False, default=utcnow)
     updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
 
@@ -56,12 +57,14 @@ class PriseDeService(Base):
         fin = self.date_fin or utcnow()
         return max(0, int((fin - self.date_debut).total_seconds() // 60))
 
-    def to_dict(self, *, agent=None, client_nom=None, site_nom=None) -> dict:
+    def to_dict(self, *, agent=None, client_nom=None, site_nom=None,
+                created_by_name=None, ended_by_name=None) -> dict:
         return {
             "id": self.id,
             "agent_id": self.agent_id,
             "agent_nom": (f"{agent.prenom or ''} {agent.nom or ''}".strip() if agent else None),
             "agent_matricule": (agent.matricule if agent else None),
+            "agent_type": (agent.type_agent if agent else None),
             "client_id": self.client_id,
             "client_nom": client_nom,
             "site_id": self.site_id,
@@ -70,6 +73,14 @@ class PriseDeService(Base):
             "date_fin": self.date_fin.isoformat() if self.date_fin else None,
             "duree_minutes": self.duree_minutes,
             "statut": self.statut,
+            "created_by_id": self.created_by_id,
+            # Nom/prénom PERMATEL de l'utilisateur ayant déclaré le début/la
+            # fin de la vacation (14/08, rapport détaillé) — résolus en batch
+            # par l'appelant (`_enrich()`, app/routes/prises_de_service.py),
+            # pas de requête ici.
+            "created_by_name": created_by_name,
+            "ended_by_id": self.ended_by_id,
+            "ended_by_name": ended_by_name,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

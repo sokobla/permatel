@@ -77,6 +77,7 @@
     </template>
 
     <v-main>
+      <RingingCallBar v-if="authStore.isAuthenticated" />
       <CallCardBar v-if="authStore.isAuthenticated" />
       <router-view />
     </v-main>
@@ -118,6 +119,7 @@ import { computed, watch } from "vue";
 import SideMenue from "@/components/Menu2.vue";
 import NotificationBell from "@/components/notifications/NotificationBell.vue";
 import CallCardBar from "@/components/supervision/CallCardBar.vue";
+import RingingCallBar from "@/components/supervision/RingingCallBar.vue";
 import AgentStatusMenu from "@/components/supervision/AgentStatusMenu.vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/store/auth";

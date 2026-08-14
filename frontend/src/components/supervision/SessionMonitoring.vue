@@ -97,7 +97,12 @@
                 >{{ STATUT_LABELS[s.status] ?? s.status }}
               </span>
             </td>
-            <td class="sm-td sm-mono">{{ s.ip_address || "—" }}</td>
+            <td class="sm-td sm-mono">
+              <span v-if="s.country_code" class="sm-flag">{{
+                countryFlag(s.country_code)
+              }}</span>
+              {{ s.ip_address || "—" }}
+            </td>
             <td class="sm-td sm-mono">{{ formatDate(s.session_start) }}</td>
             <td class="sm-td sm-mono">
               {{ formatRelative(s.last_activity_at) }}
@@ -147,6 +152,7 @@
 import { ref, onMounted } from "vue";
 import { sessionService } from "@/services/sessionService";
 import { useAuthStore } from "@/store/auth";
+import { countryFlag } from "@/utils/countryFlag";
 
 // === STATE ===
 const authStore = useAuthStore();
@@ -265,6 +271,9 @@ onMounted(fetch);
 }
 .sm-mono {
   font-family: "Fira Code", monospace;
+}
+.sm-flag {
+  margin-right: 4px;
 }
 
 /* Toolbar */

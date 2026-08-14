@@ -33,14 +33,24 @@
     <template v-if="subTab === 'calls'">
       <v-card variant="flat" class="cdr-filters" rounded="lg" border>
         <div class="cdr-filters__row">
-          <div class="cdr-field">
-            <label>DU</label>
-            <input v-model="callsFilters.from" type="date" class="cdr-date" />
-          </div>
-          <div class="cdr-field">
-            <label>AU</label>
-            <input v-model="callsFilters.to" type="date" class="cdr-date" />
-          </div>
+          <v-text-field
+            v-model="callsFilters.from"
+            type="date"
+            label="Du"
+            variant="outlined"
+            density="compact"
+            hide-details
+            style="max-width: 160px"
+          />
+          <v-text-field
+            v-model="callsFilters.to"
+            type="date"
+            label="Au"
+            variant="outlined"
+            density="compact"
+            hide-details
+            style="max-width: 160px"
+          />
           <v-select
             v-model="callsFilters.call_status"
             :items="STATUS_OPTIONS"
@@ -65,23 +75,35 @@
             clearable
             style="max-width: 150px"
           />
-          <v-text-field
+          <v-select
             v-model="callsFilters.queue_id"
+            :items="queueOptions"
+            item-title="label"
+            item-value="value"
             label="File"
             variant="outlined"
             density="compact"
             hide-details
             clearable
-            style="max-width: 160px"
+            multiple
+            chips
+            closable-chips
+            style="max-width: 220px"
           />
-          <v-text-field
+          <v-select
             v-model="callsFilters.agent_login"
+            :items="agentOptions"
+            item-title="label"
+            item-value="value"
             label="Agent"
             variant="outlined"
             density="compact"
             hide-details
             clearable
-            style="max-width: 150px"
+            multiple
+            chips
+            closable-chips
+            style="max-width: 220px"
           />
           <v-text-field
             v-model="callsFilters.search"
@@ -96,6 +118,15 @@
           <v-btn variant="text" class="text-none" @click="resetCallsFilters"
             >Réinitialiser</v-btn
           >
+          <v-btn
+            color="#000b23"
+            variant="flat"
+            class="text-none"
+            prepend-icon="mdi-filter-variant"
+            @click="applyCallsFilters"
+          >
+            Filtrer
+          </v-btn>
           <v-btn
             color="#00a8a8"
             variant="flat"
@@ -305,7 +336,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from "vue";
+import { ref, reactive, onMounted } from "vue";
 import { telephonyService } from "@/services/telephonyService";
 
 const feedback = reactive({ text: "", type: "success" });
@@ -398,8 +429,8 @@ const callsFilters = reactive({
   to: todayIso(),
   call_status: null,
   direction: null,
-  queue_id: "",
-  agent_login: "",
+  queue_id: [],
+  agent_login: [],
   search: "",
 });
 const calls = ref([]);
@@ -409,16 +440,52 @@ const callsPerPage = ref(25);
 const callsLoading = ref(false);
 const exportingCsv = ref(false);
 
+// Agent/File — multi-select alimenté par les tables réelles du tenant
+// (14/08), plus des champs texte libres.
+const agentOptions = ref([]);
+const queueOptions = ref([]);
+
+async function loadFilterRosters() {
+  try {
+    const { data } = await telephonyService.getAgentsRoster();
+    agentOptions.value = (data.agents || []).map((a) => ({
+      value: a.agent_login,
+      label: a.agent_name || a.agent_login,
+    }));
+  } catch {
+    agentOptions.value = [];
+  }
+  try {
+    const { data } = await telephonyService.getQueuesRoster();
+    queueOptions.value = (data.queues || []).map((q) => ({
+      value: q.queue_id,
+      label: q.alias || q.queue_id,
+    }));
+  } catch {
+    queueOptions.value = [];
+  }
+}
+
 function callsParams() {
   const p = { page: callsPage.value, per_page: callsPerPage.value };
   if (callsFilters.from) p.from = callsFilters.from;
   if (callsFilters.to) p.to = callsFilters.to;
   if (callsFilters.call_status) p.call_status = callsFilters.call_status;
   if (callsFilters.direction) p.direction = callsFilters.direction;
-  if (callsFilters.queue_id) p.queue_id = callsFilters.queue_id;
-  if (callsFilters.agent_login) p.agent_login = callsFilters.agent_login;
+  if (callsFilters.queue_id.length)
+    p.queue_id = callsFilters.queue_id.join(",");
+  if (callsFilters.agent_login.length)
+    p.agent_login = callsFilters.agent_login.join(",");
   if (callsFilters.search) p.search = callsFilters.search;
   return p;
+}
+
+// Bouton "Filtrer" explicite : un changement de champ seul ne relance pas
+// la requête (seule la pagination du v-data-table-server le fait) — motif
+// signalé comme manquant (14/08).
+function applyCallsFilters() {
+  callsPage.value = 1;
+  fetchCalls();
 }
 
 async function fetchCalls(options) {
@@ -446,13 +513,15 @@ function resetCallsFilters() {
     to: todayIso(),
     call_status: null,
     direction: null,
-    queue_id: "",
-    agent_login: "",
+    queue_id: [],
+    agent_login: [],
     search: "",
   });
   callsPage.value = 1;
   fetchCalls();
 }
+
+onMounted(loadFilterRosters);
 
 async function exportCsv() {
   exportingCsv.value = true;

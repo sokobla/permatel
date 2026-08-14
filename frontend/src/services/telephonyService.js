@@ -39,6 +39,14 @@ export const telephonyService = {
   getRecordings(params = {}) {
     return apiClient.get("/telephony/recordings", { params });
   },
+  /** Agents PBX du tenant (14/08) — alimente le filtre multi-select du CDR. */
+  getAgentsRoster() {
+    return apiClient.get("/telephony/agents/roster");
+  },
+  /** Files PBX du tenant (14/08) — alimente le filtre multi-select du CDR. */
+  getQueuesRoster() {
+    return apiClient.get("/telephony/queues/roster");
+  },
   /** Téléchargement d'un enregistrement (proxy backend) — réponse blob. */
   downloadRecording(callUuid) {
     return apiClient.get(`/telephony/recordings/${callUuid}/download`, {

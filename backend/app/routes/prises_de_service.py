@@ -17,6 +17,7 @@ from app.models.prise_de_service import PriseDeService
 from app.models.agent_securite import AgentSecurite
 from app.models.client import Client
 from app.models.site import Site
+from app.models.user import User
 from app.utils.decorators import tenant_required
 from app.utils.csv_export import build_csv_response, MAX_EXPORT_ROWS
 
@@ -42,6 +43,10 @@ def _enrich(rows):
     agent_ids = {r.agent_id for r in rows}
     client_ids = {r.client_id for r in rows if r.client_id}
     site_ids = {r.site_id for r in rows if r.site_id}
+    # Utilisateurs PERMATEL globaux (pas de scope tenant, cf. CLAUDE.md) —
+    # ayant déclaré le début et/ou la fin (14/08, rapport détaillé).
+    user_ids = {r.created_by_id for r in rows if r.created_by_id} | \
+        {r.ended_by_id for r in rows if r.ended_by_id}
 
     agents = {a.id: a for a in AgentSecurite.query.filter(
         AgentSecurite.tenant_id == tid, AgentSecurite.id.in_(agent_ids or {0})).all()}
@@ -49,11 +54,15 @@ def _enrich(rows):
         Client.tenant_id == tid, Client.id.in_(client_ids or {0})).all()}
     sites = {s.id: s.nom for s in Site.query.filter(
         Site.tenant_id == tid, Site.id.in_(site_ids or {0})).all()}
+    users = {u.id: f"{u.prenom or ''} {u.nom or ''}".strip() for u in User.query.filter(
+        User.id.in_(user_ids or {0})).all()}
 
     return [
         r.to_dict(agent=agents.get(r.agent_id),
                   client_nom=clients.get(r.client_id),
-                  site_nom=sites.get(r.site_id))
+                  site_nom=sites.get(r.site_id),
+                  created_by_name=users.get(r.created_by_id),
+                  ended_by_name=users.get(r.ended_by_id))
         for r in rows
     ]
 
@@ -97,13 +106,13 @@ def export_prises_csv():
     enriched = _enrich(rows)
 
     header = [
-        "agent_nom", "agent_matricule", "client_nom", "site_nom",
-        "date_debut", "date_fin", "duree_minutes", "statut", "created_at",
+        "date", "agent", "type_agent", "client", "site",
+        "heure_debut", "declare_debut_par", "heure_fin", "declare_fin_par", "duree_minutes",
     ]
     csv_rows = [
         [
-            e["agent_nom"], e["agent_matricule"], e["client_nom"], e["site_nom"],
-            e["date_debut"], e["date_fin"], e["duree_minutes"], e["statut"], e["created_at"],
+            (e["date_debut"] or "")[:10], e["agent_nom"], e["agent_type"], e["client_nom"], e["site_nom"],
+            e["date_debut"], e["created_by_name"], e["date_fin"], e["ended_by_name"], e["duree_minutes"],
         ]
         for e in enriched
     ]
@@ -168,6 +177,7 @@ def end_current_prise():
         return jsonify({"error": "Aucune vacation en cours pour cet agent."}), 404
 
     pds.date_fin = utcnow()
+    pds.ended_by_id = getattr(g.user, "id", None)
     db.session.commit()
     return jsonify(_enrich([pds])[0]), 200
 
@@ -184,6 +194,7 @@ def end_prise(pds_id):
         return jsonify({"error": "Cette vacation est déjà terminée."}), 409
 
     pds.date_fin = utcnow()
+    pds.ended_by_id = getattr(g.user, "id", None)
     db.session.commit()
     return jsonify(_enrich([pds])[0]), 200
 

@@ -41,6 +41,7 @@ from app.models.user_token import (
 from app.utils.auth import role_required
 from app.utils.csv_export import build_csv_response, MAX_EXPORT_ROWS
 from app.utils.email_templates import build_reset_url, send_templated_email
+from app.utils.geoip import lookup_country_code
 from app.utils.logger import auth_logger
 from app.utils.login_throttle import check_locked, register_failure, reset as reset_login_throttle
 from app.utils.tokens import generate_token, hash_token
@@ -1009,6 +1010,9 @@ def _serialize_session_row(s, caller_refresh_jti):
         "role":             u.role.value if u and u.role else None,
         "status":           s.status.value,
         "ip_address":       s.ip_address,
+        # Drapeau pays (14/08) — lookup GeoIP local, jamais exporté en CSV
+        # (cf. export_sessions_monitoring_csv, header volontairement inchangé).
+        "country_code":     lookup_country_code(s.ip_address, current_app.config.get("GEOIP_DB_PATH")),
         "user_agent":       s.user_agent,
         "agent_login":      s.agent_login,
         "station_extension": s.station_extension,

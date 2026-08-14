@@ -80,6 +80,22 @@ class TestSessionsMonitoringDateFilterAndExport:
         resp = client.get("/api/auth/sessions/monitoring/export", headers=auth_headers)
         assert resp.status_code == 403
 
+    def test_monitoring_expose_country_code_sans_erreur(self, client, auth_headers_manager_tenant, sessions_echelonnees):
+        """Géolocalisation IP (14/08) : le champ existe dans la réponse JSON
+        (None en l'absence de base .mmdb en environnement de test — cf.
+        test_geoip.py) — ne doit jamais faire échouer /monitoring."""
+        resp = client.get("/api/auth/sessions/monitoring?status=all", headers=auth_headers_manager_tenant)
+        assert resp.status_code == 200
+        for row in resp.get_json()["sessions"]:
+            assert "country_code" in row
+
+    def test_export_csv_n_expose_jamais_country_code(self, client, auth_headers_manager_tenant, sessions_echelonnees):
+        """"Non exportable" (14/08) — le drapeau est purement UI, jamais
+        dans le CSV, quel que soit son contenu côté JSON."""
+        resp = client.get("/api/auth/sessions/monitoring/export?status=all", headers=auth_headers_manager_tenant)
+        rows = list(csv.reader(io.StringIO(resp.get_data(as_text=True))))
+        assert "country_code" not in rows[0]
+
 
 class TestSessionsStatsSmoke:
     """Couverture minimale sur /sessions/stats — logique interne (agrégation
