@@ -9,7 +9,7 @@ Règles :
   - IMAP (section)   : disponible ssi canal email activé.
   - Onglet MAIL      : visible ssi canal email ET SMTP+IMAP configurés.
   - Onglet CHAT      : visible ssi canal chat (disponibilité simple).
-  - Intégrations     : disponible ssi canal chat OU téléphonie.
+  - Intégrations     : disponible ssi canal chat OU téléphonie OU erp.
     - Slack          : ssi canal chat.
     - Téléphonie     : ssi canal téléphonie activé sur le tenant — le bouton
                         « Configurer » (Intégrations) ne dépend plus de
@@ -20,9 +20,13 @@ Règles :
                         `config_state` pour ce qui en dépend réellement
                         (ex. onglet Supervision > Téléphonie, qui a besoin
                         de données pour être utile).
+    - ERP            : même motif que téléphonie — ssi canal `channel_erp`
+                        activé (admin global), indépendamment de
+                        `erp_configured` (Phase 6, ODOO_INTEGRATION_PLAN.md).
 """
 from app.models.setting import SmtpSetting
 from app.models.pbx import PbxConnector
+from app.models.erp import ErpConfig
 
 
 def tenant_features(tenant) -> dict:
@@ -30,6 +34,7 @@ def tenant_features(tenant) -> dict:
         "telephonie": bool(tenant.channel_telephonie),
         "email": bool(tenant.channel_email),
         "chat": bool(tenant.channel_chat),
+        "erp": bool(tenant.channel_erp),
     }
 
     cfg = SmtpSetting.query.filter_by(tenant_id=tenant.id).first()
@@ -41,12 +46,16 @@ def tenant_features(tenant) -> dict:
         PbxConnector.query.filter_by(tenant_id=tenant.id, is_active=True).first()
     )
 
+    erp_cfg = ErpConfig.query.filter_by(tenant_id=tenant.id).first()
+    erp_configured = bool(erp_cfg and erp_cfg.company_id)
+
     return {
         "channels": ch,
         "config_state": {
             "smtp_configured": smtp_configured,
             "imap_configured": imap_configured,
             "telephony_configured": telephony_configured,
+            "erp_configured": erp_configured,
         },
         "workspace_tabs": {
             "workspace": True,
@@ -58,10 +67,11 @@ def tenant_features(tenant) -> dict:
             "smtp": True,            # toujours actif
             "imap": ch["email"],
             "reference": True,
-            "integrations": ch["chat"] or ch["telephonie"],
+            "integrations": ch["chat"] or ch["telephonie"] or ch["erp"],
         },
         "integrations": {
             "slack": ch["chat"],
             "telephony": ch["telephonie"],
+            "erp": ch["erp"],
         },
     }

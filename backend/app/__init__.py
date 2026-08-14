@@ -225,6 +225,14 @@ def create_app(config_object=None):
         r = dispatch_emails(db)
         click.echo(f"Emails — envoyés : {r['sent']} | échecs : {r['failed']}")
 
+    @click.command("erp-sync-dispatch")
+    @with_appcontext
+    def erp_sync_dispatch_command():
+        """Rejoue les entrées en attente de erp_sync_queue (retry après échec)."""
+        from app.services.erp_sync import dispatch_erp_sync
+        r = dispatch_erp_sync(db)
+        click.echo(f"ERP sync — traités : {r['processed']} | échecs : {r['failed']}")
+
     @click.command("reencrypt-secrets")
     @click.argument("old_key")
     @with_appcontext
@@ -275,12 +283,16 @@ def create_app(config_object=None):
     app.cli.add_command(sla_backfill_command, "sla-backfill")
     app.cli.add_command(sla_sweep_command, "sla-sweep")
     app.cli.add_command(notifications_dispatch_command, "notifications-dispatch")
+    app.cli.add_command(erp_sync_dispatch_command, "erp-sync-dispatch")
     app.cli.add_command(reencrypt_secrets_command, "reencrypt-secrets")
     app.cli.add_command(mail_fetch_command, "mail-fetch")
     app.cli.add_command(backfill_qualifications_command, "backfill-qualifications")
 
     from app.scripts.seed_prestataires import seed_prestataires_command
     app.cli.add_command(seed_prestataires_command, "seed-prestataires")
+
+    from app.scripts.erp_backfill import erp_backfill_command
+    app.cli.add_command(erp_backfill_command, "erp-backfill")
 
     from app.scripts.seed_agents import seed_agents_command
     app.cli.add_command(seed_agents_command, "seed-agents")
@@ -321,6 +333,9 @@ def create_app(config_object=None):
 
     from app.routes.settings import settings_bp
     app.register_blueprint(settings_bp)
+
+    from app.routes.erp import erp_bp
+    app.register_blueprint(erp_bp)
 
     from app.routes.emails import emails_bp
     app.register_blueprint(emails_bp)

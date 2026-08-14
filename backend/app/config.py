@@ -58,6 +58,15 @@ class BaseConfig:
     # MaxMind, obtention via compte gratuit) — absent = dégradation
     # gracieuse, aucun drapeau affiché (cf. app/utils/geoip.py).
     GEOIP_DB_PATH = os.environ.get("GEOIP_DB_PATH", "/app/geoip/GeoLite2-Country.mmdb")
+    # Instance ERP partagée entre tenants (Phase 6, ODOO_INTEGRATION_PLAN.md
+    # §2.3) — une seule URL/DB/identifiants de service pour tout PERMATEL,
+    # le scoping par tenant se fait via `company_id` (ErpConfig, pas ici).
+    # Absente = ErpClient non utilisable, dégrade proprement (POST
+    # /settings/erp/test retourne ok:false, pas une erreur 500).
+    ERP_URL = os.environ.get("ERP_URL")
+    ERP_DB = os.environ.get("ERP_DB")
+    ERP_USERNAME = os.environ.get("ERP_USERNAME")
+    ERP_PASSWORD = os.environ.get("ERP_PASSWORD")
     # Jeton technique partagé attendu sur l'en-tête X-Connector-Token par
     # POST /api/telephony/events/ingest (le connecteur PBX n'est pas un
     # utilisateur PERMATEL, pas d'authentification JWT sur cet endpoint).

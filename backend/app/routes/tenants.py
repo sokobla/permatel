@@ -38,6 +38,7 @@ def tenant_to_dict(t, include_users=False):
             "telephonie": t.channel_telephonie,
             "email": t.channel_email,
             "chat": t.channel_chat,
+            "erp": t.channel_erp,
         },
         "created_at": t.created_at.isoformat() if t.created_at else None,
         "updated_at": t.updated_at.isoformat() if t.updated_at else None,
@@ -304,7 +305,8 @@ def update_tenant(tenant_id):
     channels = data.get("channels") or {}
     for key, attr in (("telephonie", "channel_telephonie"),
                       ("email", "channel_email"),
-                      ("chat", "channel_chat")):
+                      ("chat", "channel_chat"),
+                      ("erp", "channel_erp")):
         if key in channels:
             setattr(tenant, attr, bool(channels[key]))
 

@@ -10,13 +10,15 @@ import re
 import smtplib
 import uuid
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from flask_cors import CORS
 from flask_jwt_extended import jwt_required, get_jwt
 
 from app import db
 from app.models.setting import SmtpSetting, ReferenceValue
 from app.models.sla import SlaPolicy
+from app.models.tenant import Tenant
+from app.models.erp import ErpConfig
 from app.utils.decorators import tenant_admin_required
 from app.utils.crypto import encrypt_secret, decrypt_secret
 
@@ -421,3 +423,140 @@ def delete_sla(policy_id):
     db.session.delete(row)
     db.session.commit()
     return jsonify({"message": "Politique SLA supprimée.", "id": policy_id}), 200
+
+
+# ══════════════════════════════════════════════════════════════
+#  RÉGLAGES GÉNÉRAUX TENANT (§4.3 ODOO_INTEGRATION_PLAN.md)
+#  Indépendants d'ERP mais posés dès la Phase 6, prérequis Phases 9/10.
+#  Éditables par l'admin du TENANT — contrairement aux channel_*
+#  (PUT /api/tenants/<id>, réservé ADMIN global).
+# ══════════════════════════════════════════════════════════════
+@settings_bp.get("/general")
+@jwt_required()
+def get_general():
+    tenant_id, err = _tenant_uuid()
+    if err:
+        return err
+    tenant = db.session.get(Tenant, tenant_id)
+    if not tenant:
+        return jsonify({"error": "Tenant introuvable."}), 404
+    return jsonify({
+        "document_blocking_expired": tenant.document_blocking_expired,
+        "vacation_delay_threshold_minutes": tenant.vacation_delay_threshold_minutes,
+    }), 200
+
+
+@settings_bp.put("/general")
+@tenant_admin_required
+def put_general():
+    tenant_id, err = _tenant_uuid()
+    if err:
+        return err
+    tenant = db.session.get(Tenant, tenant_id)
+    if not tenant:
+        return jsonify({"error": "Tenant introuvable."}), 404
+    data = request.get_json(silent=True) or {}
+
+    if "document_blocking_expired" in data:
+        tenant.document_blocking_expired = bool(data["document_blocking_expired"])
+
+    if "vacation_delay_threshold_minutes" in data:
+        try:
+            threshold = int(data["vacation_delay_threshold_minutes"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "vacation_delay_threshold_minutes doit être un entier."}), 422
+        if threshold <= 0:
+            return jsonify({"error": "vacation_delay_threshold_minutes doit être positif."}), 422
+        tenant.vacation_delay_threshold_minutes = threshold
+
+    db.session.commit()
+    return jsonify({
+        "document_blocking_expired": tenant.document_blocking_expired,
+        "vacation_delay_threshold_minutes": tenant.vacation_delay_threshold_minutes,
+    }), 200
+
+
+# ══════════════════════════════════════════════════════════════
+#  ERP (Phase 6 — Fondations, ODOO_INTEGRATION_PLAN.md §2.3/§5)
+#  company_id ERP cible pour ce tenant. Instance partagée entre tenants —
+#  cette route ne pose PAS d'URL/credentials par tenant (§2.3) : les 3
+#  champs url_erp/admin_username/admin_password (accès direct §4.4) sont
+#  ADMIN global uniquement, jamais acceptés ici (silencieusement ignorés
+#  s'ils sont envoyés — motif déjà utilisé par PATCH /api/users/me qui
+#  n'accepte que nom/prénom/avatar).
+# ══════════════════════════════════════════════════════════════
+@settings_bp.get("/erp")
+@jwt_required()
+def get_erp():
+    tenant_id, err = _tenant_uuid()
+    if err:
+        return err
+    cfg = ErpConfig.query.filter_by(tenant_id=tenant_id).first()
+    if not cfg:
+        return jsonify({"company_id": None, "has_admin_password": False, "updated_at": None}), 200
+    return jsonify(cfg.to_dict()), 200
+
+
+@settings_bp.put("/erp")
+@tenant_admin_required
+def put_erp():
+    tenant_id, err = _tenant_uuid()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+
+    try:
+        company_id = int(data.get("company_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "company_id (entier) requis."}), 422
+    if company_id <= 0:
+        return jsonify({"error": "company_id doit être positif."}), 422
+
+    cfg = ErpConfig.query.filter_by(tenant_id=tenant_id).first()
+    if not cfg:
+        cfg = ErpConfig(tenant_id=tenant_id)
+        db.session.add(cfg)
+    cfg.company_id = company_id
+
+    db.session.commit()
+    return jsonify(cfg.to_dict()), 200
+
+
+@settings_bp.post("/erp/test")
+@tenant_admin_required
+def test_erp():
+    """
+    Teste la connexion ERP : un execute_kw léger (lecture de la société
+    ciblée) via ErpClient. Utilise le company_id fourni, sinon celui déjà
+    enregistré. URL/DB/identifiants ERP proviennent de la config app
+    (instance partagée, §2.3) — jamais d'ErpConfig par tenant.
+    """
+    tenant_id, err = _tenant_uuid()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    saved = ErpConfig.query.filter_by(tenant_id=tenant_id).first()
+
+    try:
+        company_id = int(data.get("company_id") or (saved.company_id if saved else 0))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "company_id invalide."}), 422
+    if company_id <= 0:
+        return jsonify({"ok": False, "error": "Aucun company_id à tester."}), 422
+
+    from app.services.erp_client import ErpClient, ErpClientError
+
+    url = current_app.config.get("ERP_URL")
+    db_name = current_app.config.get("ERP_DB")
+    username = current_app.config.get("ERP_USERNAME")
+    password = current_app.config.get("ERP_PASSWORD")
+    if not all([url, db_name, username, password]):
+        return jsonify({"ok": False, "error": "Instance ERP non configurée côté serveur (ERP_URL/ERP_DB/ERP_USERNAME/ERP_PASSWORD)."}), 200
+
+    client = ErpClient(url=url, db=db_name, username=username, password=password)
+    try:
+        result = client.execute_kw(company_id, "res.company", "read", [[company_id]], {"fields": ["name"]})
+        name = result[0]["name"] if result else None
+        return jsonify({"ok": True, "message": f"Connexion ERP établie (société : {name})."}), 200
+    except ErpClientError as exc:
+        return jsonify({"ok": False, "error": f"Échec du test : {exc}"}), 200

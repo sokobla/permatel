@@ -34,6 +34,7 @@ from .user_token import UserToken, PURPOSE_ONBOARDING, PURPOSE_PASSWORD_RESET
 from .email_template import EmailTemplate, KNOWN_TEMPLATE_KEYS
 from .prestataire import Prestataire
 from .setting import SmtpSetting, ReferenceValue
+from .erp import ErpConfig, ErpSyncQueue
 from .sla import SlaPolicy
 from .prise_de_service import PriseDeService
 from .notification import Notification, NotificationPreference, EmailOutbox

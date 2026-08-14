@@ -1,7 +1,7 @@
 from datetime import datetime
 from app.utils.time import utcnow
 import uuid
-from sqlalchemy import Column, String, Boolean, DateTime
+from sqlalchemy import Column, String, Boolean, DateTime, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app import db
@@ -26,6 +26,16 @@ class Tenant(Base):
     channel_telephonie = Column(Boolean, default=False, nullable=False)
     channel_email = Column(Boolean, default=False, nullable=False)
     channel_chat = Column(Boolean, default=False, nullable=False)
+    channel_erp = Column(Boolean, default=False, nullable=False)
+
+    # Réglages métier tenant (Odoo/ERP §4.3) — éditables par l'admin du
+    # TENANT (pas l'admin global, contrairement aux channel_* ci-dessus),
+    # via GET/PUT /api/settings/general. Indépendants d'ERP mais posés dès
+    # cette phase, prérequis Phases 9/10 (blocage documentaire, alerte
+    # no-show planning).
+    document_blocking_expired = Column(Boolean, default=False, nullable=False)
+    vacation_delay_threshold_minutes = Column(Integer, default=15, nullable=False)
+
     created_at = Column(DateTime, default=utcnow, nullable=False)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 

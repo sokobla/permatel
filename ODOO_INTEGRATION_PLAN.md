@@ -195,14 +195,18 @@ Pas une porte dérobée au sens littéral (accès caché, non tracé, contournan
 Le détail des tâches est géré dans le fichier de suivi Excel (Phases 6 à 10). Voici l'alignement entre ces phases et les études architecturales (Parties 1, 2 et 3) :
 
 ### Phase 6 : Fondations transverses
-* Flag `integrations.erp` activable par tenant.
-* Création de `ErpConfig` (référence au `company_id` ERP du tenant, instance partagée — §2.3) et `erp_sync_queue` (avec `status`/`locked_at` — §2.4).
-* Ajout du champ custom `x_permatel_ref` sur les modèles ERP ciblés (`res.partner`, `project.project`, `sale.order`, `hr.employee`, …).
-* Service XML-RPC `erp_client.py` (client injecté, `execute_kw` avec `company_id` systématique — §2.2/2.3) et script CLI `flask erp-sync-dispatch`.
-* `tests/fakes/fake_erp_client.py` pour la suite pytest (§2.5).
-* Commande CLI de backfill initial, sur le modèle de `seed-prestataires`/`seed-agents` (§2.6).
-* Réglages tenant `document_blocking_expired` et `vacation_delay_threshold_minutes` (§4.3) — indépendants d'ERP mais posés dès cette phase, prérequis des Phases 9/10.
-* Accès direct ERP pour l'ADMIN global, audité (§4.4).
+
+**Statut (14/08) : livré**, code PERMATEL sous préfixe `Erp`/`erp_*` (décision actée avec l'utilisateur — cohérent avec §2.3/§3.B, pas `Odoo`/`odoo_*` malgré le nommage du suivi de tâches d'origine) :
+* Flag `integrations.erp` (`Tenant.channel_erp`, motif `channel_telephonie`/`email`/`chat`) activable par tenant — `PUT /api/tenants/<id>`, ADMIN global.
+* `ErpConfig` (`backend/app/models/erp.py`) — `company_id` ERP du tenant (instance partagée — §2.3) + 3 champs chiffrés `EncryptedText` pour l'accès direct admin (§4.4). `erp_sync_queue` (`ErpSyncQueue`) avec `status`/`attempts`/`locked_at`/`locked_until` (§2.4). Migration `c1b16fed65e1_erp_foundations.py`.
+* Service XML-RPC `backend/app/services/erp_client.py` (`ErpClient`, injecté par paramètre, `execute_kw(company_id, ...)` avec `company_id` obligatoire et `with_context(allowed_company_ids=…)` systématique — §2.2/§2.3, timeout court configurable).
+* `flask erp-sync-dispatch` (`backend/app/services/erp_sync.py`) — verrouillage `locked_at`/`locked_until` opérationnel et testé ; **le rejeu réel par flux n'est PAS implémenté** (aucun flux n'écrit encore dans la queue avant la Phase 7) — chaque ligne traitée passe actuellement en `failed` avec un message explicite, en attendant la logique métier de la Phase 7.
+* `backend/tests/fakes/fake_erp_client.py` (§2.5) — `create`/`write`/`search_read`/`read` en mémoire, même signature que `ErpClient`.
+* `flask erp-backfill --tenant-code <CODE>` (`backend/app/scripts/erp_backfill.py`) — **squelette fonctionnel** : compte les clients/sites/contacts/agents éligibles du tenant (dry-run par défaut, motif `seed-prestataires`), mais n'écrit encore rien vers ERP — dépend structurellement de `erp_partners`/`erp_employees` (§3.B), livrées en Phase 7.
+* Réglages tenant `document_blocking_expired`/`vacation_delay_threshold_minutes` (§4.3) — colonnes `Tenant`, `GET/PUT /api/settings/general` (tenant-admin, pas ADMIN global).
+* Accès direct ERP audité (§4.4) — `GET /api/erp/direct-access` (`backend/app/routes/erp.py`, `role_required(ADMIN)` global), trace une ligne `AuditLog` (`table_name="erp"`, event `ERP_DIRECT_ACCESS_VIEWED`) à chaque consultation. Écriture des 3 champs `url_erp`/`admin_username`/`admin_password` : **pas de route dédiée** dans cette passe (le plan ne spécifiait qu'un `GET`) — saisie directe en base au déploiement, ou futur écran Support/Réglages plateforme.
+
+**Prérequis restant, hors code PERMATEL — champ custom `x_permatel_ref`** : à créer **côté Odoo lui-même** (Odoo Studio ou module custom) sur chaque modèle ERP ciblé (`res.partner`, `project.project`, `sale.order`, `hr.employee`, …) avant la Phase 7 — ce n'est pas une migration Postgres ni du code Flask, et ne peut pas être vérifié dans cet environnement (aucune instance Odoo réelle disponible). C'est la clé d'idempotence de toute la synchro (§2.4) : sans elle, la Phase 7 ne peut pas démarrer le search-then-write.
 
 ### Phase 7 : Gestion des Partenaires (Partie 1 : CRM)
 * **Client PERMATEL** → ERP `res.partner(is_company=True)` + `project.project`.
