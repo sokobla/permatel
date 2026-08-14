@@ -102,6 +102,12 @@ const routes = [
     component: () => import("../views/ContactsView.vue"),
     meta: { requiresAuth: true, roles: ALL },
   },
+  {
+    path: "/mon-profil",
+    name: "MonProfil",
+    component: () => import("../views/MonProfilView.vue"),
+    meta: { requiresAuth: true, roles: ALL },
+  },
 
   // ── Accès admin + manager ───────────────────────────────────────────────────
   {

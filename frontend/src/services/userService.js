@@ -85,6 +85,33 @@ export const userService = {
   },
 
   /**
+   * Change le mot de passe de l'utilisateur connecté (auto-édition — exige
+   * l'ancien mot de passe, contrairement à resetPassword qui est ADMIN-only).
+   * @param {number|string} id
+   * @param {string} old_password
+   * @param {string} new_password
+   */
+  changePassword(id, old_password, new_password) {
+    return apiClient.patch(`${USERS}/${id}/password`, {
+      old_password,
+      new_password,
+    });
+  },
+
+  /**
+   * Met à jour le profil de l'utilisateur connecté (nom/prénom/avatar).
+   * Accepte un objet JSON ou un FormData (si l'avatar est fourni).
+   * @param {Object|FormData} data
+   */
+  updateMyProfile(data) {
+    const config = {};
+    if (data instanceof FormData) {
+      config.headers = { "Content-Type": undefined };
+    }
+    return apiClient.patch(`${USERS}/me`, data, config);
+  },
+
+  /**
    * Renvoie l'email d'onboarding (uniquement si onboarding_status === "pending").
    * @param {number|string} id
    */

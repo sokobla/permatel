@@ -264,6 +264,12 @@ const groups = [
 
 const bottomItems = [
   { label: "Rapports", icon: "mdi-chart-bar", value: "/reports", roles: STAFF },
+  {
+    label: "Mon Profil",
+    icon: "mdi-account-circle-outline",
+    value: "/mon-profil",
+    roles: ALL,
+  },
 ];
 
 // ─── Filtrage par rôle ─────────────────────────────────────────────────────────

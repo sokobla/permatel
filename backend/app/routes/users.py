@@ -149,6 +149,49 @@ def _get_current_user():
     return db.session.get(User, int(user_id))
 
 
+@users_bp.patch("/me")
+@jwt_required()
+def update_my_profile():
+    """Auto-édition du profil (nom/prénom/avatar) par l'utilisateur connecté.
+    Contrairement à update_user (ADMIN-only), n'expose ni role/email/is_active/
+    tenant_ids — seuls nom/prénom/avatar sont modifiables ici."""
+    user = _get_current_user()
+    if not user:
+        return jsonify({"message": "Utilisateur authentifié introuvable"}), 401
+
+    data, avatar_file, error = _parse_user_request()
+    if error:
+        return error
+
+    if "nom" in data:
+        user.nom = (data["nom"] or "").strip()
+
+    if "prenom" in data:
+        user.prenom = (data["prenom"] or "").strip()
+
+    if avatar_file:
+        try:
+            _delete_avatar(user)
+            avatar_url = _save_avatar(avatar_file, user)
+            user.avatar_url = avatar_url
+        except ValueError as e:
+            return jsonify({"message": str(e)}), 400
+        except Exception as e:
+            logger.error(f"Erreur lors de la sauvegarde de l'avatar pour l'utilisateur {user.id}: {e}")
+            return jsonify({"message": "Erreur interne lors de la sauvegarde de l'avatar."}), 500
+    elif data.get("avatar_url") is None and "avatar_url" in data:
+        _delete_avatar(user)
+        user.avatar_url = None
+
+    user.updated_at = utcnow()
+    db.session.commit()
+
+    return jsonify({
+        "message": "Profil mis à jour",
+        "user": _serialize_user(user)
+    }), 200
+
+
 @users_bp.get("")
 @jwt_required()
 @role_required(UserRole.ADMIN)

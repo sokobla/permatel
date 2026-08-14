@@ -408,3 +408,57 @@ class TestUpdatePassword:
         # Vérifier que le nouveau mot de passe fonctionne
         db.session.refresh(user_permanencier)
         assert user_permanencier.check_password(strong_password)
+
+
+class TestUpdateMyProfile:
+    """PATCH /api/users/me (self-service, aucun rôle requis — édite le compte connecté)"""
+
+    def test_update_my_profile_nom_prenom_retourne_200(self, client, user_permanencier, auth_headers, db):
+        """Un PERMANENCIER (rôle le plus bas) peut éditer son propre nom/prénom,
+        sans avoir besoin d'un rôle ADMIN — contrairement à PUT /users/<id>."""
+        payload = {"nom": "Nouveaunom", "prenom": "Nouveauprenom"}
+        resp = client.patch("/api/users/me", json=payload, headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["user"]["nom"] == "Nouveaunom"
+        assert data["user"]["prenom"] == "Nouveauprenom"
+
+        db.session.refresh(user_permanencier)
+        assert user_permanencier.nom == "Nouveaunom"
+        assert user_permanencier.prenom == "Nouveauprenom"
+
+    def test_update_my_profile_ignore_champs_non_autorises(self, client, user_permanencier, auth_headers, db):
+        """role/email/is_active ne sont pas modifiables via cette route self-service
+        (contrairement à update_user, réservé aux ADMIN) — ils sont simplement ignorés."""
+        payload = {
+            "nom": "Test",
+            "role": "ADMIN",
+            "email": "hacked@example.com",
+            "is_active": False,
+        }
+        resp = client.patch("/api/users/me", json=payload, headers=auth_headers)
+        assert resp.status_code == 200
+
+        db.session.refresh(user_permanencier)
+        assert user_permanencier.role == UserRole.PERMANENCIER
+        assert user_permanencier.email != "hacked@example.com"
+        assert user_permanencier.is_active is True
+
+    def test_update_my_profile_sans_auth_retourne_401(self, client):
+        """Aucun token → 401."""
+        resp = client.patch("/api/users/me", json={"nom": "X"})
+        assert resp.status_code == 401
+
+    def test_update_my_profile_suppression_avatar(self, client, user_permanencier, auth_headers, db):
+        """avatar_url: null explicite supprime l'avatar existant."""
+        user_permanencier.avatar_url = "/uploads/user_1_avatar.png"
+        db.session.commit()
+
+        resp = client.patch(
+            "/api/users/me", json={"avatar_url": None}, headers=auth_headers
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["user"]["avatar_url"] is None
+
+        db.session.refresh(user_permanencier)
+        assert user_permanencier.avatar_url is None

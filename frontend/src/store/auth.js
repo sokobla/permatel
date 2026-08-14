@@ -235,6 +235,16 @@ export const useAuthStore = defineStore("auth", {
       }
     },
 
+    /**
+     * Fusionne des champs mis à jour dans l'utilisateur courant (ex: après
+     * l'auto-édition du profil "Mon Profil") — évite un rechargement complet
+     * pour que l'avatar/nom affichés dans le menu se mettent à jour aussitôt.
+     * @param {Object} patch - Champs partiels (ex: { nom, prenom, avatar_url })
+     */
+    updateUserLocal(patch) {
+      this.user = { ...this.user, ...patch };
+    },
+
     /** Recharge les disponibilités fonctionnelles du tenant actif. */
     async fetchFeatures() {
       try {
