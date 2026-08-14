@@ -99,8 +99,15 @@ services:
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
       GUNICORN_WORKER_CLASS: ${GUNICORN_WORKER_CLASS:-eventlet}
       SOCKETIO_ASYNC_MODE: ${SOCKETIO_ASYNC_MODE:-eventlet}
+      # Géolocalisation IP (drapeau pays, Rapports > Sessions, 14/08) — base
+      # MaxMind GeoLite2-Country locale, montée en lecture seule ci-dessous
+      # depuis ./backend/geoip/ (fichier .mmdb non versionné, licence MaxMind
+      # — cf. README pour l'obtenir). Optionnel : absente, le lookup
+      # dégrade proprement (aucun drapeau affiché).
+      GEOIP_DB_PATH: ${GEOIP_DB_PATH:-/app/geoip/GeoLite2-Country.mmdb}
     volumes:
       - backend_uploads:/app/app/uploads
+      - ./backend/geoip:/app/geoip:ro
     networks:
       - permatel_internal
     depends_on:

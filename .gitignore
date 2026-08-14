@@ -21,6 +21,10 @@ htmlcov/
 /backend/app/uploads/*
 !/backend/app/uploads/.gitkeep
 
+# Base GeoIP (licence MaxMind — jamais versionnée, cf. README) — garder le dossier
+/backend/geoip/*
+!/backend/geoip/.gitkeep
+
 # Divers
 *.sqlite
 *.log
