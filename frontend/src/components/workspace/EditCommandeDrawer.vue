@@ -254,7 +254,7 @@ async function save() {
   position: fixed;
   top: var(--v-layout-top, 48px);
   right: 0;
-  bottom: 0;
+  bottom: var(--v-layout-bottom, 34px);
   left: 0;
   background: rgba(0, 11, 35, 0.45);
   z-index: 300;
