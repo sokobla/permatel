@@ -174,6 +174,8 @@
             <th class="ov-th">Commande</th>
             <th class="ov-th" style="width: 130px">Type / Montant</th>
             <th class="ov-th" style="width: 150px">Créée le</th>
+            <th class="ov-th" style="width: 150px">Dernière modification</th>
+            <th class="ov-th" style="width: 150px">Clôturé le</th>
             <th class="ov-th" style="width: 130px">Impliqués</th>
             <th class="ov-th" style="width: 50px; text-align: right">
               Actions
@@ -185,7 +187,7 @@
             <template v-for="group in groupedRows" :key="group.client">
               <!-- Ligne accordéon groupe -->
               <tr class="ov-group-row" @click="toggleGroup(group.client)">
-                <td colspan="5" class="ov-group-row__cell">
+                <td colspan="7" class="ov-group-row__cell">
                   <div class="ov-group-row__inner">
                     <v-icon
                       size="12"
@@ -296,6 +298,21 @@
                       début {{ formatShortDate(row.date_livraison_souhaitee) }}
                     </div>
                   </td>
+                  <td class="ov-td ov-td--date">
+                    {{ formatDate(row.updated_at) }}
+                    <div class="ov-date-sub">
+                      {{ row.updated_by_nom || "—" }}
+                    </div>
+                  </td>
+                  <td class="ov-td ov-td--date">
+                    <template v-if="row.closed_at">
+                      {{ formatDate(row.closed_at) }}
+                      <div class="ov-date-sub">
+                        {{ row.closed_by_nom || "—" }}
+                      </div>
+                    </template>
+                    <template v-else>—</template>
+                  </td>
                   <td class="ov-td">
                     <div class="ov-avatar-stack">
                       <span
@@ -398,6 +415,17 @@
                   début {{ formatShortDate(row.date_livraison_souhaitee) }}
                 </div>
               </td>
+              <td class="ov-td ov-td--date">
+                {{ formatDate(row.updated_at) }}
+                <div class="ov-date-sub">{{ row.updated_by_nom || "—" }}</div>
+              </td>
+              <td class="ov-td ov-td--date">
+                <template v-if="row.closed_at">
+                  {{ formatDate(row.closed_at) }}
+                  <div class="ov-date-sub">{{ row.closed_by_nom || "—" }}</div>
+                </template>
+                <template v-else>—</template>
+              </td>
               <td class="ov-td">
                 <div class="ov-avatar-stack">
                   <span
@@ -428,7 +456,7 @@
 
           <!-- Chargement -->
           <tr v-if="loading">
-            <td colspan="5">
+            <td colspan="7">
               <div class="ov-empty">
                 <v-icon size="28" color="#e0e0e0" class="ov-spin"
                   >mdi-loading</v-icon
@@ -440,7 +468,7 @@
 
           <!-- Erreur API -->
           <tr v-else-if="loadError">
-            <td colspan="5">
+            <td colspan="7">
               <div class="ov-empty" style="color: #e74c3c">
                 <v-icon size="28" color="#e74c3c"
                   >mdi-alert-circle-outline</v-icon
@@ -454,7 +482,7 @@
           <tr
             v-else-if="(groupEnabled ? groupedRows : filteredRows).length === 0"
           >
-            <td colspan="5">
+            <td colspan="7">
               <div class="ov-empty">
                 <v-icon size="36" color="#e0e0e0"
                   >mdi-package-variant-closed-check</v-icon
@@ -717,6 +745,20 @@ function formatShortDate(iso) {
     month: "2-digit",
     year: "2-digit",
   });
+}
+
+function formatDate(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return (
+    d.toLocaleDateString("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+    }) +
+    " " +
+    d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+  );
 }
 
 function initials(name) {

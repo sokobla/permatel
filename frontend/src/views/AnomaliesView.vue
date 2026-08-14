@@ -198,6 +198,8 @@
             <th class="av-th">Anomalie</th>
             <th class="av-th" style="width: 130px">Catégorie</th>
             <th class="av-th" style="width: 150px">Créée le</th>
+            <th class="av-th" style="width: 150px">Dernière modification</th>
+            <th class="av-th" style="width: 150px">Clôturé le</th>
             <th class="av-th" style="width: 130px">Impliqués</th>
             <th class="av-th" style="width: 70px; text-align: right">
               Actions
@@ -209,7 +211,7 @@
             <template v-for="group in groupedRows" :key="group.client">
               <!-- Ligne accordéon groupe -->
               <tr class="av-group-row" @click="toggleGroup(group.client)">
-                <td colspan="5" class="av-group-row__cell">
+                <td colspan="7" class="av-group-row__cell">
                   <div class="av-group-row__inner">
                     <v-icon
                       size="12"
@@ -300,6 +302,21 @@
                     <div class="av-date-sub">
                       par {{ row.created_by_nom ?? "—" }}
                     </div>
+                  </td>
+                  <td class="av-td av-td--date">
+                    {{ formatDate(row.updated_at) }}
+                    <div class="av-date-sub">
+                      {{ row.updated_by_nom || "—" }}
+                    </div>
+                  </td>
+                  <td class="av-td av-td--date">
+                    <template v-if="row.closed_at">
+                      {{ formatDate(row.closed_at) }}
+                      <div class="av-date-sub">
+                        {{ row.closed_by_nom || "—" }}
+                      </div>
+                    </template>
+                    <template v-else>—</template>
                   </td>
                   <td class="av-td">
                     <div class="av-avatar-stack">
@@ -413,6 +430,17 @@
                   par {{ row.created_by_nom ?? "—" }}
                 </div>
               </td>
+              <td class="av-td av-td--date">
+                {{ formatDate(row.updated_at) }}
+                <div class="av-date-sub">{{ row.updated_by_nom || "—" }}</div>
+              </td>
+              <td class="av-td av-td--date">
+                <template v-if="row.closed_at">
+                  {{ formatDate(row.closed_at) }}
+                  <div class="av-date-sub">{{ row.closed_by_nom || "—" }}</div>
+                </template>
+                <template v-else>—</template>
+              </td>
               <td class="av-td">
                 <div class="av-avatar-stack">
                   <span
@@ -460,7 +488,7 @@
 
           <!-- Chargement -->
           <tr v-if="loading">
-            <td colspan="5">
+            <td colspan="7">
               <div class="av-empty">
                 <v-icon size="28" color="#e0e0e0" class="av-spin"
                   >mdi-loading</v-icon
@@ -472,7 +500,7 @@
 
           <!-- Erreur API -->
           <tr v-else-if="loadError">
-            <td colspan="5">
+            <td colspan="7">
               <div class="av-empty" style="color: #e74c3c">
                 <v-icon size="28" color="#e74c3c"
                   >mdi-alert-circle-outline</v-icon
@@ -486,7 +514,7 @@
           <tr
             v-else-if="(groupEnabled ? groupedRows : filteredRows).length === 0"
           >
-            <td colspan="5">
+            <td colspan="7">
               <div class="av-empty">
                 <v-icon size="36" color="#e0e0e0"
                   >mdi-clipboard-check-outline</v-icon

@@ -152,7 +152,7 @@ def apply_sla(demande):
     demande.sla_deadline = base + timedelta(minutes=p.resolution_minutes)
 
 
-def on_status_change(demande, new_statut):
+def on_status_change(demande, new_statut, user_id=None):
     """Pose les horodatages de cycle de vie (prise en charge / résolution / clôture)."""
     now = utcnow()
     if new_statut != StatutDemande.NOUVELLE and not demande.prise_en_charge_at:
@@ -161,6 +161,7 @@ def on_status_change(demande, new_statut):
         demande.date_resolution = now
     if new_statut == StatutDemande.CLOTUREE and not demande.closed_at:
         demande.closed_at = now
+        demande.closed_by_id = user_id
 
 
 def _clock(deadline, base, end, now, warning_pct, paused):

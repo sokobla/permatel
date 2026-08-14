@@ -128,6 +128,14 @@ def _serialize_demande(demande: Demande) -> dict:
     except Exception:
         pass
 
+    closed_by_nom = None
+    try:
+        if demande.closed_by:
+            u = demande.closed_by
+            closed_by_nom = f"{u.prenom or ''} {u.nom or ''}".strip() or None
+    except Exception:
+        pass
+
     data = {
         "id": demande.id,
         "numero_ticket": demande.numero_ticket,
@@ -150,6 +158,7 @@ def _serialize_demande(demande: Demande) -> dict:
         "contact_avatar_url": contact_avatar_url,
         "permanencier_id": demande.permanencier_id,
         "closed_by_id": demande.closed_by_id,
+        "closed_by_nom": closed_by_nom,
         "created_by_id":   demande.created_by_id,
         "created_by_nom":  created_by_nom,
         "created_by_role": created_by_role,
@@ -567,7 +576,7 @@ def update_demande(demande_id):
             except ValueError:
                 return jsonify({"message": "statut invalide"}), 400
             # Horodatages de cycle de vie (prise en charge / résolution / clôture)
-            on_status_change(demande, demande.statut)
+            on_status_change(demande, demande.statut, user_id=user_id)
 
         if "priorite" in payload:
             try:
