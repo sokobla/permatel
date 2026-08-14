@@ -87,13 +87,26 @@
         <transition-group name="stl-row" tag="tbody">
           <tr v-for="c in activeCalls" :key="c.call_uuid">
             <td>
-              <div v-if="c.agent_login" class="stl-agent-cell">
-                <span class="stl-avatar">{{
-                  initials(c.agent_name || c.agent_login)
-                }}</span>
+              <div
+                v-if="c.agent_name || c.agent_login"
+                class="stl-agent-cell"
+                :title="
+                  c.agent_inferred
+                    ? 'Agent déduit du dernier poste connu (pas de contexte file sur cet appel)'
+                    : null
+                "
+              >
+                <span
+                  class="stl-avatar"
+                  :class="{ 'stl-avatar--inferred': c.agent_inferred }"
+                  >{{ initials(c.agent_name || c.agent_login) }}</span
+                >
                 <div class="stl-call-text">
                   <div class="stl-call-title">
-                    {{ c.agent_name || c.agent_login }}
+                    {{ c.agent_name || c.agent_login
+                    }}<span v-if="c.agent_inferred" class="stl-call-sub">
+                      (déduit)</span
+                    >
                   </div>
                   <div v-if="c.agent_station" class="stl-call-sub stl-mono">
                     Poste {{ c.agent_station }}
@@ -804,6 +817,11 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+.stl-avatar--inferred {
+  background: transparent;
+  color: #00a8a8;
+  border: 1.5px dashed #00a8a8;
 }
 .stl-call-cell {
   display: flex;
