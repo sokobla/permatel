@@ -1,7 +1,13 @@
 # Schéma de la base de données PERMATEL
 
-**Version** : 2.6.0 (Module Téléphonie — webhook CDR + grille agents) | **Base de données** : PostgreSQL 15  
-**Dernière mise à jour** : 29 juillet 2026
+**Version** : 2.7.0 (Exécution à distance ESL — codes de pause + prises de service) | **Base de données** : PostgreSQL 15  
+**Dernière mise à jour** : 14 août 2026
+
+### Changelog v2.7.0 (13-14 août 2026)
+- ☎️ **`telephony_events.pause_code`** (nouvelle colonne, `String(50)`, nullable) : sous-statut de pause à 1 caractère, porté par l'événement CUSTOM `agent_pause_code` émis par le connecteur au passage en "On Break" (exécution à distance ESL). `user_session_id` (colonne existante, jamais alimentée jusqu'ici) est désormais renseignée sur ces événements pour reconstruire l'historique pause/actif d'une session.
+- ➕ **`pbx_pause_codes`** : table de correspondance des codes de pause, configurable par tenant (`Paramètres > Téléphonie`) — `tenant_id`, `digit` (1 caractère), `label`, `is_protected` (la ligne `"0"`, créée à la volée au premier accès, non éditable/supprimable).
+- ➕ **`prises_de_service.ended_by_id`** (FK → `users.id`, `SET NULL`, nullable) : symétrique à `created_by_id` déjà existant — distingue l'utilisateur PERMATEL ayant déclaré le DÉBUT de celui ayant déclaré la FIN d'une vacation (rapport détaillé, `Rapports > Prises de service`).
+- 🗃️ Migrations : `af1a8735c279` (`pause_code` + `pbx_pause_codes`), `b7c9e1a3f5d7` (`prises_de_service.ended_by_id`).
 
 ### Changelog v2.6.0 (29 juillet 2026)
 - ☎️ **`telephony_events.agent_status`** (nouvelle colonne) : statut brut FreeSWITCH (`CC-Agent-Status`, mod_callcenter), normalisé en présence disponible/pause/hors-ligne par `GET /telephony/agents/status` (Phase 13, grille d'état des agents).

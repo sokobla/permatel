@@ -1,7 +1,7 @@
 # PERMATEL — Module Téléphonie : Plan d'intégration
 
-**Statut** : Phases 11 à 14 implémentées et connectées en production (252 tests backend + 58 tests connecteur). Phase 12 (Core Connector ESL, connecteur **tenant-scopé** — §8.4) raccordée à un FusionPBX réel (`fusion.cloud228.com`) — deux bugs de production détectés et corrigés (deadlock de reconnexion concurrente, route Nginx manquante pour le WebSocket) — voir §8.5. Phase 13 (config relocalisée sous `Paramètres > Intégrations`, `Supervision > Téléphonie` avec grille d'état des agents via `CC-Agent-Status`) et Phase 14 (webhook CDR `POST /telephony/cdr/ingest/<token>` + onglet `Rapports > Téléphonie`) **faites** — voir §8.6, qui documente aussi les six correctifs successifs du webhook CDR, chacun validé contre du trafic FusionPBX réel. **Corrélation de files d'attente, identité agent (`agent_login` = UUID `CC-Agent`, pas une extension) et enregistrement, confirmées contre plusieurs traces réelles supplémentaires (29-30/07)** — voir §8.7-§8.9, qui documentent aussi le nouveau bandeau d'appel actif (`CallCardBar`). L'exposition des enregistrements par FusionPBX en dehors du chemin de fichier local (URL http(s) exploitable) reste à confirmer, voir §8.6/§8.9. Phase 15 (connecteur Asterisk/AMI) non démarrée.
-**Date** : 30 juillet 2026
+**Statut** : Phases 11 à 14 implémentées et connectées en production (394 tests backend + 76 tests connecteur). Phase 12 (Core Connector ESL, connecteur **tenant-scopé** — §8.4) raccordée à un FusionPBX réel (`fusion.cloud228.com`) — deux bugs de production détectés et corrigés (deadlock de reconnexion concurrente, route Nginx manquante pour le WebSocket) — voir §8.5. Phase 13 (config relocalisée sous `Paramètres > Intégrations`, `Supervision > Téléphonie` avec grille d'état des agents via `CC-Agent-Status`) et Phase 14 (webhook CDR `POST /telephony/cdr/ingest/<token>` + onglet `Rapports > Téléphonie`) **faites** — voir §8.6, qui documente aussi les six correctifs successifs du webhook CDR, chacun validé contre du trafic FusionPBX réel. **Corrélation de files d'attente, identité agent (`agent_login` = UUID `CC-Agent`, pas une extension) et enregistrement, confirmées contre plusieurs traces réelles supplémentaires (29-30/07)** — voir §8.7-§8.9, qui documentent aussi le nouveau bandeau d'appel actif (`CallCardBar`). L'exposition des enregistrements par FusionPBX en dehors du chemin de fichier local (URL http(s) exploitable) reste à confirmer, voir §8.6/§8.9. **Exécution à distance ESL — login/logout/statut agent, codes de pause (13-14/08)** — voir §8.10 : injection CUSTOM FreeSWITCH non confirmée contre trafic réel, seule zone d'incertitude restante sur ce chantier. Phase 15 (connecteur Asterisk/AMI) non démarrée.
+**Date** : 14 août 2026
 **Source** : `docs/cdc/CDC-Module-Telephonie.md` (v1.0, 27 juillet 2026)
 **Suivi des tâches** : `docs/suivi_taches_permatel.xlsx` (Phases 11 à 14)
 
@@ -677,3 +677,64 @@ qui échouaient faute d'agent réellement enregistré) et les tentatives
   `caller`/`callee` en query params — **le prefill réel du formulaire
   (recherche de contact par numéro) n'est pas implémenté côté
   `WorkspaceView`, limitation connue, pas silencieusement contournée.**
+
+### 8.10 Exécution à distance ESL — login/logout/statut agent, codes de pause (13-14/08)
+
+Extension du connecteur existant (toujours Phase 12, `Core Connector` +
+`ESLAdapter`) — direction inverse de tout ce qui précède : jusqu'ici le
+connecteur était strictement **consommateur** d'événements FreeSWITCH,
+PERMATEL peut désormais **déclencher des actions** côté FusionPBX.
+
+- **Pas de table de jobs persistée** (décision actée en conception, avant
+  implémentation) : contrairement à l'intégration Odoo (`odoo_sync_queue`,
+  requise parce qu'Odoo est joint en HTTP sans connexion permanente), le
+  connecteur maintient déjà une connexion ESL **persistante et synchrone**
+  à FreeSWITCH — le dispatch se fait par un signal Redis direct
+  (`_dispatch_pbx_job`, `backend/app/routes/telephony.py`), même canal que
+  le signal "Sync" existant (`telephony:sync`), payload JSON distingué
+  d'un entier brut côté `_SyncListener._run()`. Perdu silencieusement sans
+  retry si Redis/le connecteur est injoignable à cet instant — acceptable,
+  ce sont des actions rejouables par l'utilisateur, pas des transactions.
+- **3 job_type** : `agent_login`/`agent_logout` (déclenchés automatiquement
+  au login/logout PERMATEL, `backend/app/routes/auth.py`) et
+  `agent_status_change` (bouton self-service `POST
+  /telephony/agents/me/status`). `ESLAdapter.execute_job()` traduit chacun
+  en `api callcenter_config agent set status <uuid> '<statut>'`.
+- **Codes de pause** : "On Break" porte un `pause_code` (1 caractère),
+  choisi dans PERMATEL (pas de collecte DTMF sur le poste en phase 1 —
+  différé), table `pbx_pause_codes` par tenant avec une ligne `"0"` créée
+  à la volée (protégée, non éditable/supprimable). Le connecteur émet un
+  **véritable événement CUSTOM FreeSWITCH** (`sendevent CUSTOM`,
+  `Event-Subclass: esl_adapter::agent_pause_code`) — capacité nouvelle,
+  jamais utilisée avant dans ce connecteur (100% consommateur jusqu'ici).
+  Techniquement fonctionnel (`self._esl.send()` est générique, aucune
+  distinction lecture/écriture ; confirmé en lisant directement la
+  bibliothèque vendue `greenswitch` que `send()` ajoute déjà la
+  terminaison double-EOL requise par le protocole ESL — pas de blanc
+  manuel ajouté). **⚠️ Non confirmé contre un flux FusionPBX réel à ce
+  jour** (dans l'esprit des autres zones d'incertitude déjà documentées
+  dans ce plan, §8.3) — l'événement est ensuite reçu en retour par le
+  connecteur lui-même via son abonnement ESL habituel (souscription
+  étendue, handler dédié) et réingéré par le pipeline normal, sans
+  mécanisme spécifique.
+- **Correctif du round-trip pour la persistance/diffusion du statut** :
+  compter uniquement sur mod_callcenter → ré-ingestion pour faire
+  apparaître un changement de statut s'est révélé insuffisant en pratique
+  — un connecteur pas encore redéployé, Redis ou le PBX injoignable
+  faisaient disparaître le statut demandé sans laisser de trace (ni
+  persisté, ni diffusé). `_record_and_broadcast_agent_status_event()`
+  persiste désormais un `TelephonyEvent` et diffuse sur le socket
+  immédiatement, indépendamment de la confirmation PBX (qui reste la
+  source de vérité effective si/quand elle arrive — réécrit alors la même
+  valeur, sans effet).
+- **`UserSession.status` synchronisé** : le champ `PAUSED` existait déjà
+  (sweep d'inactivité, `POST /auth/refresh`, badges de supervision) mais
+  n'était jamais alimenté — désormais posé en parallèle des changements de
+  statut PBX. Temps actif/pause par session reconstruits depuis
+  l'historique `TelephonyEvent` (`user_session_id`, colonne existante
+  jamais utilisée jusqu'ici) — voir `README.md` changelog v1.10.0 et
+  `DATABASE_SCHEMA.md` v2.7.0 pour le détail data/API.
+- **Frontend** : bouton de statut self-service dans l'app-bar
+  (`AgentStatusMenu.vue`, visible ssi `User.agent_login` renseigné) ;
+  `RingingCallBar.vue`, bandeau global distinct de `CallCardBar` affiché
+  uniquement pendant la sonnerie (avant décroché) de l'agent connecté.

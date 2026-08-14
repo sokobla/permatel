@@ -1,6 +1,6 @@
 # Permatel - Architecture et Structure du Projet
 
-**Version** : 1.9.0 | **Statut** : Backend ✅ / Frontend ✅ | **Tests** : 252 (backend) + 58 (connecteur) ✅
+**Version** : 1.10.0 | **Statut** : Backend ✅ / Frontend ✅ | **Tests** : 394 (backend) + 76 (connecteur) ✅
 > ⚠️ Ce numéro de version suit désormais celui de `README.md` (source de vérité la plus à jour) — les sections "Changelog" ci-dessous n'ont pas été renumérotées rétroactivement, voir `README.md` pour l'historique complet et à jour.
 
 ### 🚧 TODO planifié — Intégration Odoo (add-on activable par tenant, non démarré)
@@ -68,6 +68,34 @@ Reste à confirmer contre du trafic réel (non bloquant) : l'exposition des
 enregistrements par FusionPBX en dehors du chemin de fichier local
 FreeSWITCH (URL http(s) exploitable par PERMATEL, configuration PBX non
 confirmée — §8.6). → **15** (connecteur Asterisk/AMI), non démarrée.
+
+**Exécution à distance ESL (13-14/08) ✅** — extension du connecteur
+existant (Phase 12), pas une nouvelle phase numérotée : PERMATEL déclenche
+désormais des jobs `agent_login`/`agent_logout`/`agent_status_change` côté
+FusionPBX (dispatch Redis, aucune table de jobs persistée — la connexion
+ESL du connecteur est déjà permanente et synchrone). Codes de pause
+configurables par tenant (`pbx_pause_codes`, ligne `"0"` protégée), portés
+par un véritable événement CUSTOM FreeSWITCH réingéré par le pipeline
+normal du connecteur. `UserSession.status` (`PAUSED`, présent depuis
+longtemps mais jamais alimenté) est désormais synchronisé en parallèle des
+changements de statut PBX, avec reconstruction des temps actif/pause par
+session depuis l'historique `TelephonyEvent`. Bouton de statut self-service
+dans l'app-bar, bandeau `RingingCallBar` (sonnerie, avant décroché,
+distinct de `CallCardBar`). Filtre CDR refondu (dates alignées, bouton
+"Filtrer" explicite, Agent/File en multi-select alimentés par deux
+nouveaux endpoints roster). Détails : `README.md` changelog v1.10.0.
+
+### 🌍 Géolocalisation IP (Rapports > Sessions, 14/08)
+
+Drapeau pays devant les adresses IP affichées dans les Rapports/Supervision
+des sessions — lookup **MaxMind GeoLite2-Country 100% local**
+(`backend/app/utils/geoip.py`, bibliothèque `maxminddb`), aucune IP
+transmise à un service tiers. Base `.mmdb` **non versionnée** (licence
+MaxMind) : à obtenir via un compte gratuit et déposer dans
+`backend/geoip/`, monté en lecture seule dans le conteneur `backend`
+(`docker-compose.yml`, variable `GEOIP_DB_PATH`) — absente, le lookup
+dégrade proprement (aucun drapeau affiché, jamais d'erreur). `country_code`
+exposé en JSON uniquement, jamais dans les exports CSV.
 
 ### Changelog v1.4.0 (22 juin 2026)
 > ⚠️ Les sections détaillées plus bas datent de v1.1.0 (mai 2026). Les changelogs font foi pour l'état courant.
