@@ -382,7 +382,9 @@ flask superadmin list  # gestion des super-admins (create/promote/demote…)
 | `VITE_API_BASE_URL` | URL de l'API | `http://localhost:5000/api` |
 | `VITE_APP_NAME` | Nom de l'application (menu, footer) | `PERMATEL` |
 | `VITE_APP_VERSION` | Version affichée | `1.0.0` |
-| `VITE_INACTIVITY_TIMEOUT_MINUTES` | Auto-logout client (= timeout serveur) | `30` |
+| `VITE_INACTIVITY_TIMEOUT_MINUTES` | Auto-logout client (= timeout serveur, build-time) | `30` |
+
+⚠️ `VITE_*` sont des variables **build-time** (Vite les fige dans le bundle JS, pas de lecture runtime) — un changement exige de reconstruire le frontend (`npm run build` ou `docker compose up -d --build frontend`), pas juste un redémarrage. En Docker, `VITE_INACTIVITY_TIMEOUT_MINUTES` n'est **pas** une variable séparée à définir soi-même : `docker-compose.yml` la dérive automatiquement de `SESSION_INACTIVITY_TIMEOUT_MINUTES` (backend) via un build arg, pour que les deux timeouts ne puissent jamais diverger — il suffit de changer `SESSION_INACTIVITY_TIMEOUT_MINUTES` dans le `.env` racine et de rebuild. Seul le dev local (`npm run dev`, sans Docker) lit `VITE_INACTIVITY_TIMEOUT_MINUTES` directement depuis `frontend/.env`.
 
 ### Paramètres multi-tenant
 
