@@ -23,7 +23,12 @@ from app.models.token_blocklist import TokenBlocklist
 
 
 def expire_inactive_sessions(db, timeout_minutes=None):
-    """Passe en EXPIRED les sessions ACTIVE inactives au-delà du timeout."""
+    """Passe en EXPIRED les sessions ACTIVE inactives au-delà du timeout.
+
+    Retourne la LISTE des `UserSession` expirées (pas seulement leur
+    compte, 15/08) — permet à `sweep_sessions()` de déclencher le dispatch
+    PBX agent_logout pour chacune après le commit (`notify_pbx_agent_logout`,
+    `app/routes/telephony.py`)."""
     if timeout_minutes is None:
         timeout_minutes = int(current_app.config.get("SESSION_INACTIVITY_TIMEOUT", 30))
 
@@ -41,7 +46,7 @@ def expire_inactive_sessions(db, timeout_minutes=None):
         s.status = SessionStatus.EXPIRED
         s.session_end = now
 
-    return len(stale)
+    return stale
 
 
 def purge_expired_blocklist(db):
@@ -58,8 +63,23 @@ def sweep_sessions(db, timeout_minutes=None):
     """
     Exécute les deux opérations de maintenance et committe.
     Retourne un dict de comptes : {expired, purged}.
-    """
-    expired = expire_inactive_sessions(db, timeout_minutes=timeout_minutes)
+
+    15/08 : chaque session expirée portant un agent PBX déclenche un job
+    `agent_logout` (`notify_pbx_agent_logout`) APRÈS le commit — jusqu'ici
+    seul logout() manuel notifiait le PBX, laissant un agent inactif
+    enregistré indéfiniment côté FusionPBX. Best-effort strict : ne lève
+    jamais (sinon `scripts/sessions_sweep.py::main()` reporterait à tort
+    un échec du sweep alors que le travail DB a réussi)."""
+    stale_sessions = expire_inactive_sessions(db, timeout_minutes=timeout_minutes)
     purged = purge_expired_blocklist(db)
     db.session.commit()
-    return {"expired": expired, "purged": purged}
+
+    from app.routes.telephony import notify_pbx_agent_logout
+    for s in stale_sessions:
+        if s.agent_login and s.active_tenant_id:
+            notify_pbx_agent_logout(
+                s.active_tenant_id, s.agent_login,
+                session=s, context="session_expiry_sweep",
+            )
+
+    return {"expired": len(stale_sessions), "purged": purged}

@@ -135,14 +135,19 @@ def _revoke_token(jti: str, token_type: str, user_id: int, expires_at: datetime)
     db.session.add(entry)
 
 
-def _revoke_all_active_sessions(user_id: int) -> None:
+def _revoke_all_active_sessions(user_id: int) -> list:
     """Invalide immédiatement toutes les sessions ACTIVE d'un utilisateur —
     même mécanique que revoke_session() (blocklist du refresh token, statut
     REVOKED) — déclenchée ici par une réinitialisation de mot de passe plutôt
     qu'une révocation manuelle en Supervision. Un mot de passe qu'on vient de
     réinitialiser (souvent parce qu'il a fuité) ne doit laisser aucune
     session ouverte derrière lui, pas seulement empêcher les futures
-    connexions."""
+    connexions.
+
+    Retourne la liste des `UserSession` révoquées (15/08, ajouté pour que
+    l'appelant puisse déclencher le dispatch PBX agent_logout après son
+    propre commit — cf. `notify_pbx_agent_logout`). Seul appelant à ce
+    jour : `reset_password()`."""
     from datetime import timedelta
 
     now = utcnow()
@@ -153,6 +158,7 @@ def _revoke_all_active_sessions(user_id: int) -> None:
             _revoke_token(jti=session.jti, token_type="refresh", user_id=user_id, expires_at=refresh_exp)
         session.status = SessionStatus.REVOKED
         session.session_end = now
+    return sessions
 
 
 def _log_audit(user_id: int, event: str, details: dict, tenant_id: uuid.UUID | None = None) -> None:
@@ -1157,6 +1163,17 @@ def revoke_session(session_id):
         f"SESSION_REVOKED | by_user={caller_id} | session_id={session.id} "
         f"| target_user={session.user_id} | ip={ip}"
     )
+
+    # Exécution à distance ESL (15/08) : une session révoquée (admin ou
+    # propriétaire) doit aussi déconnecter l'agent côté PBX — jusqu'ici
+    # seul logout() déclenchait ce job. Best-effort, après le commit.
+    if session.agent_login and session.active_tenant_id:
+        from app.routes.telephony import notify_pbx_agent_logout
+        notify_pbx_agent_logout(
+            session.active_tenant_id, session.agent_login,
+            session=session, context="revoke_session",
+        )
+
     return jsonify({"message": "Session révoquée.", "session_id": session.id}), 200
 
 
@@ -1457,8 +1474,22 @@ def reset_password(token):
 
     # Un mot de passe qu'on vient de réinitialiser ne doit laisser aucune
     # session déjà ouverte valide — décision produit actée explicitement.
-    _revoke_all_active_sessions(user.id)
+    revoked_sessions = _revoke_all_active_sessions(user.id)
 
     db.session.commit()
     auth_logger.info(f"PASSWORD_RESET_COMPLETED | user_id={user.id}")
+
+    # Exécution à distance ESL (15/08) : chaque session révoquée ici (une
+    # par appareil connecté) doit aussi déconnecter l'agent côté PBX.
+    # Best-effort, après le commit — un échec sur une session n'empêche pas
+    # de traiter les suivantes.
+    if revoked_sessions:
+        from app.routes.telephony import notify_pbx_agent_logout
+        for s in revoked_sessions:
+            if s.agent_login and s.active_tenant_id:
+                notify_pbx_agent_logout(
+                    s.active_tenant_id, s.agent_login,
+                    session=s, context="reset_password",
+                )
+
     return jsonify({"message": "Mot de passe réinitialisé. Vous pouvez vous connecter."}), 200

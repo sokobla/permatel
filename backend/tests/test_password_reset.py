@@ -4,6 +4,7 @@ GET/POST /api/auth/reset-password/<token> — anti-énumération, expiration 1h,
 et invalidation des sessions actives à la complétion.
 """
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 
@@ -153,3 +154,75 @@ class TestResetPassword:
         refresh_headers = {"Authorization": f"Bearer {tokens_permanencier['refresh_token']}"}
         refresh_resp = client.post("/api/auth/refresh", headers=refresh_headers)
         assert refresh_resp.status_code == 401
+
+    def test_reset_declenche_un_job_pbx_pour_une_session_avec_agent_login(
+        self, client, db, user_permanencier, default_tenant,
+    ):
+        """Exécution à distance ESL (15/08) : réinitialiser le mot de passe
+        révoque les sessions actives — chacune portant un agent PBX doit
+        aussi déclencher un agent_logout, pas seulement logout() manuel."""
+        user_permanencier.agent_login = "agent-uuid-1"
+        db.session.commit()
+        client.post("/api/auth/login", json={"username": "permanencier1", "password": "Password123!"})
+        # Le login d'un agent démarre la session en PAUSED ("On Break"
+        # implicite, cf. test_auth_pbx_dispatch.py) — _revoke_all_active_sessions()
+        # ne cible que ACTIVE (comportement préexistant, hors périmètre de
+        # cette passe) : on simule ici une session active pour tester le
+        # câblage du dispatch, pas le statut initial post-login.
+        UserSession.query.filter_by(user_id=user_permanencier.id).update({"status": SessionStatus.ACTIVE})
+        db.session.commit()
+
+        self._create_reset_token(db, user_permanencier)
+        with patch("app.routes.telephony._dispatch_pbx_job") as dispatch_mock:
+            resp = client.post("/api/auth/reset-password/reset-token-abc", json={"password": "NouveauMdp123!"})
+
+        assert resp.status_code == 200
+        dispatch_mock.assert_called_once_with(default_tenant.id, "agent_logout", "agent-uuid-1")
+
+    def test_reset_sans_agent_login_ne_declenche_rien(self, client, db, user_permanencier):
+        client.post("/api/auth/login", json={"username": "permanencier1", "password": "Password123!"})
+
+        self._create_reset_token(db, user_permanencier)
+        with patch("app.routes.telephony._dispatch_pbx_job") as dispatch_mock:
+            resp = client.post("/api/auth/reset-password/reset-token-abc", json={"password": "NouveauMdp123!"})
+
+        assert resp.status_code == 200
+        dispatch_mock.assert_not_called()
+
+    def test_reset_reussit_meme_si_le_dispatch_pbx_echoue(self, client, db, user_permanencier):
+        user_permanencier.agent_login = "agent-uuid-1"
+        db.session.commit()
+        client.post("/api/auth/login", json={"username": "permanencier1", "password": "Password123!"})
+
+        self._create_reset_token(db, user_permanencier)
+        with patch("app.routes.telephony._dispatch_pbx_job", side_effect=RuntimeError("boom")):
+            resp = client.post("/api/auth/reset-password/reset-token-abc", json={"password": "NouveauMdp123!"})
+
+        assert resp.status_code == 200
+
+    def test_reset_declenche_un_job_par_session_multi_appareil(
+        self, client, db, user_permanencier, default_tenant,
+    ):
+        """Deux sessions actives (deux appareils) pour le même agent ->
+        deux jobs agent_logout distincts, un par session révoquée."""
+        user_permanencier.agent_login = "agent-uuid-1"
+        db.session.commit()
+        client.post("/api/auth/login", json={"username": "permanencier1", "password": "Password123!"})
+        client.post("/api/auth/login", json={"username": "permanencier1", "password": "Password123!"})
+        # cf. commentaire du test précédent : le login d'un agent démarre en
+        # PAUSED, on simule deux sessions actives pour tester le dispatch.
+        UserSession.query.filter_by(user_id=user_permanencier.id).update({"status": SessionStatus.ACTIVE})
+        db.session.commit()
+
+        active_before = UserSession.query.filter_by(
+            user_id=user_permanencier.id, status=SessionStatus.ACTIVE,
+        ).count()
+        assert active_before == 2
+
+        self._create_reset_token(db, user_permanencier)
+        with patch("app.routes.telephony._dispatch_pbx_job") as dispatch_mock:
+            resp = client.post("/api/auth/reset-password/reset-token-abc", json={"password": "NouveauMdp123!"})
+
+        assert resp.status_code == 200
+        assert dispatch_mock.call_count == 2
+        dispatch_mock.assert_called_with(default_tenant.id, "agent_logout", "agent-uuid-1")

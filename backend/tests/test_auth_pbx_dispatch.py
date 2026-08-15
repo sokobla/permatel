@@ -166,3 +166,66 @@ class TestLogoutDispatchesAgentLogoutJob:
         session = UserSession.query.get(session_id)
         assert session.status == SessionStatus.ENDED
         assert session.session_end is not None
+
+
+class TestRevokeSessionDispatchesAgentLogoutJob:
+    """DELETE /api/auth/sessions/<id> (15/08) — une session révoquée doit
+    aussi déconnecter l'agent côté PBX, pas seulement le logout manuel."""
+
+    def test_revoke_avec_agent_login_declenche_le_job(
+        self, client, db, user_permanencier, default_tenant, auth_headers,
+    ):
+        user_permanencier.agent_login = "agent-uuid-1"
+        db.session.commit()
+        login_resp = client.post(LOGIN_URL, json={"username": "permanencier1", "password": "Password123!"})
+        session_id = login_resp.get_json()["session_id"]
+
+        with patch("app.routes.telephony._dispatch_pbx_job") as dispatch_mock:
+            resp = client.delete(f"/api/auth/sessions/{session_id}", headers=auth_headers)
+
+        assert resp.status_code == 200
+        dispatch_mock.assert_called_once_with(default_tenant.id, "agent_logout", "agent-uuid-1")
+
+    def test_revoke_sans_agent_login_ne_declenche_rien(
+        self, client, db, tokens_permanencier, auth_headers,
+    ):
+        session_id = tokens_permanencier["session_id"]
+
+        with patch("app.routes.telephony._dispatch_pbx_job") as dispatch_mock:
+            resp = client.delete(f"/api/auth/sessions/{session_id}", headers=auth_headers)
+
+        assert resp.status_code == 200
+        dispatch_mock.assert_not_called()
+
+    def test_revoke_reussit_meme_si_le_dispatch_pbx_echoue(
+        self, client, db, user_permanencier, auth_headers,
+    ):
+        user_permanencier.agent_login = "agent-uuid-1"
+        db.session.commit()
+        login_resp = client.post(LOGIN_URL, json={"username": "permanencier1", "password": "Password123!"})
+        session_id = login_resp.get_json()["session_id"]
+
+        with patch("app.routes.telephony._dispatch_pbx_job", side_effect=RuntimeError("boom")):
+            resp = client.delete(f"/api/auth/sessions/{session_id}", headers=auth_headers)
+
+        assert resp.status_code == 200
+
+    def test_revoke_deux_fois_ne_redeclenche_rien(
+        self, client, db, user_permanencier, auth_headers,
+    ):
+        """Early-return de la route sur une session déjà terminée
+        (ENDED/REVOKED/EXPIRED) — un second DELETE ne doit pas redéclencher
+        le job."""
+        user_permanencier.agent_login = "agent-uuid-1"
+        db.session.commit()
+        login_resp = client.post(LOGIN_URL, json={"username": "permanencier1", "password": "Password123!"})
+        session_id = login_resp.get_json()["session_id"]
+
+        first = client.delete(f"/api/auth/sessions/{session_id}", headers=auth_headers)
+        assert first.status_code == 200
+
+        with patch("app.routes.telephony._dispatch_pbx_job") as dispatch_mock:
+            second = client.delete(f"/api/auth/sessions/{session_id}", headers=auth_headers)
+
+        assert second.status_code == 200
+        dispatch_mock.assert_not_called()

@@ -245,6 +245,32 @@ def _record_and_broadcast_agent_status_event(tenant_id, agent_uuid, status, paus
     return event
 
 
+def notify_pbx_agent_logout(tenant_id, agent_login, session=None, context="") -> None:
+    """Notifie le PBX qu'un agent est déconnecté côté PERMATEL (job
+    `agent_logout` + événement "Logged Out"), quelle que soit la cause
+    (logout manuel, expiration inactivité, révocation admin/reset mdp).
+
+    Best-effort strict : ne lève JAMAIS, ne doit jamais bloquer l'appelant
+    — motif déjà établi dans `logout()` (`app/routes/auth.py`), extrait ici
+    pour être réutilisable depuis les autres voies de fin de session
+    (15/08). `logout()` garde son propre bloc inline intentionnellement
+    (non refactoré) pour ne prendre aucun risque de régression sur un
+    chemin d'authentification déjà testé.
+    """
+    if not agent_login or not tenant_id:
+        return
+    try:
+        _dispatch_pbx_job(tenant_id, "agent_logout", agent_login)
+        _record_and_broadcast_agent_status_event(
+            tenant_id, agent_login, "Logged Out", session=session,
+        )
+    except Exception:  # noqa: BLE001
+        current_app.logger.warning(
+            f"agent_logout PBX dispatch échoué ({context}) | agent_login={agent_login}",
+            exc_info=True,
+        )
+
+
 # ═════════════════════════════════════════════════════════════════════════
 #  Bootstrap config + heartbeat (Core Connector — jeton technique, pas de JWT)
 # ═════════════════════════════════════════════════════════════════════════
