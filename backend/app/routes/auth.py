@@ -9,7 +9,8 @@ Endpoints :
   GET   /api/auth/sessions   — Sessions actives de l'utilisateur courant
   POST  /api/auth/select-tenant — Sélectionne un tenant actif et génère de nouveaux tokens
 """
-from datetime import datetime
+from collections import defaultdict
+from datetime import datetime, date as _date
 from app.utils.time import utcnow, utcfromtimestamp
 
 from flask import Blueprint, current_app, jsonify, request
@@ -926,6 +927,48 @@ def sessions():
 #  GET /api/auth/sessions/monitoring   (supervision — STAFF, tenant-scoped)    #
 # ─────────────────────────────────────────────────────────────────────────── #
 
+def _compute_session_durations(session, events, now):
+    """Calcule les minutes actif/pause/déconnecté à partir des événements pré-chargés.
+
+    Bucketing : Available→actif, On Break→pause, autre→déconnecté-PBX.
+    Sans événements : toute la durée est comptée active (comportement historique).
+    """
+    from app.routes.telephony import _AGENT_PRESENCE_AWAY, _AGENT_PRESENCE_ONLINE
+
+    end = session.session_end or now
+    totals = {"active_min": 0.0, "pause_min": 0.0, "offline_min": 0.0}
+    if not session.session_start or end <= session.session_start:
+        return totals
+
+    if not events:
+        totals["active_min"] = (end - session.session_start).total_seconds() / 60
+        return totals
+
+    def _bucket(raw_status):
+        key = (raw_status or "").strip().lower()
+        if key in _AGENT_PRESENCE_ONLINE:
+            return "active_min"
+        if key in _AGENT_PRESENCE_AWAY:
+            return "pause_min"
+        return "offline_min"
+
+    cursor = session.session_start
+    current_bucket = "active_min"
+    for event in events:
+        ts = min(event.created_at, end)
+        if ts > cursor:
+            totals[current_bucket] += (ts - cursor).total_seconds() / 60
+        cursor = ts
+        current_bucket = _bucket(event.agent_status)
+        if cursor >= end:
+            break
+
+    if cursor < end:
+        totals[current_bucket] += (end - cursor).total_seconds() / 60
+
+    return totals
+
+
 def _session_status_durations(session, now=None):
     """Minutes actif/pause/déconnecté-PBX pour une session (14/08, suivi des
     temps de login/pause) — reconstruites à partir de l'historique
@@ -942,51 +985,93 @@ def _session_status_durations(session, now=None):
     statut explicite), toute la durée de la session est comptée comme
     active — comportement historique inchangé, pour ne pas fausser
     rétroactivement les sessions déjà closes."""
-    from app.routes.telephony import _AGENT_PRESENCE_AWAY, _AGENT_PRESENCE_ONLINE
-
     now = now or utcnow()
-    end = session.session_end or now
-    totals = {"active_min": 0.0, "pause_min": 0.0, "offline_min": 0.0}
-    if not session.session_start or end <= session.session_start:
-        return totals
-
     events = (
         TelephonyEvent.query
         .filter_by(user_session_id=session.id, event_type="CALLCENTER_AGENT_STATE_CHANGE")
         .order_by(TelephonyEvent.created_at)
         .all()
     )
-    if not events:
-        totals["active_min"] = (end - session.session_start).total_seconds() / 60
-        return totals
+    return _compute_session_durations(session, events, now)
 
-    def _bucket(raw_status):
-        key = (raw_status or "").strip().lower()
-        if key in _AGENT_PRESENCE_ONLINE:
-            return "active_min"
-        if key in _AGENT_PRESENCE_AWAY:
-            return "pause_min"
-        return "offline_min"
 
-    # Segment avant le premier événement connu — normalement quasi nul :
-    # login() crée son événement "On Break" dans la même transaction que la
-    # session (cf. app/routes/auth.py::login()). Compté actif par défaut,
-    # cohérent avec le repli "sans historique" ci-dessus.
-    cursor = session.session_start
-    current_bucket = "active_min"
-    for event in events:
-        ts = min(event.created_at, end)
-        if ts > cursor:
-            totals[current_bucket] += (ts - cursor).total_seconds() / 60
-        cursor = ts
-        current_bucket = _bucket(event.agent_status)
-        if cursor >= end:
-            break
+def _batch_status_durations(sessions):
+    """Calcule les durées actif/pause pour une liste de sessions en un seul batch SQL."""
+    if not sessions:
+        return {}
+    now = utcnow()
+    session_ids = [s.id for s in sessions]
+    all_events = (
+        TelephonyEvent.query
+        .filter(
+            TelephonyEvent.user_session_id.in_(session_ids),
+            TelephonyEvent.event_type == "CALLCENTER_AGENT_STATE_CHANGE",
+        )
+        .order_by(TelephonyEvent.user_session_id, TelephonyEvent.created_at)
+        .all()
+    )
+    events_by_session = defaultdict(list)
+    for evt in all_events:
+        events_by_session[evt.user_session_id].append(evt)
+    return {
+        s.id: _compute_session_durations(s, events_by_session[s.id], now)
+        for s in sessions
+    }
 
-    if cursor < end:
-        totals[current_bucket] += (end - cursor).total_seconds() / 60
 
-    return totals
+def _build_daily_rows(sessions):
+    """Agrège les sessions par (user_id, date UTC) → vue journalière consolidée."""
+    durations_map = _batch_status_durations(sessions)
+
+    groups = defaultdict(list)
+    for s in sessions:
+        day = s.session_start.date() if s.session_start else None
+        groups[(s.user_id, day)].append(s)
+
+    live_statuses = {SessionStatus.ACTIVE, SessionStatus.PAUSED}
+    rows = []
+    for (user_id, day), grp in sorted(
+        groups.items(),
+        key=lambda kv: (kv[0][1] or _date.min, kv[0][0]),
+        reverse=True,
+    ):
+        u = grp[0].user
+
+        active_total = sum(durations_map[s.id]["active_min"] for s in grp)
+        pause_total = sum(durations_map[s.id]["pause_min"] for s in grp)
+        paused_grp = [s for s in grp if durations_map[s.id]["pause_min"] > 0]
+        pause_avg = pause_total / len(paused_grp) if paused_grp else 0.0
+
+        starts = [s.session_start for s in grp if s.session_start]
+        ends = [s.session_end for s in grp if s.session_end]
+        first_connexion = min(starts) if starts else None
+        # Déconnexion finale seulement si TOUTES les sessions du jour sont closes
+        last_deconnexion = max(ends) if ends and len(ends) == len(grp) else None
+
+        if any(s.status in live_statuses for s in grp):
+            statut = "active"
+        else:
+            last_s = max(grp, key=lambda s: s.session_start or datetime.min)
+            statut = last_s.status.value
+
+        last_ip_s = max(grp, key=lambda s: s.session_start or datetime.min)
+
+        rows.append({
+            "user_id":              user_id,
+            "username":             u.username if u else None,
+            "full_name":            f"{(u.prenom or '').strip()} {(u.nom or '').strip()}".strip() if u else None,
+            "role":                 u.role.value if u and u.role else None,
+            "ip_address":           last_ip_s.ip_address,
+            "date":                 day.isoformat() if day else None,
+            "first_connexion":      first_connexion.isoformat() if first_connexion else None,
+            "last_deconnexion":     last_deconnexion.isoformat() if last_deconnexion else None,
+            "active_minutes":       round(active_total, 1),
+            "pause_minutes_total":  round(pause_total, 1),
+            "pause_minutes_avg":    round(pause_avg, 1),
+            "session_count":        len(grp),
+            "statut":               statut,
+        })
+    return rows
 
 
 def _filtered_sessions_query(tenant_uuid):
@@ -1092,6 +1177,79 @@ def export_sessions_monitoring_csv():
     ]
 
     filename = f"sessions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return build_csv_response(header, csv_rows, filename)
+
+
+# ─────────────────────────────────────────────────────────────────────────── #
+#  GET /api/auth/sessions/monitoring/daily  (vue journalière consolidée)       #
+# ─────────────────────────────────────────────────────────────────────────── #
+
+def _daily_query(tenant_uuid):
+    query = UserSession.query.filter(UserSession.active_tenant_id == tenant_uuid)
+    if from_val := request.args.get("from"):
+        if dt_from := _parse_monitoring_datetime(from_val):
+            query = query.filter(UserSession.session_start >= dt_from)
+    if to_val := request.args.get("to"):
+        if dt_to := _parse_monitoring_datetime(to_val):
+            query = query.filter(UserSession.session_start <= dt_to)
+    return query.order_by(UserSession.session_start)
+
+
+@auth_bp.route("/sessions/monitoring/daily", methods=["GET"])
+@role_required(UserRole.ADMIN, UserRole.MANAGER)
+def sessions_monitoring_daily():
+    """Vue journalière consolidée — une ligne par (utilisateur, date UTC).
+
+    Toutes les sessions (tous statuts) sont incluses.
+    Query params : from / to (bornes ISO sur session_start).
+    """
+    claims = get_jwt()
+    tid = claims.get("tid")
+    if not tid:
+        return jsonify({"error": "Aucun tenant actif sélectionné."}), 400
+    try:
+        tenant_uuid = uuid.UUID(tid)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Tenant invalide."}), 400
+
+    all_sessions = _daily_query(tenant_uuid).all()
+    rows = _build_daily_rows(all_sessions)
+    return jsonify({"rows": rows, "total": len(rows)}), 200
+
+
+@auth_bp.route("/sessions/monitoring/daily/export", methods=["GET"])
+@role_required(UserRole.ADMIN, UserRole.MANAGER)
+def export_sessions_monitoring_daily_csv():
+    """Export CSV de la vue journalière consolidée (mêmes filtres que /daily)."""
+    claims = get_jwt()
+    tid = claims.get("tid")
+    if not tid:
+        return jsonify({"error": "Aucun tenant actif sélectionné."}), 400
+    try:
+        tenant_uuid = uuid.UUID(tid)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Tenant invalide."}), 400
+
+    all_sessions = _daily_query(tenant_uuid).limit(MAX_EXPORT_ROWS).all()
+    rows_data = _build_daily_rows(all_sessions)
+
+    header = [
+        "date", "utilisateur", "nom_complet", "role", "ip",
+        "premiere_connexion", "derniere_deconnexion",
+        "duree_active_min", "pause_total_min", "pause_moy_min",
+        "nb_sessions", "statut",
+    ]
+    csv_rows = [
+        [
+            r["date"], r["username"], r["full_name"], r["role"], r["ip_address"],
+            r["first_connexion"], r["last_deconnexion"],
+            r["active_minutes"], r["pause_minutes_total"], r["pause_minutes_avg"],
+            r["session_count"], r["statut"],
+        ]
+        for r in rows_data
+    ]
+
+    filename = f"sessions_journalieres_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     return build_csv_response(header, csv_rows, filename)
 
 

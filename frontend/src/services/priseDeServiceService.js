@@ -14,14 +14,17 @@ export async function startPriseDeService(payload) {
 }
 
 // Termine la vacation EN COURS d'un agent
-export async function endCurrentPriseDeService(agentId) {
-  const { data } = await apiClient.post(`${BASE}/end`, { agent_id: agentId });
+export async function endCurrentPriseDeService(agentId, dateFin) {
+  const payload = { agent_id: agentId };
+  if (dateFin) payload.date_fin = dateFin;
+  const { data } = await apiClient.post(`${BASE}/end`, payload);
   return data;
 }
 
 // Termine une vacation précise (action de ligne)
-export async function endPriseDeService(id) {
-  const { data } = await apiClient.post(`${BASE}/${id}/end`);
+export async function endPriseDeService(id, dateFin) {
+  const payload = dateFin ? { date_fin: dateFin } : {};
+  const { data } = await apiClient.post(`${BASE}/${id}/end`, payload);
   return data;
 }
 

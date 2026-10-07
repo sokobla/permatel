@@ -60,6 +60,25 @@
         </div>
       </div>
 
+      <div class="pds-grid pds-times-grid">
+        <div class="form-group">
+          <label class="form-label">HEURE DE DÉBUT</label>
+          <input
+            v-model="dateDebut"
+            type="datetime-local"
+            class="pds-time-input"
+          />
+        </div>
+        <div class="form-group">
+          <label class="form-label">HEURE DE FIN</label>
+          <input
+            v-model="dateFin"
+            type="datetime-local"
+            class="pds-time-input"
+          />
+        </div>
+      </div>
+
       <p class="pds-hint">
         <v-icon size="12" color="#9aa0aa">mdi-information-outline</v-icon>
         « Débuter » crée une vacation en cours (un agent ne peut en avoir
@@ -96,6 +115,12 @@
 
 <script setup>
 import { ref, computed, onMounted } from "vue";
+
+function nowLocalIso() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 import ClientCombobox from "@/components/workspace/ClientCombobox.vue";
 import SiteSelect from "@/components/workspace/SiteSelect.vue";
 import {
@@ -113,6 +138,8 @@ const emit = defineEmits(["submitted", "cancel"]);
 
 const clientId = ref(null);
 const siteId = ref(null);
+const dateDebut = ref(nowLocalIso());
+const dateFin = ref(nowLocalIso());
 const starting = ref(false);
 const ending = ref(false);
 const error = ref("");
@@ -175,6 +202,7 @@ async function onStart() {
       agent_id: props.agentId,
       client_id: clientId.value,
       site_id: siteId.value,
+      date_debut: dateDebut.value || undefined,
     });
     emit("submitted", pds);
   } catch (err) {
@@ -192,7 +220,7 @@ async function onEnd() {
   }
   ending.value = true;
   try {
-    const pds = await endCurrentPriseDeService(props.agentId);
+    const pds = await endCurrentPriseDeService(props.agentId, dateFin.value || undefined);
     emit("submitted", pds);
   } catch (err) {
     error.value = apiError(err, "Aucune vacation en cours pour cet agent.");
@@ -332,6 +360,24 @@ async function onEnd() {
   margin-left: auto;
 }
 
+.pds-times-grid {
+  grid-template-columns: 1fr 1fr;
+}
+.pds-time-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  font-size: 13px;
+  color: #000b23;
+  background: #fff;
+  outline: none;
+  font-family: inherit;
+}
+.pds-time-input:focus {
+  border-color: #00a8a8;
+}
 .pds-hint {
   display: flex;
   align-items: center;

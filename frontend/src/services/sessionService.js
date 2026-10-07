@@ -38,6 +38,19 @@ export const sessionService = {
     });
   },
 
+  /** Vue journalière consolidée : une ligne par (utilisateur, date). */
+  getMonitoringDaily(params = {}) {
+    return apiClient.get("/auth/sessions/monitoring/daily", { params });
+  },
+
+  /** Export CSV de la vue journalière consolidée — réponse blob. */
+  exportMonitoringDailyCsv(params = {}) {
+    return apiClient.get("/auth/sessions/monitoring/daily/export", {
+      params,
+      responseType: "blob",
+    });
+  },
+
   /** Liste des utilisateurs rattachés à un tenant (pour filtrer les KPI). */
   getTenantUsers(tenantId) {
     return apiClient.get(`/tenants/${tenantId}/users`);

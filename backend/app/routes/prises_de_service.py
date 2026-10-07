@@ -148,12 +148,14 @@ def start_prise():
     if open_existing:
         return jsonify({"error": "Cet agent a déjà une vacation en cours."}), 409
 
+    date_debut = _parse_date(data.get("date_debut")) or utcnow()
+
     pds = PriseDeService(
         tenant_id=g.tenant_id,
         agent_id=agent_id,
         client_id=client_id,
         site_id=site_id,
-        date_debut=utcnow(),
+        date_debut=date_debut,
         created_by_id=getattr(g.user, "id", None),
     )
     db.session.add(pds)
@@ -176,7 +178,11 @@ def end_current_prise():
     if not pds:
         return jsonify({"error": "Aucune vacation en cours pour cet agent."}), 404
 
-    pds.date_fin = utcnow()
+    date_fin = _parse_date(data.get("date_fin")) or utcnow()
+    if date_fin <= pds.date_debut:
+        return jsonify({"error": "L'heure de fin doit être postérieure à l'heure de début."}), 400
+
+    pds.date_fin = date_fin
     pds.ended_by_id = getattr(g.user, "id", None)
     db.session.commit()
     return jsonify(_enrich([pds])[0]), 200
@@ -187,13 +193,18 @@ def end_current_prise():
 @prises_de_service_bp.post("/<int:pds_id>/end")
 @tenant_required
 def end_prise(pds_id):
+    data = request.get_json(silent=True) or {}
     pds = PriseDeService.query.filter_by(id=pds_id, tenant_id=g.tenant_id).first()
     if not pds:
         return jsonify({"error": "Prise de service introuvable."}), 404
     if pds.date_fin is not None:
         return jsonify({"error": "Cette vacation est déjà terminée."}), 409
 
-    pds.date_fin = utcnow()
+    date_fin = _parse_date(data.get("date_fin")) or utcnow()
+    if date_fin <= pds.date_debut:
+        return jsonify({"error": "L'heure de fin doit être postérieure à l'heure de début."}), 400
+
+    pds.date_fin = date_fin
     pds.ended_by_id = getattr(g.user, "id", None)
     db.session.commit()
     return jsonify(_enrich([pds])[0]), 200
