@@ -45,6 +45,14 @@
     <!-- Liste -->
     <div class="wod-body">
       <div v-if="loading" class="wod-state">Chargement…</div>
+      <div v-else-if="loadError" class="wod-error">
+        <v-icon size="18" color="#e74c3c">mdi-alert-circle-outline</v-icon>
+        <span class="wod-error__text">{{ loadError }}</span>
+        <button class="wod-retry" @click="load">
+          <v-icon size="11">mdi-refresh</v-icon>
+          Réessayer
+        </button>
+      </div>
       <div v-else-if="!filtered.length" class="wod-state">
         <v-icon size="22" color="#ddd">mdi-clipboard-text-off-outline</v-icon>
         <span>Aucune demande en cours</span>
@@ -195,18 +203,21 @@ function slaProgress(d) {
 
 const rows = ref([]);
 const loading = ref(false);
+const loadError = ref("");
 const fDate = ref("");
 const fType = ref("");
 const fDemandeur = ref("");
 
 async function load() {
   loading.value = true;
+  loadError.value = "";
   try {
     const res = await listDemandes();
     const list = Array.isArray(res) ? res : (res.items ?? []);
     rows.value = list.filter((d) => !CLOSED.has(d.statut));
   } catch {
     rows.value = [];
+    loadError.value = "Impossible de charger les demandes en cours.";
   } finally {
     loading.value = false;
   }
@@ -365,6 +376,53 @@ onMounted(load);
   flex: 1;
   padding: 10px 14px 14px;
 }
+.wod-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: rgba(231, 76, 60, 0.04);
+  border-radius: 6px;
+  margin: 6px 0;
+}
+
+.wod-error__text {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: #c0392b;
+  font-family: "Fira Sans", sans-serif;
+}
+
+.wod-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 10px;
+  background: transparent;
+  color: #c0392b;
+  font-family: "Fira Sans", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  border: 1px solid rgba(192, 57, 43, 0.3);
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.12s;
+}
+
+.wod-retry:hover {
+  background: rgba(192, 57, 43, 0.06);
+}
+
+.wod-retry:focus-visible {
+  outline: 2px solid #e74c3c;
+  outline-offset: 2px;
+}
+
 .wod-state {
   display: flex;
   flex-direction: column;
@@ -417,7 +475,7 @@ onMounted(load);
 }
 .wod-type-chip {
   display: inline-block;
-  font-size: 8.5px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -444,7 +502,7 @@ onMounted(load);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 700;
   font-family: "Fira Code", monospace;
   flex-shrink: 0;

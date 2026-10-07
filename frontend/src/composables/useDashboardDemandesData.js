@@ -63,9 +63,19 @@ export function useDashboardDemandesData() {
   const loading = ref(false);
   const refreshing = ref(false);
   const loadError = ref("");
+  const lastRefreshedAt = ref(null);
+  // Set externally by the view to scope KPIs and critiques by demande type
+  const typeFilter = ref(null);
+
+  // Subset of demandes scoped to the active type filter (or all when null)
+  const filteredDemandes = computed(() =>
+    typeFilter.value
+      ? demandes.value.filter((d) => d.type_demande === typeFilter.value)
+      : demandes.value,
+  );
 
   const ouvertes = computed(() =>
-    demandes.value.filter((d) => OPEN_STATUTS.includes(d.statut)),
+    filteredDemandes.value.filter((d) => OPEN_STATUTS.includes(d.statut)),
   );
 
   const kpis = computed(() => {
@@ -205,6 +215,7 @@ export function useDashboardDemandesData() {
     loadError.value = "";
     try {
       demandes.value = await listDemandes();
+      lastRefreshedAt.value = new Date();
     } catch {
       loadError.value = "Impossible de charger les données de demandes.";
     } finally {
@@ -239,6 +250,8 @@ export function useDashboardDemandesData() {
     loading,
     refreshing,
     loadError,
+    typeFilter,
+    lastRefreshedAt,
     kpis,
     byType,
     byStatut,

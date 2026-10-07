@@ -1,7 +1,7 @@
 <template>
   <v-card elevation="0" class="ddt-card">
     <div class="ddt-header">
-      <span class="ddt-title">TENDANCE — 30 DERNIERS JOURS</span>
+      <span class="ddt-title">{{ periodTitle }}</span>
       <div class="ddt-legend">
         <span v-for="s in SERIES_META" :key="s.key" class="ddt-legend-item">
           <span class="ddt-legend-dot" :style="{ background: s.color }"></span>
@@ -37,7 +37,19 @@ import ApexChart from "vue3-apexcharts";
 const props = defineProps({
   trendData: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
+  period: { type: String, default: "30j" },
 });
+
+const PERIOD_TITLES: Record<string, string> = {
+  today: "TENDANCE — AUJOURD'HUI",
+  "7j": "TENDANCE — 7 DERNIERS JOURS",
+  "30j": "TENDANCE — 30 DERNIERS JOURS",
+  all: "TENDANCE — TOUTES PÉRIODES",
+};
+
+const periodTitle = computed(
+  () => PERIOD_TITLES[props.period] ?? "TENDANCE — 30 DERNIERS JOURS",
+);
 
 const SERIES_META = [
   { key: "anomalie", label: "Anomalie", color: "#e74c3c" },

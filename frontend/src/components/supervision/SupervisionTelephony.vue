@@ -1,5 +1,36 @@
 <template>
   <section class="stl-root">
+    <!-- Barre de statut polling -->
+    <div class="stl-status-bar">
+      <span
+        class="stl-status-bar__dot"
+        :class="
+          Object.values(sectionErrors).some(Boolean)
+            ? 'stl-status-bar__dot--error'
+            : 'stl-status-bar__dot--ok'
+        "
+      ></span>
+      <span class="stl-status-bar__label">
+        {{
+          Object.values(sectionErrors).some(Boolean)
+            ? "ERREUR DE CHARGEMENT"
+            : "OPÉRATIONNEL"
+        }}
+      </span>
+      <span v-if="lastPolledAt" class="stl-status-bar__ts">
+        Actualisé {{ formatPolledAt(lastPolledAt) }}
+      </span>
+    </div>
+
+    <!-- Bandeau d'erreur KPIs -->
+    <div v-if="sectionErrors.summary" class="stl-section-error">
+      <v-icon size="14" color="#e74c3c">mdi-alert-circle-outline</v-icon>
+      <span>{{ sectionErrors.summary }}</span>
+      <button class="stl-retry-btn" @click="loadSummary">
+        <v-icon size="11">mdi-refresh</v-icon> Réessayer
+      </button>
+    </div>
+
     <!-- KPI -->
     <div class="stl-kpi-row">
       <div class="stl-kpi-card">
@@ -72,6 +103,13 @@
           <v-icon size="8">mdi-circle</v-icon>
           {{ socketConnected ? "TEMPS RÉEL" : "DÉCONNECTÉ" }}
         </span>
+      </div>
+      <div v-if="sectionErrors.activeCalls" class="stl-section-error">
+        <v-icon size="14" color="#e74c3c">mdi-alert-circle-outline</v-icon>
+        <span>{{ sectionErrors.activeCalls }}</span>
+        <button class="stl-retry-btn" @click="loadActiveCalls">
+          <v-icon size="11">mdi-refresh</v-icon> Réessayer
+        </button>
       </div>
       <table class="stl-table" v-if="activeCalls.length">
         <thead>
@@ -152,6 +190,13 @@
         <span class="stl-queue-count"
           >{{ queues.length }} active{{ queues.length > 1 ? "s" : "" }}</span
         >
+      </div>
+      <div v-if="sectionErrors.queues" class="stl-section-error">
+        <v-icon size="14" color="#e74c3c">mdi-alert-circle-outline</v-icon>
+        <span>{{ sectionErrors.queues }}</span>
+        <button class="stl-retry-btn" @click="loadQueues">
+          <v-icon size="11">mdi-refresh</v-icon> Réessayer
+        </button>
       </div>
       <div v-if="queues.length" class="stl-queue-filter-row">
         <v-text-field
@@ -291,6 +336,13 @@
         </div>
       </div>
 
+      <div v-if="sectionErrors.agents" class="stl-section-error">
+        <v-icon size="14" color="#e74c3c">mdi-alert-circle-outline</v-icon>
+        <span>{{ sectionErrors.agents }}</span>
+        <button class="stl-retry-btn" @click="loadAgents">
+          <v-icon size="11">mdi-refresh</v-icon> Réessayer
+        </button>
+      </div>
       <transition-group
         v-if="agents.length"
         name="stl-card"
@@ -412,6 +464,13 @@ const periodLabel = "aujourd'hui";
 const summary = ref(null);
 const queues = ref([]);
 const queueFilter = ref("");
+const lastPolledAt = ref(null);
+const sectionErrors = reactive({
+  summary: "",
+  queues: "",
+  agents: "",
+  activeCalls: "",
+});
 const filteredQueues = computed(() => {
   const term = (queueFilter.value || "").trim().toLowerCase();
   if (!term) return queues.value;
@@ -477,6 +536,14 @@ function formatLastSeen(iso) {
   if (!iso) return "—";
   return `vu ${relativeTime(iso)}`;
 }
+function formatPolledAt(d) {
+  if (!d) return "";
+  return d.toLocaleTimeString("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
 
 // Horloge de rafraîchissement pour la colonne Durée (tick chaque seconde,
 // simple compteur consommé par formatDuration ci-dessous pour forcer le
@@ -499,51 +566,64 @@ function formatDuration(startedAtIso) {
 
 // ── Chargement ──────────────────────────────────────────────────────────
 async function loadSummary() {
+  sectionErrors.summary = "";
   try {
     const { data } = await telephonyService.getKpisSummary();
     summary.value = data;
   } catch {
     summary.value = null;
+    sectionErrors.summary = "Impossible de charger les KPIs téléphonie.";
   }
 }
 async function loadQueues() {
+  sectionErrors.queues = "";
   try {
     const { data } = await telephonyService.getKpisQueues();
     queues.value = data.queues || [];
   } catch {
     queues.value = [];
+    sectionErrors.queues = "Impossible de charger les files d'attente.";
   }
 }
 async function loadAgents() {
+  sectionErrors.agents = "";
   try {
     const { data } = await telephonyService.getAgentsStatus();
     agents.value = data.agents || [];
   } catch {
     agents.value = [];
+    sectionErrors.agents = "Impossible de charger les agents.";
   }
 }
 async function loadActiveCalls() {
+  sectionErrors.activeCalls = "";
   try {
     const { data } = await telephonyService.getActiveCalls();
     activeCallsMap.clear();
     for (const c of data.active_calls || []) activeCallsMap.set(c.call_uuid, c);
   } catch {
     activeCallsMap.clear();
+    sectionErrors.activeCalls = "Impossible de charger les appels en cours.";
   }
 }
 
-let refreshTimer = null;
-function startPolling() {
-  refreshTimer = setInterval(() => {
-    loadSummary();
-    loadQueues();
-    loadAgents();
+async function loadAll() {
+  await Promise.allSettled([
+    loadSummary(),
+    loadQueues(),
+    loadAgents(),
     // Recharge périodiquement l'état complet backend-résolu (agent_name/
     // agent_station/queue_label) : sans ça, un appel arrivé uniquement via
     // socket depuis le dernier chargement complet reste bloqué sur ses
     // valeurs brutes (uuid CC-Agent, id de file nu) indéfiniment.
-    loadActiveCalls();
-  }, 30000);
+    loadActiveCalls(),
+  ]);
+  lastPolledAt.value = new Date();
+}
+
+let refreshTimer = null;
+function startPolling() {
+  refreshTimer = setInterval(loadAll, 30000);
 }
 
 // ── Temps réel : appels (upsert/suppression par call_uuid) ────────────────
@@ -631,10 +711,7 @@ function processIncomingEvents() {
 let eventsWatcherTimer = null;
 
 onMounted(() => {
-  loadSummary();
-  loadQueues();
-  loadAgents();
-  loadActiveCalls();
+  loadAll();
   startPolling();
   telephonySocket.connect();
   eventsWatcherTimer = setInterval(processIncomingEvents, 1000);
@@ -1368,6 +1445,99 @@ onUnmounted(() => {
 .stl-card-leave-to {
   opacity: 0;
   transform: scale(0.96);
+}
+
+/* ── Status bar ─────────────────────────────────────────────────────── */
+
+.stl-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.stl-status-bar__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.stl-status-bar__dot--ok {
+  background: #00a8a8;
+  box-shadow: 0 0 0 2px rgba(0, 168, 168, 0.2);
+}
+
+.stl-status-bar__dot--error {
+  background: #e74c3c;
+  box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.2);
+}
+
+.stl-status-bar__label {
+  font-family: "Fira Code", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #888;
+  text-transform: uppercase;
+}
+
+.stl-status-bar__ts {
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+  color: #aaa;
+  letter-spacing: 0.06em;
+  padding-left: 8px;
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+  margin-left: 4px;
+}
+
+/* ── Section error strip ─────────────────────────────────────────────── */
+
+.stl-section-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(231, 76, 60, 0.04);
+  border-top: 1px solid rgba(231, 76, 60, 0.1);
+  font-family: "Fira Sans", sans-serif;
+  font-size: 12.5px;
+  color: #c0392b;
+}
+
+.stl-section-error span {
+  flex: 1;
+  font-weight: 600;
+}
+
+.stl-retry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 10px;
+  background: transparent;
+  color: #c0392b;
+  font-family: "Fira Sans", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  border: 1px solid rgba(192, 57, 43, 0.3);
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.12s;
+}
+
+.stl-retry-btn:hover {
+  background: rgba(192, 57, 43, 0.06);
+}
+
+.stl-retry-btn:focus-visible {
+  outline: 2px solid #e74c3c;
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {

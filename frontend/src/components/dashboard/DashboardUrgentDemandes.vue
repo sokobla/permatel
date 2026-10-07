@@ -21,7 +21,17 @@
       </div>
     </div>
 
-    <!-- Empty -->
+    <!-- Error — data load failure, distinct from genuine empty -->
+    <div v-else-if="error" class="dud-error">
+      <v-icon size="22" color="#e74c3c">mdi-alert-circle-outline</v-icon>
+      <span class="dud-error__text">{{ error }}</span>
+      <button class="dud-retry-btn" @click="$emit('retry')">
+        <v-icon size="11">mdi-refresh</v-icon>
+        Réessayer
+      </button>
+    </div>
+
+    <!-- Empty — genuine zero critiques -->
     <div v-else-if="demandes.length === 0" class="dud-empty">
       <v-icon size="28" color="#ddd">mdi-check-circle-outline</v-icon>
       <span class="dud-empty__text">Aucune demande critique en cours</span>
@@ -96,7 +106,10 @@
 defineProps({
   demandes: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
+  error: { type: String, default: "" },
 });
+
+defineEmits(["retry"]);
 
 const TYPE_LABELS = {
   anomalie: "ANO",
@@ -118,8 +131,8 @@ const headers = [
   { title: "TICKET", key: "numero_ticket", sortable: false, width: "120px" },
   { title: "TYPE", key: "type_demande", sortable: false, width: "72px" },
   { title: "TITRE", key: "titre", sortable: false },
-  { title: "PRIORITÉ", key: "priorite", sortable: false, width: "110px" },
-  { title: "SLA", key: "sla_deadline", sortable: false, width: "110px" },
+  { title: "PRIORITÉ", key: "priorite", sortable: true, width: "110px" },
+  { title: "SLA", key: "sla_deadline", sortable: true, width: "110px" },
   { title: "STATUT", key: "statut", sortable: false, width: "110px" },
 ];
 
@@ -200,9 +213,9 @@ export default { name: "DashboardUrgentDemandes" };
 
 .dud-type-badge {
   font-family: "Fira Code", monospace;
-  font-size: 8.5px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   padding: 2px 6px;
   border-radius: 2px;
 }
@@ -272,6 +285,55 @@ export default { name: "DashboardUrgentDemandes" };
 .dud-statut--annulee {
   background: rgba(231, 76, 60, 0.07);
   color: #c0392b;
+}
+
+/* ── Error ─────────────────────────────────────────────────── */
+
+.dud-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 24px;
+  background: rgba(231, 76, 60, 0.04);
+  border-top: 1px solid rgba(231, 76, 60, 0.12);
+}
+
+.dud-error__text {
+  flex: 1;
+  font-family: "Fira Sans", sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #c0392b;
+}
+
+.dud-retry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 12px;
+  background: transparent;
+  color: #c0392b;
+  font-family: "Fira Sans", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  border: 1px solid rgba(192, 57, 43, 0.3);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.dud-retry-btn:hover {
+  background: rgba(192, 57, 43, 0.06);
+  border-color: rgba(192, 57, 43, 0.5);
+}
+
+.dud-retry-btn:focus-visible {
+  outline: 2px solid #e74c3c;
+  outline-offset: 2px;
 }
 
 /* ── Empty ─────────────────────────────────────────────────── */

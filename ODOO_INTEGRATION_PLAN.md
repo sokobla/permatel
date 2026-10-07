@@ -214,13 +214,11 @@ Le détail des tâches est géré dans le fichier de suivi Excel (Phases 6 à 10
 * **Contact PERMATEL** → ERP `res.partner(contact)` lié au client principal (résolution de la relation N:N).
 * *Phase 7.b (Catalogue)* : Synchronisation des `Produits` vers `product.product` et des `TarifsClient` vers `product.pricelist`.
 
-### Phase 8 : Commandes et Facturation (Partie 2 : Ventes/Compta)
+### Phase 8 : Commandes et Devis (Partie 2 : Ventes)
 1. **Création (Push, `permission_required("commerce")` — §2.7)** : Le Manager transforme une `DemandeCommande` en **Devis** dans PERMATEL. Cela pousse un `sale.order` (Brouillon) dans ERP avec les bonnes lignes de produits.
 2. **Validation (Push, `permission_required("commerce")`)** : La validation du devis dans PERMATEL déclenche l'`action_confirm` dans ERP (transformation en Bon de commande).
-3. **Facturer (Push, `permission_required("facturation")`)** : Sur un Bon de commande confirmé, action "Facturer" dans PERMATEL → `sale.order.action_invoice_create()` via `erp_client.execute_kw`, crée une facture **brouillon** dans ERP. Mapping stocké dans `erp_factures` (`statut=brouillon`). **Facturation partielle possible** — une même commande peut générer plusieurs factures (acompte/solde), d'où `erp_factures` en 1—N par `Devis` (§3.B).
-4. **Traitement (côté ERP, hors PERMATEL)** : la validation/comptabilisation de la facture (passage en `posted`) se fait directement dans ERP par la comptabilité — PERMATEL ne pousse pas cette étape, cohérent avec la délimitation du §1 (PERMATEL = saisie opérationnelle, ERP = moteur financier).
-5. **Résultat (Pull)** : synchro régulière (`erp-sync-dispatch`) de `account.move.state`/`payment_state` → `erp_factures.statut` (brouillon/validée/payée/annulée) + montants HT/TTC, visibles dans PERMATEL sans repasser par ERP.
-6. **Téléchargement PDF (Devis, Bon de commande, Facture)** : `GET /api/{devis,factures}/<id>/pdf` — appelle `ir.actions.report.render_qweb_pdf(report_name, [erp_id])` via `erp_client.execute_kw` et streame le PDF au navigateur. Motif déjà établi pour ce type de proxy-download : `downloadRecording` (`backend/app/routes/telephony.py`) et le téléchargement de pièces jointes email (`backend/app/routes/emails.py`), `responseType: "blob"` côté frontend — rien de nouveau architecturalement. Le nom exact du rapport QWeb (`sale.report_saleorder_document`, `account.report_invoice_with_payments`, …) dépend des modules ERP installés côté client, à figer en config une fois l'instance connue.
+3. **Téléchargement PDF (Devis, Bon de commande)** : `GET /api/devis/<id>/pdf` — appelle `ir.actions.report.render_qweb_pdf('sale.report_saleorder_document', [erp_id])` via `erp_client.execute_kw` et streame le PDF au navigateur. Motif déjà établi pour ce type de proxy-download : `downloadRecording` (`backend/app/routes/telephony.py`) et téléchargements d'emails.
+*(Note : La facturation a été repoussée en Phase 11).*
 
 ### Phase 9 : Agents & Temps (Partie 3 : RH/Analytique)
 * **Prérequis** : contrainte unique `(tenant_id, id)` sur `agents_securite` (§4.0), gestion documentaire des agents (§4.1) — le blocage d'affectation (Phase 10) en dépend.
@@ -232,3 +230,10 @@ Le détail des tâches est géré dans le fichier de suivi Excel (Phases 6 à 10
 * **PERMATEL est la source du planning** (cohérent avec la philosophie du §1 — pas une lecture depuis ERP comme envisagé initialement) : les managers créent/affectent les vacations planifiées dans PERMATEL (calendrier Jour/Semaine/Mois, §4.2), le module Planning de l'ERP (`planning.slot`) reçoit le **push**.
 * Blocage d'affectation configurable par tenant (§4.1/§4.3) si l'agent a un document obligatoire expiré/manquant.
 * Statuts dérivés (vert/bleu/gris/rouge/orange) + alerte no-show aux managers (§4.2) — fonctionnent indépendamment de l'activation d'ERP pour ce tenant ; le push vers `planning.slot` est un enrichissement, pas une dépendance dure.
+
+### Phase 11 : Facturation et Suivi des Paiements (Partie 4 : Compta)
+*(Déplacé en fin de projet selon les priorités du 15 Août)*
+1. **Facturer (Push, `permission_required("facturation")`)** : Sur un Bon de commande confirmé (Phase 8), action "Facturer" dans PERMATEL → `sale.order.action_invoice_create()` via `erp_client.execute_kw`, crée une facture **brouillon** dans ERP. Mapping stocké dans `erp_factures` (`statut=brouillon`). **Facturation partielle possible** — une même commande peut générer plusieurs factures (acompte/solde), d'où `erp_factures` en 1—N par `Devis` (§3.B).
+2. **Traitement (côté ERP, hors PERMATEL)** : la validation/comptabilisation de la facture (passage en `posted`) se fait directement dans ERP par la comptabilité — PERMATEL ne pousse pas cette étape, cohérent avec la délimitation du §1 (PERMATEL = saisie opérationnelle, ERP = moteur financier).
+3. **Résultat (Pull)** : synchro régulière (`erp-sync-dispatch`) de `account.move.state`/`payment_state` → `erp_factures.statut` (brouillon/validée/payée/annulée) + montants HT/TTC, visibles dans PERMATEL sans repasser par ERP.
+4. **Téléchargement PDF (Facture)** : `GET /api/factures/<id>/pdf` — appelle `ir.actions.report.render_qweb_pdf('account.report_invoice_with_payments', [erp_id])` via `erp_client.execute_kw` et streame le PDF au navigateur.

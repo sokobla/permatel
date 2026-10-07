@@ -1,3 +1,118 @@
+---
+name: PERMATEL Operational Suite
+description: Console de supervision premium pour les opérations de sécurité privée multi-tenant
+colors:
+  action-teal: "#00a8a8"
+  teal-deep: "#009090"
+  navy-deep: "#000b23"
+  navy-mid: "#15223a"
+  near-black: "#0a0c14"
+  alert-red: "#e74c3c"
+  alert-red-deep: "#c0392b"
+  amber-pending: "#f5a623"
+  surface-gray: "#f2f2f2"
+  surface-white: "#ffffff"
+  surface-offwhite: "#fafafa"
+  table-header: "#f8f8f8"
+typography:
+  display:
+    fontFamily: "Fira Sans, sans-serif"
+    fontSize: "19px"
+    fontWeight: 800
+    lineHeight: 1
+    letterSpacing: "0.1em"
+  headline:
+    fontFamily: "Fira Sans, sans-serif"
+    fontSize: "14px"
+    fontWeight: 800
+    lineHeight: 1.2
+    letterSpacing: "0.12em"
+  title:
+    fontFamily: "Fira Sans, sans-serif"
+    fontSize: "11.5px"
+    fontWeight: 800
+    lineHeight: 1.2
+    letterSpacing: "0.12em"
+  body:
+    fontFamily: "Fira Sans, sans-serif"
+    fontSize: "13px"
+    fontWeight: 400
+    lineHeight: 1.5
+  label:
+    fontFamily: "Fira Sans, sans-serif"
+    fontSize: "9.5px"
+    fontWeight: 700
+    letterSpacing: "0.12em"
+  mono:
+    fontFamily: "Fira Code, monospace"
+    fontSize: "13px"
+    fontWeight: 400
+    lineHeight: 1.5
+rounded:
+  pill: "999px"
+  lg: "8px"
+  md: "4px"
+  sm: "3px"
+  xs: "2px"
+spacing:
+  xs: "4px"
+  sm: "8px"
+  md: "12px"
+  lg: "16px"
+  xl: "20px"
+components:
+  button-primary:
+    backgroundColor: "{colors.teal-deep}"
+    textColor: "{colors.surface-white}"
+    rounded: "{rounded.sm}"
+    padding: "0 14px"
+    height: "34px"
+  button-primary-hover:
+    backgroundColor: "{colors.near-black}"
+    textColor: "{colors.surface-white}"
+    rounded: "{rounded.sm}"
+  button-ghost:
+    backgroundColor: "transparent"
+    textColor: "#aaa"
+    rounded: "{rounded.sm}"
+    padding: "0 14px"
+    height: "30px"
+  input-text:
+    backgroundColor: "{colors.surface-white}"
+    textColor: "#222"
+    rounded: "{rounded.sm}"
+    padding: "0 9px"
+    height: "32px"
+  input-text-focus:
+    backgroundColor: "{colors.surface-white}"
+    textColor: "#222"
+    rounded: "{rounded.sm}"
+  card:
+    backgroundColor: "{colors.surface-white}"
+    rounded: "{rounded.md}"
+    padding: "12px 14px"
+  status-badge-active:
+    backgroundColor: "rgba(0,168,168,0.1)"
+    textColor: "#00838f"
+    rounded: "{rounded.pill}"
+    padding: "3px 9px"
+  status-badge-inactive:
+    backgroundColor: "rgba(0,0,0,0.06)"
+    textColor: "#888"
+    rounded: "{rounded.pill}"
+    padding: "3px 9px"
+  status-badge-error:
+    backgroundColor: "rgba(231,76,60,0.1)"
+    textColor: "{colors.alert-red-deep}"
+    rounded: "{rounded.pill}"
+    padding: "3px 9px"
+  status-badge-pending:
+    backgroundColor: "rgba(245,184,0,0.12)"
+    textColor: "#b37400"
+    rounded: "{rounded.pill}"
+    padding: "3px 9px"
+---
+
 # DESIGN
 
 ## Vue d'ensemble

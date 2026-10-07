@@ -47,19 +47,26 @@
             <span
               :class="[
                 'filter-status__dot',
-                demandeLoading || demandeRefreshing
-                  ? 'filter-status__dot--loading'
-                  : 'filter-status__dot--ok',
+                demandeLoadError
+                  ? 'filter-status__dot--error'
+                  : demandeLoading || demandeRefreshing
+                    ? 'filter-status__dot--loading'
+                    : 'filter-status__dot--ok',
               ]"
             ></span>
             <span class="filter-status__label">
               {{
-                demandeLoading
-                  ? "CHARGEMENT…"
-                  : demandeRefreshing
-                    ? "ACTUALISATION…"
-                    : "OPÉRATIONNEL"
+                demandeLoadError
+                  ? "ERREUR"
+                  : demandeLoading
+                    ? "CHARGEMENT…"
+                    : demandeRefreshing
+                      ? "ACTUALISATION…"
+                      : "OPÉRATIONNEL"
               }}
+            </span>
+            <span v-if="demandeLastRefreshed && !demandeLoadError" class="filter-status__ts">
+              {{ formatLastRefreshed(demandeLastRefreshed) }}
             </span>
           </div>
         </v-sheet>
@@ -69,7 +76,7 @@
     <!-- ── 1. KPI Demandes ────────────────────────────────────────────── -->
     <v-row>
       <v-col
-        v-for="(kpi, key) in filteredKpis"
+        v-for="(kpi, key) in demandeKpis"
         :key="key"
         cols="12"
         sm="6"
@@ -85,6 +92,7 @@
         <DashboardDemandeTrend
           :trend-data="demandeTrendData"
           :loading="demandeLoading"
+          :period="filters.period"
         />
       </v-col>
       <v-col cols="12" lg="5">
@@ -102,6 +110,8 @@
         <DashboardUrgentDemandes
           :demandes="demandeCritiques"
           :loading="demandeLoading"
+          :error="demandeLoadError"
+          @retry="loadDemandes"
         />
       </v-col>
     </v-row>
@@ -109,7 +119,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from "vue";
+import { reactive, watch, onMounted } from "vue";
 import { useDashboardDemandesData } from "@/composables/useDashboardDemandesData";
 import DashboardDemandesKpiCard from "@/components/dashboard/DashboardDemandesKpiCard.vue";
 import DashboardDemandeTrend from "@/components/dashboard/DashboardDemandeTrend.vue";
@@ -119,11 +129,15 @@ import DashboardUrgentDemandes from "@/components/dashboard/DashboardUrgentDeman
 const {
   loading: demandeLoading,
   refreshing: demandeRefreshing,
+  loadError: demandeLoadError,
+  typeFilter: demandeTypeFilter,
+  lastRefreshedAt: demandeLastRefreshed,
   kpis: demandeKpis,
   byType: demandeByType,
   byStatut: demandeByStatut,
   trendData: demandeTrendData,
   critiques: demandeCritiques,
+  load: loadDemandes,
   startAutoRefresh: startDemandeRefresh,
 } = useDashboardDemandesData();
 
@@ -142,12 +156,17 @@ const typeOptions = [
 ];
 
 const filters = reactive({
-  period: "30j",
+  period: "today",
   type: null as string | null,
 });
 
-// Tous les KPIs sont toujours affichés (le filtre type oriente la lecture)
-const filteredKpis = computed(() => demandeKpis.value);
+// Sync type chip-group selection into the composable's filter ref
+watch(() => filters.type, (t) => { demandeTypeFilter.value = t; });
+
+function formatLastRefreshed(d: Date | null): string {
+  if (!d) return "";
+  return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
 
 onMounted(() => {
   startDemandeRefresh(30000);
@@ -185,13 +204,18 @@ onMounted(() => {
 }
 
 .filter-status__dot--ok {
-  background: #27ae60;
-  box-shadow: 0 0 0 2px rgba(39, 174, 96, 0.2);
+  background: #00a8a8;
+  box-shadow: 0 0 0 2px rgba(0, 168, 168, 0.2);
 }
 
 .filter-status__dot--loading {
   background: #f39c12;
   animation: dot-pulse 1s ease-in-out infinite;
+}
+
+.filter-status__dot--error {
+  background: #e74c3c;
+  box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.2);
 }
 
 @keyframes dot-pulse {
@@ -211,6 +235,16 @@ onMounted(() => {
   letter-spacing: 0.12em;
   color: #888;
   text-transform: uppercase;
+}
+
+.filter-status__ts {
+  font-family: "Fira Code", monospace;
+  font-size: 10px;
+  color: #aaa;
+  letter-spacing: 0.06em;
+  padding-left: 6px;
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+  margin-left: 4px;
 }
 
 /* ── Utilitaires ───────────────────────────────────────────────────── */

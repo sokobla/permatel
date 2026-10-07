@@ -115,7 +115,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { useAuthStore } from "@/store/auth";
 import ContactSearchPanel from "@/components/workspace/ContactSearchPanel.vue";
 import WorkspaceOpenDemandes from "@/components/workspace/WorkspaceOpenDemandes.vue";
@@ -172,37 +172,6 @@ function normalizeContact(c) {
     isAgent: c.agent_securite_id != null || c.type === "Agent de sécurité",
   };
 }
-
-const MOCK_HISTORY = [
-  {
-    id: 1,
-    role: "client",
-    text: "Bonjour, j'ai une coupure totale d'internet depuis ce matin. Ma box clignote en rouge.",
-    time: "10:45:14",
-    type: "TRANSCRIPTION",
-  },
-  {
-    id: 2,
-    role: "agent",
-    text: "Bien reçu. Je détecte effectivement une alerte sur votre secteur. Je lance un diagnostic à distance.",
-    time: "10:45:38",
-    type: "AUDIO",
-  },
-  {
-    id: 3,
-    role: "client",
-    text: "D'accord. Ça fait combien de temps en moyenne pour que ça revienne ?",
-    time: "10:46:02",
-    type: "TRANSCRIPTION",
-  },
-  {
-    id: 4,
-    role: "agent",
-    text: "Selon le diagnostic, l'incident devrait être résolu sous 30 à 45 minutes. Je vous envoie un SMS de confirmation dès la restauration.",
-    time: "10:46:21",
-    type: "AUDIO",
-  },
-];
 
 // ─── État local ────────────────────────────────────────────────────────────
 const contacts = ref([]);
@@ -286,11 +255,10 @@ function onNewDemande(type) {
   activeDemandeType.value = type;
 }
 
-function onDemandeSubmitted(demande) {
+function onDemandeSubmitted() {
   activeDemandeType.value = null;
   demandeListKey.value++;
-  openDemandesRef.value?.reload?.(); // rafraîchit la liste des demandes en cours
-  console.log("[Workspace] demande créée →", demande.numero_ticket);
+  openDemandesRef.value?.reload?.();
 }
 
 // Sélection d'une demande dans la liste de gauche → ouvre immédiatement son
@@ -315,12 +283,7 @@ function onContactSelected(contact) {
   selectedContact.value = contact;
   activeDemandeType.value = null;
   communicationHistory.value = [];
-  historyLoading.value = true;
-
-  setTimeout(() => {
-    communicationHistory.value = MOCK_HISTORY;
-    historyLoading.value = false;
-  }, 800);
+  historyLoading.value = false;
 }
 
 // ─── Changement de canal ────────────────────────────────────────────────────
@@ -350,10 +313,17 @@ function onAction(type) {
       ? { id: c.id, fullName: c.fullName, email: c.email }
       : null;
     selectedChannel.value = "mail";
-    return;
   }
-  console.log(`[Workspace] action → ${type}`, selectedContact.value);
 }
+
+// ─── Fermer le tiroir de détail avec Échap ─────────────────────────────────
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === "Escape" && openDemande.value) {
+    openDemande.value = null;
+  }
+}
+onMounted(() => document.addEventListener("keydown", onKeydown));
+onUnmounted(() => document.removeEventListener("keydown", onKeydown));
 </script>
 
 <script>
