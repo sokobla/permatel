@@ -163,7 +163,7 @@ const filters = reactive({
 // Sync type chip-group selection into the composable's filter ref
 watch(() => filters.type, (t) => { demandeTypeFilter.value = t; });
 
-function formatLastRefreshed(d: Date | null): string {
+function formatLastRefreshed(d) {
   if (!d) return "";
   return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }

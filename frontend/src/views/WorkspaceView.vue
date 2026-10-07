@@ -317,7 +317,7 @@ function onAction(type) {
 }
 
 // ─── Fermer le tiroir de détail avec Échap ─────────────────────────────────
-function onKeydown(e: KeyboardEvent) {
+function onKeydown(e) {
   if (e.key === "Escape" && openDemande.value) {
     openDemande.value = null;
   }

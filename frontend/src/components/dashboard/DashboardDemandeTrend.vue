@@ -40,7 +40,7 @@ const props = defineProps({
   period: { type: String, default: "30j" },
 });
 
-const PERIOD_TITLES: Record<string, string> = {
+const PERIOD_TITLES = {
   today: "TENDANCE — AUJOURD'HUI",
   "7j": "TENDANCE — 7 DERNIERS JOURS",
   "30j": "TENDANCE — 30 DERNIERS JOURS",
